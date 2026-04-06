@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+*/dist/
+client/.angular/
+
+# Storage (runtime data - not committed)
+server/storage/uploads/
+server/storage/projects/
+
+# Environment files
+.env
+*.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+*/coverage/

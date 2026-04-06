@@ -1,10 +1,11 @@
 import {
+  AfterViewInit,
   Component,
   ElementRef,
   OnDestroy,
-  OnInit,
   ViewChild,
   computed,
+  effect,
   input,
   signal,
 } from '@angular/core';
@@ -13,20 +14,17 @@ import { Clip } from '../../../core/models/clip.model';
 import { Word } from '../../../core/models/word.model';
 import { Segment } from '../../../core/models/segment.model';
 import { ClipService } from '../../../core/services/clip.service';
-
-interface WordState {
-  word: Word;
-  segId: string;
-  highlighted: boolean;
-}
+import { ProjectService } from '../../../core/services/project.service';
+import { MediaPlayerService } from './media-player.service';
+import { SegmentTimelineComponent } from './segment-timeline.component';
+import { EditHistoryService, WordEditChange } from './edit-history.service';
 
 @Component({
   selector: 'app-txt-media-player',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SegmentTimelineComponent],
   template: `
     <div class="txt-player">
-      <!-- Media element (hidden for audio-only) -->
       <div class="media-area">
         @if (isVideo()) {
           <video
@@ -34,18 +32,12 @@ interface WordState {
             class="video-el"
             [src]="mediaUrl()"
             preload="metadata"
-            (timeupdate)="onTimeUpdate()"
-            (loadedmetadata)="onLoaded()"
-            (ended)="playing.set(false)"
           ></video>
         } @else {
           <audio
             #mediaEl
             [src]="mediaUrl()"
             preload="metadata"
-            (timeupdate)="onTimeUpdate()"
-            (loadedmetadata)="onLoaded()"
-            (ended)="playing.set(false)"
           ></audio>
           <div class="audio-placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
@@ -56,7 +48,6 @@ interface WordState {
         }
       </div>
 
-      <!-- Transport controls -->
       <div class="controls">
         <button class="ctrl-btn" (click)="togglePlay()" [title]="playing() ? 'Pause' : 'Play'">
           @if (playing()) {
@@ -69,6 +60,25 @@ interface WordState {
         <div class="progress-bar" (click)="seek($event)">
           <div class="progress-fill" [style.width.%]="progress()"></div>
         </div>
+        <label class="ctrl-inline">
+          <span>Vol</span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            [value]="volume()"
+            (input)="setVolume($any($event.target).value)"
+          />
+        </label>
+        <label class="ctrl-inline">
+          <span>Speed</span>
+          <select [value]="playbackRate()" (change)="setPlaybackRate($any($event.target).value)">
+            @for (rate of playbackRates; track rate) {
+              <option [value]="rate">{{ rate }}x</option>
+            }
+          </select>
+        </label>
         <span class="jump-cut-badge" [class.active]="jumpCutMode()">Jump&nbsp;Cut</span>
         <button class="ctrl-btn" (click)="jumpCutMode.set(!jumpCutMode())" title="Toggle Jump-Cut Preview">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20">
@@ -77,7 +87,6 @@ interface WordState {
         </button>
       </div>
 
-      <!-- Transcript -->
       <div class="transcript" #transcriptEl>
         @for (seg of clip().segments; track seg.id) {
           <div class="segment" [class.jump-cut-hidden]="isSegmentRemoved(seg)">
@@ -87,8 +96,9 @@ interface WordState {
                   class="word"
                   [class.highlighted]="isHighlighted(word)"
                   [class.removed]="word.isRemoved"
+                  [class.selected]="isSelected(word.id)"
                   [class.jump-cut-hidden]="jumpCutMode() && word.isRemoved"
-                  (click)="seekToWord(word)"
+                  (click)="onWordClick(word, $event)"
                   (dblclick)="toggleRemove(word)"
                   [title]="word.isRemoved ? 'Double-click to restore' : 'Double-click to mark removed'"
                 >{{ word.text }}</span>
@@ -98,8 +108,17 @@ interface WordState {
         }
       </div>
 
-      <!-- Action bar -->
+      <app-segment-timeline
+        [segments]="clip().segments"
+        [duration]="duration()"
+        [currentTime]="currentTime()"
+        (seekRequested)="onTimelineSeek($event)"
+      />
+
       <div class="action-bar">
+        <button class="btn-secondary" (click)="removeSelected()" [disabled]="!selectedCount()">Remove Selected</button>
+        <button class="btn-secondary" (click)="restoreSelected()" [disabled]="!selectedCount()">Restore Selected</button>
+        <span class="selected-count">{{ selectedCount() }} selected</span>
         <span class="removed-count">{{ removedCount() }} words removed</span>
         <button class="btn-secondary" (click)="restoreAll()">Restore All</button>
       </div>
@@ -113,7 +132,6 @@ interface WordState {
       background: var(--color-bg);
     }
 
-    /* Media area */
     .media-area {
       position: relative;
       background: #000;
@@ -137,7 +155,6 @@ interface WordState {
     }
     audio { display: none; }
 
-    /* Controls */
     .controls {
       display: flex;
       align-items: center;
@@ -159,6 +176,23 @@ interface WordState {
       &:hover { background: var(--color-border); }
     }
     .time-display { font-size: .75rem; color: var(--color-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .ctrl-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      font-size: .72rem;
+      color: var(--color-muted);
+      white-space: nowrap;
+    }
+    .ctrl-inline input[type='range'] { width: 86px; accent-color: var(--color-accent); }
+    .ctrl-inline select {
+      border: 1px solid var(--color-border);
+      background: var(--color-bg);
+      color: var(--color-text);
+      border-radius: 6px;
+      font-size: .72rem;
+      padding: .1rem .35rem;
+    }
     .progress-bar {
       flex: 1;
       height: 4px;
@@ -177,7 +211,6 @@ interface WordState {
       &.active { background: var(--color-accent); color: #fff; }
     }
 
-    /* Transcript */
     .transcript {
       flex: 1;
       overflow-y: auto;
@@ -214,10 +247,13 @@ interface WordState {
         color: var(--color-muted);
         opacity: .5;
       }
+      &.selected {
+        outline: 1px solid color-mix(in srgb, var(--color-accent) 65%, white);
+        background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+      }
       &.jump-cut-hidden { display: none; }
     }
 
-    /* Action bar */
     .action-bar {
       display: flex;
       align-items: center;
@@ -230,6 +266,7 @@ interface WordState {
       font-size: .8rem;
     }
     .removed-count { color: var(--color-muted); }
+    .selected-count { color: var(--color-muted); }
     .btn-secondary {
       padding: .3rem .7rem;
       border: 1px solid var(--color-border);
@@ -238,92 +275,150 @@ interface WordState {
       color: var(--color-text);
       font-size: .8rem;
       cursor: pointer;
+      &:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+      }
       &:hover { border-color: var(--color-accent); color: var(--color-accent); }
     }
   `]
 })
-export class TxtMediaPlayerComponent implements OnInit, OnDestroy {
+export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   @ViewChild('mediaEl') mediaElRef!: ElementRef<HTMLVideoElement | HTMLAudioElement>;
   @ViewChild('transcriptEl') transcriptElRef!: ElementRef<HTMLDivElement>;
 
   readonly clip = input.required<Clip>();
 
-  readonly playing = signal(false);
-  readonly currentTime = signal(0);
-  readonly duration = signal(0);
+  readonly playing;
+  readonly currentTime;
+  readonly duration;
+  readonly playbackRate;
+  readonly volume;
   readonly jumpCutMode = signal(false);
+  readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  readonly selectedWordIds = signal<string[]>([]);
+  readonly selectionAnchorWordId = signal<string | null>(null);
 
   readonly progress = computed(() =>
     this.duration() > 0 ? (this.currentTime() / this.duration()) * 100 : 0
   );
 
   readonly mediaUrl = computed(() => `/api/clips/${this.clip().id}/stream`);
+
   readonly isVideo = computed(() => {
-    // inferred from file extension in the URL: if it's audio only, show placeholder
-    return true; // default to video; could derive from project mediaType
+    return this.projectService.project()?.mediaType !== 'audio';
   });
 
   readonly removedCount = computed(() =>
     this.clip().segments.flatMap((s) => s.words).filter((w) => w.isRemoved).length
   );
 
+  readonly selectedCount = computed(() => this.selectedWordIds().length);
+
   private pendingWordUpdates = new Map<string, boolean>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly handleKeydown = (event: KeyboardEvent) => this.onKeydown(event);
 
-  constructor(private clipService: ClipService) {}
+  private readonly playbackWatch = effect(() => {
+    const t = this.currentTime();
 
-  ngOnInit(): void {}
-
-  ngOnDestroy(): void {
-    if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.flushWordUpdates();
-  }
-
-  get media(): HTMLVideoElement | HTMLAudioElement | null {
-    return this.mediaElRef?.nativeElement ?? null;
-  }
-
-  togglePlay(): void {
-    if (!this.media) return;
-    if (this.playing()) {
-      this.media.pause();
-      this.playing.set(false);
-    } else {
-      // In jump-cut mode, skip removed words during playback by scheduling skips
-      this.media.play().then(() => this.playing.set(true)).catch(() => {});
-    }
-  }
-
-  onTimeUpdate(): void {
-    if (!this.media) return;
-    const t = this.media.currentTime;
-    this.currentTime.set(t);
-
-    // Jump-cut: skip over removed words
     if (this.jumpCutMode() && this.playing()) {
       this.applyJumpCut(t);
     }
 
-    // Auto-scroll transcript to highlighted word
     this.scrollTranscriptToCurrentWord();
+  });
+
+  constructor(
+    private clipService: ClipService,
+    readonly projectService: ProjectService,
+    private mediaPlayer: MediaPlayerService,
+    private editHistory: EditHistoryService,
+  ) {
+    this.playing = this.mediaPlayer.isPlaying;
+    this.currentTime = this.mediaPlayer.currentTime;
+    this.duration = this.mediaPlayer.duration;
+    this.playbackRate = this.mediaPlayer.playbackRate;
+    this.volume = this.mediaPlayer.volume;
   }
 
-  onLoaded(): void {
-    if (this.media) this.duration.set(this.media.duration || 0);
+  ngAfterViewInit(): void {
+    if (this.mediaElRef?.nativeElement) {
+      this.mediaPlayer.attachElement(this.mediaElRef.nativeElement);
+    }
+    window.addEventListener('keydown', this.handleKeydown);
+  }
+
+  ngOnDestroy(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.flushWordUpdates();
+    this.mediaPlayer.detachElement();
+    this.playbackWatch.destroy();
+    window.removeEventListener('keydown', this.handleKeydown);
+  }
+
+  togglePlay(): void {
+    if (this.playing()) {
+      this.mediaPlayer.pause();
+    } else {
+      this.mediaPlayer.play().catch(() => {});
+    }
   }
 
   seek(e: MouseEvent): void {
     const bar = e.currentTarget as HTMLElement;
     const rect = bar.getBoundingClientRect();
     const ratio = (e.clientX - rect.left) / rect.width;
-    if (this.media) {
-      this.media.currentTime = ratio * this.duration();
-    }
+    this.mediaPlayer.seek(ratio * this.duration());
   }
 
   seekToWord(word: Word): void {
-    if (this.media && !word.isRemoved) {
-      this.media.currentTime = word.startTime;
+    if (!word.isRemoved) {
+      this.mediaPlayer.seek(word.startTime);
+    }
+  }
+
+  onWordClick(word: Word, event: MouseEvent): void {
+    if (event.shiftKey && this.selectionAnchorWordId()) {
+      const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
+      this.selectedWordIds.set(range);
+      return;
+    }
+
+    this.selectionAnchorWordId.set(word.id);
+    this.selectedWordIds.set([word.id]);
+    this.seekToWord(word);
+  }
+
+  isSelected(wordId: string): boolean {
+    return this.selectedWordIds().includes(wordId);
+  }
+
+  removeSelected(): void {
+    const updates = this.selectedWordIds().map((wordId) => ({ id: wordId, isRemoved: true }));
+    this.applyWordUpdates(updates, true);
+  }
+
+  restoreSelected(): void {
+    const updates = this.selectedWordIds().map((wordId) => ({ id: wordId, isRemoved: false }));
+    this.applyWordUpdates(updates, true);
+  }
+
+  onTimelineSeek(time: number): void {
+    this.mediaPlayer.seek(time);
+  }
+
+  setPlaybackRate(value: string): void {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      this.mediaPlayer.setRate(parsed);
+    }
+  }
+
+  setVolume(value: string): void {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      this.mediaPlayer.setVolume(parsed);
     }
   }
 
@@ -337,22 +432,15 @@ export class TxtMediaPlayerComponent implements OnInit, OnDestroy {
   }
 
   toggleRemove(word: Word): void {
-    // Mutate in-place for immediate UI feedback; batch-save to server
-    (word as { isRemoved: boolean }).isRemoved = !word.isRemoved;
-    this.pendingWordUpdates.set(word.id, word.isRemoved);
-    this.scheduleSave();
+    this.applyWordUpdates([{ id: word.id, isRemoved: !word.isRemoved }], true);
   }
 
   restoreAll(): void {
-    for (const seg of this.clip().segments) {
-      for (const w of seg.words) {
-        if (w.isRemoved) {
-          (w as { isRemoved: boolean }).isRemoved = false;
-          this.pendingWordUpdates.set(w.id, false);
-        }
-      }
-    }
-    this.scheduleSave();
+    const updates = this.clip().segments
+      .flatMap((seg) => seg.words)
+      .filter((word) => word.isRemoved)
+      .map((word) => ({ id: word.id, isRemoved: false }));
+    this.applyWordUpdates(updates, true);
   }
 
   formatTime(s: number): string {
@@ -362,14 +450,14 @@ export class TxtMediaPlayerComponent implements OnInit, OnDestroy {
   }
 
   private applyJumpCut(currentTime: number): void {
-    // Find the next active (non-removed) word boundary after current time
     for (const seg of this.clip().segments) {
       for (const word of seg.words) {
         if (word.isRemoved && currentTime >= word.startTime && currentTime < word.endTime) {
-          // Skip to end of removed word
           const nextActive = this.findNextActiveWordStart(word.endTime);
-          if (this.media && nextActive !== null) {
-            this.media.currentTime = nextActive;
+          if (nextActive !== null) {
+            this.mediaPlayer.seek(nextActive);
+          } else {
+            this.mediaPlayer.pause();
           }
           return;
         }
@@ -386,9 +474,94 @@ export class TxtMediaPlayerComponent implements OnInit, OnDestroy {
     return null;
   }
 
+  private findWordById(wordId: string): Word | null {
+    for (const segment of this.clip().segments) {
+      for (const word of segment.words) {
+        if (word.id === wordId) return word;
+      }
+    }
+    return null;
+  }
+
+  private getWordRange(anchorWordId: string, targetWordId: string): string[] {
+    const orderedWordIds = this.clip().segments.flatMap((segment) => segment.words.map((word) => word.id));
+    const startIndex = orderedWordIds.indexOf(anchorWordId);
+    const endIndex = orderedWordIds.indexOf(targetWordId);
+    if (startIndex === -1 || endIndex === -1) return [targetWordId];
+    const from = Math.min(startIndex, endIndex);
+    const to = Math.max(startIndex, endIndex);
+    return orderedWordIds.slice(from, to + 1);
+  }
+
+  private onKeydown(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    const isEditable = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+    if (isEditable) return;
+
+    if (event.code === 'Space') {
+      event.preventDefault();
+      this.togglePlay();
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      this.mediaPlayer.seek(Math.max(0, this.currentTime() - 5));
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      this.mediaPlayer.seek(this.currentTime() + 5);
+      return;
+    }
+
+    if (event.key === 'Delete') {
+      event.preventDefault();
+      this.removeSelected();
+      return;
+    }
+
+    const isCtrlOrMeta = event.ctrlKey || event.metaKey;
+    if (!isCtrlOrMeta || event.key.toLowerCase() !== 'z') return;
+
+    event.preventDefault();
+    if (event.shiftKey) {
+      this.redo();
+    } else {
+      this.undo();
+    }
+  }
+
+  private undo(): void {
+    this.editHistory.undo((updates) => this.applyWordUpdates(updates, false));
+  }
+
+  private redo(): void {
+    this.editHistory.redo((updates) => this.applyWordUpdates(updates, false));
+  }
+
+  private applyWordUpdates(updates: Array<{ id: string; isRemoved: boolean }>, recordHistory: boolean): void {
+    if (!updates.length) return;
+
+    const changed: WordEditChange[] = [];
+    for (const update of updates) {
+      const word = this.findWordById(update.id);
+      if (!word || word.isRemoved === update.isRemoved) continue;
+      changed.push({ id: update.id, previousIsRemoved: word.isRemoved, nextIsRemoved: update.isRemoved });
+      (word as { isRemoved: boolean }).isRemoved = update.isRemoved;
+      this.pendingWordUpdates.set(word.id, update.isRemoved);
+    }
+
+    if (!changed.length) return;
+    if (recordHistory) {
+      this.editHistory.record(changed);
+    }
+    this.scheduleSave();
+  }
+
   private scrollTranscriptToCurrentWord(): void {
     if (!this.transcriptElRef) return;
-    const t = this.currentTime();
     const container = this.transcriptElRef.nativeElement;
     const highlighted = container.querySelector('.word.highlighted') as HTMLElement | null;
     if (highlighted) {

@@ -18,6 +18,14 @@ import { ProjectService } from '../../../core/services/project.service';
 import { MediaPlayerService } from './media-player.service';
 import { SegmentTimelineComponent } from './segment-timeline.component';
 import { EditHistoryService, WordEditChange } from './edit-history.service';
+import { KeyboardShortcutsService } from './keyboard-shortcuts.service';
+
+interface SegmentViewportItem {
+  segment: Segment;
+  index: number;
+  top: number;
+  bottom: number;
+}
 
 @Component({
   selector: 'app-txt-media-player',
@@ -87,8 +95,12 @@ import { EditHistoryService, WordEditChange } from './edit-history.service';
         </button>
       </div>
 
-      <div class="transcript" #transcriptEl>
-        @for (seg of clip().segments; track seg.id) {
+      <div class="transcript" #transcriptEl (scroll)="onTranscriptScroll()">
+        @if (shouldVirtualizeTranscript()) {
+          <div class="virtual-spacer" [style.height.px]="virtualPaddingTop()"></div>
+        }
+        @for (item of renderedSegmentItems(); track item.segment.id) {
+          @let seg = item.segment;
           <div class="segment" [class.jump-cut-hidden]="isSegmentRemoved(seg)">
             <div class="seg-words">
               @for (word of seg.words; track word.id) {
@@ -105,6 +117,9 @@ import { EditHistoryService, WordEditChange } from './edit-history.service';
               }
             </div>
           </div>
+        }
+        @if (shouldVirtualizeTranscript()) {
+          <div class="virtual-spacer" [style.height.px]="virtualPaddingBottom()"></div>
         }
       </div>
 
@@ -215,12 +230,15 @@ import { EditHistoryService, WordEditChange } from './edit-history.service';
       flex: 1;
       overflow-y: auto;
       padding: 1rem 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: .75rem;
+      display: block;
     }
     .segment {
+      margin-bottom: .75rem;
       &.jump-cut-hidden { display: none; }
+    }
+    .virtual-spacer {
+      width: 100%;
+      pointer-events: none;
     }
     .seg-words {
       display: flex;
@@ -298,6 +316,8 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
   readonly selectedWordIds = signal<string[]>([]);
   readonly selectionAnchorWordId = signal<string | null>(null);
+  readonly transcriptScrollTop = signal(0);
+  readonly transcriptViewportHeight = signal(0);
 
   readonly progress = computed(() =>
     this.duration() > 0 ? (this.currentTime() / this.duration()) * 100 : 0
@@ -314,10 +334,73 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   );
 
   readonly selectedCount = computed(() => this.selectedWordIds().length);
+  readonly totalWordCount = computed(() =>
+    this.clip().segments.reduce((total, segment) => total + segment.words.length, 0)
+  );
+  readonly shouldVirtualizeTranscript = computed(() => this.totalWordCount() >= 1200);
+  readonly segmentViewportItems = computed<SegmentViewportItem[]>(() => {
+    let offset = 0;
+    return this.clip().segments.map((segment, index) => {
+      const estimatedLines = Math.max(1, Math.ceil(segment.words.length / 10));
+      const estimatedHeight = 16 + estimatedLines * 28;
+      const item: SegmentViewportItem = {
+        segment,
+        index,
+        top: offset,
+        bottom: offset + estimatedHeight,
+      };
+      offset += estimatedHeight;
+      return item;
+    });
+  });
+  readonly transcriptTotalHeight = computed(() => {
+    const items = this.segmentViewportItems();
+    return items.length ? items[items.length - 1].bottom : 0;
+  });
+  readonly renderedSegmentItems = computed(() => {
+    const items = this.segmentViewportItems();
+    if (!this.shouldVirtualizeTranscript()) return items;
+    if (!items.length) return [];
+
+    const overscanPx = 700;
+    const viewportStart = Math.max(0, this.transcriptScrollTop() - overscanPx);
+    const viewportEnd = this.transcriptScrollTop() + this.transcriptViewportHeight() + overscanPx;
+
+    let startIndex = items.findIndex((item) => item.bottom >= viewportStart);
+    if (startIndex < 0) startIndex = 0;
+    let endIndex = -1;
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].top <= viewportEnd) {
+        endIndex = i;
+        break;
+      }
+    }
+    if (endIndex < 0) endIndex = items.length - 1;
+
+    const activeSegmentIndex = this.findActiveSegmentIndex();
+    if (activeSegmentIndex >= 0) {
+      startIndex = Math.min(startIndex, activeSegmentIndex);
+      endIndex = Math.max(endIndex, activeSegmentIndex);
+    }
+
+    return items.slice(startIndex, endIndex + 1);
+  });
+  readonly virtualPaddingTop = computed(() => {
+    if (!this.shouldVirtualizeTranscript()) return 0;
+    return this.renderedSegmentItems()[0]?.top ?? 0;
+  });
+  readonly virtualPaddingBottom = computed(() => {
+    if (!this.shouldVirtualizeTranscript()) return 0;
+    const rendered = this.renderedSegmentItems();
+    const lastBottom = rendered.length ? rendered[rendered.length - 1].bottom : 0;
+    return Math.max(0, this.transcriptTotalHeight() - lastBottom);
+  });
 
   private pendingWordUpdates = new Map<string, boolean>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly handleKeydown = (event: KeyboardEvent) => this.onKeydown(event);
+  private readonly handleTranscriptResize = () => this.measureTranscriptViewport();
+  private readonly handleKeydown: (event: KeyboardEvent) => void;
+  private detachKeyboardListener: (() => void) | null = null;
 
   private readonly playbackWatch = effect(() => {
     const t = this.currentTime();
@@ -334,19 +417,29 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     readonly projectService: ProjectService,
     private mediaPlayer: MediaPlayerService,
     private editHistory: EditHistoryService,
+    private keyboardShortcuts: KeyboardShortcutsService,
   ) {
     this.playing = this.mediaPlayer.isPlaying;
     this.currentTime = this.mediaPlayer.currentTime;
     this.duration = this.mediaPlayer.duration;
     this.playbackRate = this.mediaPlayer.playbackRate;
     this.volume = this.mediaPlayer.volume;
+    this.handleKeydown = this.keyboardShortcuts.createPlayerHandler({
+      togglePlay: () => this.togglePlay(),
+      seekRelative: (seconds) => this.mediaPlayer.seek(Math.max(0, this.currentTime() + seconds)),
+      removeSelection: () => this.removeSelected(),
+      undo: () => this.undo(),
+      redo: () => this.redo(),
+    });
   }
 
   ngAfterViewInit(): void {
     if (this.mediaElRef?.nativeElement) {
       this.mediaPlayer.attachElement(this.mediaElRef.nativeElement);
     }
-    window.addEventListener('keydown', this.handleKeydown);
+    this.measureTranscriptViewport();
+    this.detachKeyboardListener = this.keyboardShortcuts.bindWindowKeydown(this.handleKeydown);
+    window.addEventListener('resize', this.handleTranscriptResize);
   }
 
   ngOnDestroy(): void {
@@ -354,7 +447,9 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     this.flushWordUpdates();
     this.mediaPlayer.detachElement();
     this.playbackWatch.destroy();
-    window.removeEventListener('keydown', this.handleKeydown);
+    this.detachKeyboardListener?.();
+    this.detachKeyboardListener = null;
+    window.removeEventListener('resize', this.handleTranscriptResize);
   }
 
   togglePlay(): void {
@@ -406,6 +501,14 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
 
   onTimelineSeek(time: number): void {
     this.mediaPlayer.seek(time);
+  }
+
+  onTranscriptScroll(): void {
+    if (!this.transcriptElRef) return;
+    this.transcriptScrollTop.set(this.transcriptElRef.nativeElement.scrollTop);
+    if (!this.transcriptViewportHeight()) {
+      this.measureTranscriptViewport();
+    }
   }
 
   setPlaybackRate(value: string): void {
@@ -493,46 +596,6 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     return orderedWordIds.slice(from, to + 1);
   }
 
-  private onKeydown(event: KeyboardEvent): void {
-    const target = event.target as HTMLElement | null;
-    const isEditable = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-    if (isEditable) return;
-
-    if (event.code === 'Space') {
-      event.preventDefault();
-      this.togglePlay();
-      return;
-    }
-
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      this.mediaPlayer.seek(Math.max(0, this.currentTime() - 5));
-      return;
-    }
-
-    if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      this.mediaPlayer.seek(this.currentTime() + 5);
-      return;
-    }
-
-    if (event.key === 'Delete') {
-      event.preventDefault();
-      this.removeSelected();
-      return;
-    }
-
-    const isCtrlOrMeta = event.ctrlKey || event.metaKey;
-    if (!isCtrlOrMeta || event.key.toLowerCase() !== 'z') return;
-
-    event.preventDefault();
-    if (event.shiftKey) {
-      this.redo();
-    } else {
-      this.undo();
-    }
-  }
-
   private undo(): void {
     this.editHistory.undo((updates) => this.applyWordUpdates(updates, false));
   }
@@ -563,6 +626,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   private scrollTranscriptToCurrentWord(): void {
     if (!this.transcriptElRef) return;
     const container = this.transcriptElRef.nativeElement;
+    this.measureTranscriptViewport();
     const highlighted = container.querySelector('.word.highlighted') as HTMLElement | null;
     if (highlighted) {
       const containerRect = container.getBoundingClientRect();
@@ -570,7 +634,36 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
       if (elRect.top < containerRect.top || elRect.bottom > containerRect.bottom) {
         highlighted.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
+      return;
     }
+
+    if (!this.shouldVirtualizeTranscript()) return;
+    const activeSegmentIndex = this.findActiveSegmentIndex();
+    if (activeSegmentIndex < 0) return;
+    const item = this.segmentViewportItems()[activeSegmentIndex];
+    if (!item) return;
+
+    const viewTop = container.scrollTop;
+    const viewBottom = viewTop + container.clientHeight;
+    if (item.top < viewTop || item.bottom > viewBottom) {
+      const nextTop = Math.max(0, item.top - container.clientHeight * 0.4);
+      container.scrollTo({ top: nextTop, behavior: 'smooth' });
+      this.transcriptScrollTop.set(nextTop);
+    }
+  }
+
+  private findActiveSegmentIndex(): number {
+    const t = this.currentTime();
+    return this.clip().segments.findIndex((segment) =>
+      segment.words.some((word) => t >= word.startTime && t < word.endTime)
+    );
+  }
+
+  private measureTranscriptViewport(): void {
+    if (!this.transcriptElRef) return;
+    const container = this.transcriptElRef.nativeElement;
+    this.transcriptViewportHeight.set(container.clientHeight);
+    this.transcriptScrollTop.set(container.scrollTop);
   }
 
   private scheduleSave(): void {

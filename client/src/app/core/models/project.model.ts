@@ -23,7 +23,7 @@ export interface Project {
   /** Relative path within storage/uploads/ */
   mediaPath: string;
   mediaType: 'video' | 'audio';
-  mediaInfo: MediaInfo;
+  mediaInfo: MediaInfo | null;
   clips: Clip[];
   pipelineConfig: PipelineStep[];
   editHistory: EditAction[];

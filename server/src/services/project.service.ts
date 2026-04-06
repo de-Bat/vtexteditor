@@ -22,12 +22,14 @@ class ProjectService {
     return this.currentProjectId;
   }
 
-  create(partial: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'editHistory'>): Project {
+  create(partial: { name: string; mediaPath: string; mediaType: 'video' | 'audio'; mediaInfo: import('../models/project.model').MediaInfo | null }): Project {
     const id = uuidv4();
     const now = new Date().toISOString();
     const project: Project = {
       ...partial,
       id,
+      clips: [],
+      pipelineConfig: [],
       editHistory: [],
       createdAt: now,
       updatedAt: now,

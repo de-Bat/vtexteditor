@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import { getUploadPath, fileExists } from '../utils/file.util';
 import { getMediaInfo } from '../utils/ffmpeg.util';
+import { projectService } from '../services/project.service';
 import fs from 'fs';
 
 const storage = multer.diskStorage({
@@ -30,22 +31,28 @@ const upload = multer({
 
 export const mediaRoutes = Router();
 
-/** POST /api/media — upload a media file */
-mediaRoutes.post('/', upload.single('file'), async (req: Request, res: Response) => {
+/** POST /api/media — upload a media file, create project */
+mediaRoutes.post('/', upload.single('media'), async (req: Request, res: Response) => {
   if (!req.file) {
     res.status(400).json({ error: 'No file uploaded' });
     return;
   }
-  const id = path.basename(req.file.filename, path.extname(req.file.filename));
+  const mediaId = path.basename(req.file.filename, path.extname(req.file.filename));
   const filePath = req.file.path;
+  const ext = path.extname(req.file.filename);
+  const mediaType = ['.mp4', '.webm', '.mkv'].includes(ext) ? 'video' : 'audio';
 
-  try {
-    const info = await getMediaInfo(filePath);
-    res.status(201).json({ id, filename: req.file.filename, info });
-  } catch (err) {
-    // If metadata fails, still return the upload id
-    res.status(201).json({ id, filename: req.file.filename, info: null });
-  }
+  let mediaInfo = null;
+  try { mediaInfo = await getMediaInfo(filePath); } catch { /* best effort */ }
+
+  const project = projectService.create({
+    name: path.basename(req.file.originalname, ext),
+    mediaPath: filePath,
+    mediaType,
+    mediaInfo,
+  });
+
+  res.status(201).json({ mediaId, project });
 });
 
 /** GET /api/media/:id/info — get media metadata */

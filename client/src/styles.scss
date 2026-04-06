@@ -1,1 +1,32 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global design tokens and resets for VTextStudio */
+
+:root {
+  /* Dark theme (default) */
+  --color-bg: #0e0e12;
+  --color-surface: #18181f;
+  --color-surface-alt: #1e1e27;
+  --color-border: #2a2a38;
+  --color-text: #e8e8f0;
+  --color-text-secondary: #9898b8;
+  --color-muted: #5a5a78;
+  --color-accent: #7c6af7;
+  --color-accent-subtle: rgba(124, 106, 247, 0.12);
+  --color-success: #4caf82;
+  --color-error: #e05c5c;
+  --color-error-subtle: rgba(224, 92, 92, 0.12);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font-family: inherit; }

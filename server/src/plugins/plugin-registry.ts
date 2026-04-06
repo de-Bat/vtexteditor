@@ -1,5 +1,7 @@
 import { IPlugin } from './plugin.interface';
 import { srtImportPlugin } from './transcription/srt-import.plugin';
+import { whisperPlugin } from './transcription/whisper-openai.plugin';
+import { groqWhisperPlugin } from './transcription/groq-whisper.plugin';
 
 /** Central registry of all available plugins */
 class PluginRegistry {
@@ -7,7 +9,8 @@ class PluginRegistry {
 
   constructor() {
     this.register(srtImportPlugin);
-    // Additional plugins registered here as they are implemented
+    this.register(whisperPlugin);
+    this.register(groqWhisperPlugin);
   }
 
   register(plugin: IPlugin): void {

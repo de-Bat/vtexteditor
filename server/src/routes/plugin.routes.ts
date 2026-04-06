@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pluginRegistry } from '../plugins/plugin-registry';
 import { pipelineService } from '../services/pipeline.service';
+import { projectService } from '../services/project.service';
 
 export const pluginRoutes = Router();
 
@@ -19,20 +20,29 @@ pluginRoutes.get('/', (_req: Request, res: Response) => {
 
 /** POST /api/plugins/pipeline/run — execute a pipeline */
 pluginRoutes.post('/pipeline/run', async (req: Request, res: Response) => {
-  const { projectId, mediaPath, mediaInfo, steps, metadata } = req.body as {
+  const { projectId, steps } = req.body as {
     projectId: string;
-    mediaPath: string;
-    mediaInfo: Record<string, unknown>;
     steps: Array<{ pluginId: string; config: Record<string, unknown>; order: number }>;
-    metadata?: Record<string, unknown>;
   };
 
-  if (!projectId || !mediaPath || !steps?.length) {
-    res.status(400).json({ error: 'projectId, mediaPath, and steps are required' });
+  if (!projectId || !steps?.length) {
+    res.status(400).json({ error: 'projectId and steps are required' });
     return;
   }
 
-  // Start async — return job ID immediately
-  const jobId = await pipelineService.start({ projectId, mediaPath, mediaInfo: mediaInfo as never, steps, metadata: metadata ?? {} });
+  // Resolve mediaPath server-side from stored project (prevents path traversal)
+  const project = projectService.get(projectId);
+  if (!project) {
+    res.status(404).json({ error: `Project ${projectId} not found` });
+    return;
+  }
+
+  const jobId = await pipelineService.start({
+    projectId,
+    mediaPath: project.mediaPath,
+    mediaInfo: project.mediaInfo as never,
+    steps,
+    metadata: {},
+  });
   res.status(202).json({ jobId });
 });

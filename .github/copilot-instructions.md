@@ -6,6 +6,7 @@
 - Update task tracking only after a task or milestone has been completed successfully.
 - Use a git repository for all work. If the workspace is not already a git repository, initialize one immediately.
 - After a task is completed successfully, stage and commit all pending changes.
+- For each commit, include code review documentation that records issues, fixes, and every review iteration until approval.
 - Act as independently as possible and only ask the user for input when blocked or when a required approval, tool, or model is unavailable.
 - Follow GitHub Flow: create a feature branch for each task, open a pull request for review, and merge to main only after approval.
 - Follow GitHub Flow: create a feature branch for each task, open a pull request for review, and merge to main only after approval.
@@ -16,6 +17,15 @@
 - Request code review approval from GPT Codex 5.3 when that review agent is available.
 - Create as many implementation and review iterations as needed until the code is approved.
 - Do not report a task as complete if any success criterion has not been met.
+
+## Review Documentation
+
+- Document code review results for each commit, not just once per task.
+- Record every found issue with enough context to understand impact and severity.
+- For each issue, include where it was found using file path and precise location.
+- For each resolved issue, include where it was fixed using file path and precise location.
+- Keep a full iteration log of review -> fix -> re-review cycles until the commit is approved.
+- Include the final approval outcome that confirms the commit is accepted as OK.
 
 ## Model Routing
 

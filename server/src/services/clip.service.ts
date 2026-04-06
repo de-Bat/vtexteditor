@@ -3,7 +3,11 @@ import { Word } from '../models/word.model';
 import { projectService } from './project.service';
 
 class ClipService {
-  getAll(): Clip[] {
+  getAll(projectId?: string): Clip[] {
+    if (projectId) {
+      const project = projectService.get(projectId);
+      return project?.clips ?? [];
+    }
     const project = projectService.getCurrent();
     return project?.clips ?? [];
   }

@@ -1,0 +1,179 @@
+import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import fs from 'fs';
+import ffmpeg from 'fluent-ffmpeg';
+import { projectService } from './project.service';
+import { clipService } from './clip.service';
+import { sseService } from './sse.service';
+import { config } from '../config';
+import { ensureDir } from '../utils/file.util';
+import { Word } from '../models/word.model';
+
+export type ExportFormat = 'video' | 'text-plain' | 'text-srt';
+
+export interface ExportJob {
+  id: string;
+  projectId: string;
+  format: ExportFormat;
+  status: 'pending' | 'running' | 'done' | 'error';
+  outputPath?: string;
+  error?: string;
+  createdAt: string;
+}
+
+class ExportService {
+  private jobs = new Map<string, ExportJob>();
+  private exportsDir: string;
+
+  constructor() {
+    this.exportsDir = path.join(config.storage.projects, '..', 'exports');
+    ensureDir(this.exportsDir);
+  }
+
+  getJob(id: string): ExportJob | undefined {
+    return this.jobs.get(id);
+  }
+
+  /** Start an export job asynchronously. Returns jobId immediately. */
+  start(projectId: string, format: ExportFormat): string {
+    const id = uuidv4();
+    const job: ExportJob = { id, projectId, format, status: 'pending', createdAt: new Date().toISOString() };
+    this.jobs.set(id, job);
+    setImmediate(() => this.run(id));
+    return id;
+  }
+
+  private async run(jobId: string): Promise<void> {
+    const job = this.jobs.get(jobId)!;
+    job.status = 'running';
+
+    try {
+      const project = projectService.get(job.projectId);
+      if (!project) throw new Error(`Project ${job.projectId} not found`);
+
+      const clips = clipService.getAll(job.projectId);
+      const allWords: Word[] = clips.flatMap((c) => c.segments.flatMap((s) => s.words));
+      const activeWords = allWords.filter((w) => !w.isRemoved);
+
+      if (job.format === 'text-plain') {
+        await this.exportText(job, activeWords);
+      } else if (job.format === 'text-srt') {
+        await this.exportSrt(job, clips.flatMap((c) => c.segments));
+      } else {
+        await this.exportVideo(job, project.mediaPath, activeWords, activeWords);
+      }
+
+      job.status = 'done';
+      sseService.broadcast({ type: 'export:complete', data: { jobId, format: job.format } });
+    } catch (err) {
+      job.status = 'error';
+      job.error = err instanceof Error ? err.message : String(err);
+      sseService.broadcast({ type: 'export:error', data: { jobId, error: job.error } });
+    }
+  }
+
+  private async exportText(job: ExportJob, words: Word[]): Promise<void> {
+    const text = words.map((w) => w.text).join(' ');
+    const outPath = path.join(this.exportsDir, `${job.id}.txt`);
+    fs.writeFileSync(outPath, text, 'utf-8');
+    job.outputPath = outPath;
+  }
+
+  private async exportSrt(job: ExportJob, segments: import('../models/segment.model').Segment[]): Promise<void> {
+    const { toSrtTime } = await import('../utils/time.util');
+    let index = 1;
+    const lines: string[] = [];
+
+    for (const seg of segments) {
+      const activeWords = seg.words.filter((w) => !w.isRemoved);
+      if (!activeWords.length) continue;
+
+      const text = activeWords.map((w) => w.text).join(' ');
+      const start = activeWords[0].startTime;
+      const end = activeWords[activeWords.length - 1].endTime;
+
+      lines.push(String(index++));
+      lines.push(`${toSrtTime(start)} --> ${toSrtTime(end)}`);
+      lines.push(text);
+      lines.push('');
+    }
+
+    const outPath = path.join(this.exportsDir, `${job.id}.srt`);
+    fs.writeFileSync(outPath, lines.join('\n'), 'utf-8');
+    job.outputPath = outPath;
+  }
+
+  private exportVideo(
+    job: ExportJob,
+    inputPath: string,
+    activeWords: Word[],
+    _allWords: Word[],
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!activeWords.length) return reject(new Error('No active words to export'));
+
+      // Build time segments from contiguous runs of active words
+      const kept = this.buildKeptSegments(activeWords);
+      const outPath = path.join(this.exportsDir, `${job.id}.mp4`);
+
+      // Build FFmpeg complex filter:
+      // [0:v]trim=start=X:end=Y,setpts=PTS-STARTPTS[v0];...concat=n=N:v=1:a=1[vout][aout]
+      const vFilters: string[] = [];
+      const aFilters: string[] = [];
+      const concatInputs: string[] = [];
+
+      kept.forEach(({ start, end }, i) => {
+        vFilters.push(`[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS[v${i}]`);
+        aFilters.push(`[0:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[a${i}]`);
+        concatInputs.push(`[v${i}][a${i}]`);
+      });
+
+      const n = kept.length;
+      const filterComplex = [
+        ...vFilters,
+        ...aFilters,
+        `${concatInputs.join('')}concat=n=${n}:v=1:a=1[vout][aout]`,
+      ].join(';');
+
+      let lastProgress = 0;
+      ffmpeg(inputPath)
+        .complexFilter(filterComplex)
+        .outputOptions(['-map [vout]', '-map [aout]', '-c:v libx264', '-c:a aac', '-movflags +faststart'])
+        .output(outPath)
+        .on('progress', (p) => {
+          if (p.percent && p.percent - lastProgress >= 5) {
+            lastProgress = p.percent;
+            sseService.broadcast({ type: 'export:progress', data: { jobId: job.id, progress: Math.round(p.percent) } });
+          }
+        })
+        .on('end', () => {
+          job.outputPath = outPath;
+          resolve();
+        })
+        .on('error', reject)
+        .run();
+    });
+  }
+
+  /** Merge adjacent/overlapping active-word time ranges into contiguous segments */
+  private buildKeptSegments(words: Word[]): Array<{ start: number; end: number }> {
+    if (!words.length) return [];
+    const sorted = [...words].sort((a, b) => a.startTime - b.startTime);
+    const result: Array<{ start: number; end: number }> = [];
+    let cur = { start: sorted[0].startTime, end: sorted[0].endTime };
+
+    for (let i = 1; i < sorted.length; i++) {
+      const w = sorted[i];
+      if (w.startTime <= cur.end + 0.05) {
+        cur.end = Math.max(cur.end, w.endTime);
+      } else {
+        result.push(cur);
+        cur = { start: w.startTime, end: w.endTime };
+      }
+    }
+    result.push(cur);
+    return result;
+  }
+}
+
+export const exportService = new ExportService();

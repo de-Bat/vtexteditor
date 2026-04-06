@@ -6,12 +6,13 @@ import { ProjectService } from '../../core/services/project.service';
 import { SseService } from '../../core/services/sse.service';
 import { ClipListComponent } from './clip-list/clip-list.component';
 import { TxtMediaPlayerComponent } from './txt-media-player/txt-media-player.component';
+import { ExportPanelComponent } from './export-panel/export-panel.component';
 import { Clip } from '../../core/models/clip.model';
 
 @Component({
   selector: 'app-studio',
   standalone: true,
-  imports: [CommonModule, RouterLink, ClipListComponent, TxtMediaPlayerComponent],
+  imports: [CommonModule, RouterLink, ClipListComponent, TxtMediaPlayerComponent, ExportPanelComponent],
   template: `
     <div class="studio-layout">
       <header class="studio-header">
@@ -43,6 +44,12 @@ import { Clip } from '../../core/models/clip.model';
             </div>
           }
         </section>
+
+        @if (projectService.project(); as proj) {
+          <aside class="export-panel-wrapper">
+            <app-export-panel [projectId]="proj.id" />
+          </aside>
+        }
       </main>
     </div>
   `,
@@ -94,6 +101,10 @@ import { Clip } from '../../core/models/clip.model';
       height: 100%;
       color: var(--color-muted);
       font-size: .9rem;
+    }
+    .export-panel-wrapper {
+      flex-shrink: 0;
+      overflow-y: auto;
     }
   `]
 })

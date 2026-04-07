@@ -11,6 +11,7 @@ import { extractAudioTrack, makeTempAudioPath } from '../../utils/ffmpeg.util';
 
 interface WhisperConfig {
   apiKey?: string;
+  baseURL?: string;
   model?: string;
   language?: string;
 }
@@ -37,8 +38,8 @@ interface WhisperResponse {
 
 export const whisperPlugin: IPlugin = {
   id: 'whisper-openai',
-  name: 'Whisper (OpenAI API)',
-  description: 'Transcribe audio/video using OpenAI Whisper API with word-level timestamps.',
+  name: 'Whisper (OpenAI-compatible API)',
+  description: 'Transcribe audio/video using OpenAI Whisper API or any self-hosted OpenAI-compatible server (whisper.cpp, faster-whisper-server, LocalAI, etc.) with word-level timestamps.',
   type: 'transcription',
   hasUI: false,
   configSchema: {
@@ -46,13 +47,20 @@ export const whisperPlugin: IPlugin = {
       properties: {
         apiKey: {
           type: 'string',
-          title: 'OpenAI API Key',
-          description: 'Your OpenAI API key (or set OPENAI_API_KEY env var)',
+          title: 'API Key',
+          description: 'API key (or set OPENAI_API_KEY env var). Leave blank for self-hosted servers that do not require authentication.',
+        },
+        baseURL: {
+          type: 'string',
+          title: 'Base URL',
+          description: 'Override the API base URL for self-hosted servers, e.g. http://localhost:9000/v1 . Leave blank to use the official OpenAI endpoint.',
+          default: '',
         },
         model: {
           type: 'string',
           title: 'Model',
-          enum: ['whisper-1'],
+          description: 'Model name. Use "whisper-1" for OpenAI. Self-hosted servers may use "large-v3", "base", "ggml-base", etc.',
+          examples: ['whisper-1', 'large-v3', 'base', 'small'],
           default: 'whisper-1',
         },
         language: {
@@ -73,9 +81,22 @@ export const whisperPlugin: IPlugin = {
   async execute(ctx: PipelineContext): Promise<PipelineContext> {
     const cfg = (ctx.metadata['whisper-openai'] ?? {}) as WhisperConfig & { clipName?: string };
     const apiKey = cfg.apiKey ?? process.env['OPENAI_API_KEY'];
-    if (!apiKey) throw new Error('OpenAI API key required. Set OPENAI_API_KEY or provide apiKey in config.');
+    const baseURL = cfg.baseURL?.trim() || process.env['WHISPER_BASE_URL'];
 
-    const client = new OpenAI({ apiKey });
+    // For self-hosted servers an API key is optional; use a placeholder so the
+    // OpenAI client does not throw about a missing key.
+    if (!apiKey && !baseURL) {
+      throw new Error(
+        'API key required for the OpenAI endpoint. ' +
+        'Set OPENAI_API_KEY / apiKey, or provide a baseURL for a self-hosted server.',
+      );
+    }
+
+    const clientOpts: ConstructorParameters<typeof OpenAI>[0] = {
+      apiKey: apiKey ?? 'self-hosted',
+      ...(baseURL ? { baseURL } : {}),
+    };
+    const client = new OpenAI(clientOpts);
 
     if (!fs.existsSync(ctx.mediaPath)) throw new Error(`Media file not found: ${ctx.mediaPath}`);
 

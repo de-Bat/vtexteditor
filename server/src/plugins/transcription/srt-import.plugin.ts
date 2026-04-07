@@ -42,10 +42,11 @@ export const srtImportPlugin: IPlugin = {
     const clipStart = entries[0].startTime;
     const clipEnd = entries[entries.length - 1].endTime;
 
-    const segments: Segment[] = entries.map((entry) => {
-      const segmentId = uuidv4();
+    // Merge all SRT entries into a single segment
+    const segmentId = uuidv4();
+    const allWords: Word[] = entries.flatMap((entry) => {
       const wordTimings = estimateWordTimestamps(entry.startTime, entry.endTime, entry.text);
-      const words: Word[] = wordTimings.map((w) => ({
+      return wordTimings.map((w) => ({
         id: uuidv4(),
         segmentId,
         text: w.text,
@@ -53,17 +54,17 @@ export const srtImportPlugin: IPlugin = {
         endTime: w.endTime,
         isRemoved: false,
       }));
-      const segment: Segment = {
-        id: segmentId,
-        clipId,
-        startTime: entry.startTime,
-        endTime: entry.endTime,
-        text: entry.text,
-        words,
-        tags: [],
-      };
-      return segment;
     });
+
+    const segments: Segment[] = [{
+      id: segmentId,
+      clipId,
+      startTime: clipStart,
+      endTime: clipEnd,
+      text: entries.map((e) => e.text).join(' '),
+      words: allWords,
+      tags: [],
+    }];
 
     const clip: Clip = {
       id: clipId,

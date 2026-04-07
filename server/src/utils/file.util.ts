@@ -2,6 +2,18 @@ import fs from 'fs';
 import path from 'path';
 import { config } from '../config';
 
+export function listProjectIds(): string[] {
+  const dir = config.storage.projects;
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter(e => e.isDirectory() && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.name))
+    .map(e => e.name);
+}
+
+export function removeDir(dirPath: string): void {
+  fs.rmSync(dirPath, { recursive: true, force: true });
+}
+
 export function ensureStorageDirs(): void {
   [config.storage.uploads, config.storage.projects].forEach((dir) => {
     if (!fs.existsSync(dir)) {

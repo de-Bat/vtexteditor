@@ -25,6 +25,10 @@ export class ApiService {
     return this.http.post<T>(`${this.base}${path}`, formData).pipe(catchError(this.handleError));
   }
 
+  delete<T>(path: string): Observable<T> {
+    return this.http.delete<T>(`${this.base}${path}`).pipe(catchError(this.handleError));
+  }
+
   private handleError(err: HttpErrorResponse): Observable<never> {
     const msg = err.error?.error ?? err.message;
     return throwError(() => new Error(msg));

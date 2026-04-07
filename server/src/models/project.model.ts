@@ -1,6 +1,22 @@
 import { Clip } from './clip.model';
 import { PipelineStep } from './plugin.model';
 
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  mediaPath: string;
+  mediaType: 'video' | 'audio';
+  mediaInfo: MediaInfo | null;
+  pipelineConfig: PipelineStep[];
+  createdAt: string;
+  updatedAt: string;
+  clipCount: number;
+  segmentCount: number;
+  wordCount: number;
+  hasTranscription: boolean;
+  transcriptionPlugin: string | null;
+}
+
 export interface EditAction {
   type: 'remove' | 'restore';
   wordIds: string[];

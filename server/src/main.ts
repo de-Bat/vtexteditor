@@ -4,6 +4,7 @@ import { config } from './config';
 import { ensureStorageDirs } from './utils/file.util';
 import { mediaRoutes } from './routes/media.routes';
 import { projectRoutes } from './routes/project.routes';
+import { projectsRoutes } from './routes/projects.routes';
 import { pluginRoutes } from './routes/plugin.routes';
 import { clipRoutes } from './routes/clip.routes';
 import { sseRoutes } from './routes/sse.routes';
@@ -19,6 +20,7 @@ ensureStorageDirs();
 
 // Routes
 app.use('/api/media', mediaRoutes);
+app.use('/api/projects', projectsRoutes);
 app.use('/api/project', projectRoutes);
 app.use('/api/plugins', pluginRoutes);
 app.use('/api/clips', clipRoutes);

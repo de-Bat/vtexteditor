@@ -1,6 +1,6 @@
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { Project } from '../models/project.model';
+import { Project, ProjectSummary } from '../models/project.model';
 import {
   getProjectDir,
   getProjectFilePath,
@@ -8,12 +8,10 @@ import {
   writeJsonAtomic,
   readJson,
   fileExists,
+  listProjectIds,
+  removeDir,
 } from '../utils/file.util';
-
-const CURRENT_PROJECT_ID_FILE = path.join(
-  require('../config').config.storage.projects,
-  'current.txt'
-);
+import { pluginRegistry } from '../plugins/plugin-registry';
 
 class ProjectService {
   private currentProjectId: string | null = null;
@@ -66,6 +64,61 @@ class ProjectService {
 
   setCurrentId(id: string): void {
     this.currentProjectId = id;
+  }
+
+  list(): ProjectSummary[] {
+    const ids = listProjectIds();
+    const summaries: ProjectSummary[] = [];
+    for (const id of ids) {
+      const fp = getProjectFilePath(id);
+      if (!fileExists(fp)) continue;
+      try {
+        const project = readJson<Project>(fp);
+        const clipCount = project.clips.length;
+        const segmentCount = project.clips.reduce((s, c) => s + c.segments.length, 0);
+        const wordCount = project.clips.reduce(
+          (s, c) => s + c.segments.reduce((ss, seg) => ss + seg.words.length, 0), 0
+        );
+        const transcriptionStep = project.pipelineConfig.find(step => {
+          const plugin = pluginRegistry.getById(step.pluginId);
+          return plugin?.type === 'transcription';
+        });
+        summaries.push({
+          id: project.id,
+          name: project.name,
+          mediaPath: project.mediaPath,
+          mediaType: project.mediaType,
+          mediaInfo: project.mediaInfo,
+          pipelineConfig: project.pipelineConfig,
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+          clipCount,
+          segmentCount,
+          wordCount,
+          hasTranscription: clipCount > 0 && !!transcriptionStep,
+          transcriptionPlugin: transcriptionStep?.pluginId ?? null,
+        });
+      } catch {
+        // skip corrupt project files
+      }
+    }
+    return summaries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  open(id: string): Project | null {
+    const project = this.get(id);
+    if (!project) return null;
+    this.currentProjectId = id;
+    return project;
+  }
+
+  delete(id: string): boolean {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return false;
+    const dir = getProjectDir(id);
+    if (!fileExists(dir)) return false;
+    removeDir(dir);
+    if (this.currentProjectId === id) this.currentProjectId = null;
+    return true;
   }
 }
 

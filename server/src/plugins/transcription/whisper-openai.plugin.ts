@@ -8,6 +8,7 @@ import { Segment } from '../../models/segment.model';
 import { Word } from '../../models/word.model';
 import { v4 as uuidv4 } from 'uuid';
 import { extractAudioTrack, makeTempAudioPath } from '../../utils/ffmpeg.util';
+import { settingsService } from '../../services/settings.service';
 
 interface WhisperConfig {
   apiKey?: string;
@@ -80,15 +81,16 @@ export const whisperPlugin: IPlugin = {
 
   async execute(ctx: PipelineContext): Promise<PipelineContext> {
     const cfg = (ctx.metadata['whisper-openai'] ?? {}) as WhisperConfig & { clipName?: string };
-    const apiKey = cfg.apiKey ?? process.env['OPENAI_API_KEY'];
-    const baseURL = cfg.baseURL?.trim() || process.env['WHISPER_BASE_URL'];
+    const apiKey = cfg.apiKey ?? process.env['OPENAI_API_KEY'] ?? settingsService.get('OPENAI_API_KEY');
+    const baseURL = cfg.baseURL?.trim() || process.env['WHISPER_BASE_URL'] || settingsService.get('WHISPER_BASE_URL');
 
     // For self-hosted servers an API key is optional; use a placeholder so the
     // OpenAI client does not throw about a missing key.
     if (!apiKey && !baseURL) {
       throw new Error(
         'API key required for the OpenAI endpoint. ' +
-        'Set OPENAI_API_KEY / apiKey, or provide a baseURL for a self-hosted server.',
+        'Set OPENAI_API_KEY env var, configure it in App Settings, provide apiKey in the pipeline config, ' +
+        'or supply a baseURL for a self-hosted server.',
       );
     }
 

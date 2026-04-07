@@ -1,9 +1,11 @@
-import { Component, OnInit, signal, viewChild } from '@angular/core';
+import { Component, computed, OnInit, signal, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MediaUploaderComponent } from './media-uploader/media-uploader.component';
 import { PipelineConfiguratorComponent } from './pipeline-configurator/pipeline-configurator.component';
 import { ProcessingProgressComponent } from './processing-progress/processing-progress.component';
+import { SettingsPanelComponent } from './settings-panel/settings-panel.component';
+import { forkJoin } from 'rxjs';
 import { SseService } from '../../core/services/sse.service';
 import { PluginService } from '../../core/services/plugin.service';
 import { ProjectService } from '../../core/services/project.service';
@@ -19,6 +21,7 @@ type Step = 'home' | 'upload' | 'pipeline' | 'processing';
     MediaUploaderComponent,
     PipelineConfiguratorComponent,
     ProcessingProgressComponent,
+    SettingsPanelComponent,
   ],
   templateUrl: './onboarding.component.html',
   styleUrl: './onboarding.component.scss',
@@ -29,6 +32,12 @@ export class OnboardingComponent implements OnInit {
   readonly projects = signal<ProjectSummary[]>([]);
   readonly loading = signal(true);
   readonly loadError = signal<string | null>(null);
+
+  readonly selectionMode = signal(false);
+  readonly selectedIds = signal<Set<string>>(new Set());
+  readonly selectedCount = computed(() => this.selectedIds().size);
+  readonly emptyProjects = computed(() => this.projects().filter(p => p.clipCount === 0));
+  readonly showSettings = signal(false);
 
   private projectId = '';
   private mediaId = '';
@@ -105,6 +114,63 @@ export class OnboardingComponent implements OnInit {
     this.projectService.open(id).subscribe({
       next: () => this.router.navigate(['/studio']),
       error: () => this.loadError.set('Could not open project.'),
+    });
+  }
+
+  toggleSelectionMode(): void {
+    const next = !this.selectionMode();
+    this.selectionMode.set(next);
+    if (!next) this.selectedIds.set(new Set());
+  }
+
+  isSelected(id: string): boolean {
+    return this.selectedIds().has(id);
+  }
+
+  toggleSelection(id: string): void {
+    this.selectedIds.update(s => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  clearSelected(): void {
+    const ids = [...this.selectedIds()];
+    if (!ids.length) return;
+    const label = ids.length + ' selected project' + (ids.length !== 1 ? 's' : '');
+    if (!confirm('Delete ' + label + '? This cannot be undone.')) return;
+    this._deleteMany(ids, () => {
+      this.selectionMode.set(false);
+      this.selectedIds.set(new Set());
+    });
+  }
+
+  clearEmpty(): void {
+    const ids = this.emptyProjects().map(p => p.id);
+    if (!ids.length) return;
+    const label = ids.length + ' empty project' + (ids.length !== 1 ? 's' : '');
+    if (!confirm('Delete ' + label + '? This cannot be undone.')) return;
+    this._deleteMany(ids);
+  }
+
+  clearAll(): void {
+    const all = this.projects();
+    if (!all.length) return;
+    const label = 'all ' + all.length + ' project' + (all.length !== 1 ? 's' : '');
+    if (!confirm('Delete ' + label + '? This cannot be undone.')) return;
+    this._deleteMany(all.map(p => p.id));
+  }
+
+  private _deleteMany(ids: string[], onComplete?: () => void): void {
+    if (!ids.length) return;
+    forkJoin(ids.map(id => this.projectService.deleteProject(id))).subscribe({
+      next: () => {
+        this.projects.update(ps => ps.filter(p => !ids.includes(p.id)));
+        if (this.projects().length === 0) this.currentStep.set('upload');
+        onComplete?.();
+      },
+      error: () => this.loadError.set('Some projects could not be deleted.'),
     });
   }
 

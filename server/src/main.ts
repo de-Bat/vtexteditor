@@ -9,6 +9,7 @@ import { pluginRoutes } from './routes/plugin.routes';
 import { clipRoutes } from './routes/clip.routes';
 import { sseRoutes } from './routes/sse.routes';
 import { exportRoutes } from './routes/export.routes';
+import { settingsRoutes } from './routes/settings.routes';
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/plugins', pluginRoutes);
 app.use('/api/clips', clipRoutes);
 app.use('/api/events', sseRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Global error handler
 app.use((err: Error & { code?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

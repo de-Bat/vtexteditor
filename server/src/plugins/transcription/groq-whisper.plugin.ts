@@ -8,6 +8,7 @@ import { Segment } from '../../models/segment.model';
 import { Word } from '../../models/word.model';
 import { v4 as uuidv4 } from 'uuid';
 import { extractAudioTrack, makeTempAudioPath } from '../../utils/ffmpeg.util';
+import { settingsService } from '../../services/settings.service';
 
 interface GroqConfig {
   apiKey?: string;
@@ -66,8 +67,8 @@ export const groqWhisperPlugin: IPlugin = {
 
   async execute(ctx: PipelineContext): Promise<PipelineContext> {
     const cfg = (ctx.metadata['groq-whisper'] ?? {}) as GroqConfig;
-    const apiKey = cfg.apiKey ?? process.env['GROQ_API_KEY'];
-    if (!apiKey) throw new Error('Groq API key required. Set GROQ_API_KEY or provide apiKey in config.');
+    const apiKey = cfg.apiKey ?? process.env['GROQ_API_KEY'] ?? settingsService.get('GROQ_API_KEY');
+    if (!apiKey) throw new Error('Groq API key required. Set GROQ_API_KEY env var, configure it in App Settings, or provide apiKey in the pipeline config.');
 
     const groq = new Groq({ apiKey });
 

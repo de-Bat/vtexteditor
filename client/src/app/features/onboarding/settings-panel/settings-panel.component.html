@@ -1,0 +1,60 @@
+<div class="settings-overlay" (click)="close()"></div>
+<div class="settings-panel" role="dialog" aria-label="App Settings">
+  <header class="panel-header">
+    <span class="panel-title">App Settings</span>
+    <button class="close-btn" (click)="close()" aria-label="Close">&#x2715;</button>
+  </header>
+
+  <section class="panel-body">
+    <p class="panel-intro">
+      Configure AI provider credentials and endpoints. Values saved here are used as global
+      fallbacks. Per-run pipeline config and environment variables take higher priority.
+    </p>
+
+    @if (loading()) {
+      <div class="state-msg">Loading&hellip;</div>
+    } @else {
+      <form (ngSubmit)="save()" autocomplete="off">
+        @for (key of keys; track key) {
+          <div class="form-field">
+            <label [for]="'s-' + key" class="field-label">{{ meta[key].label }}</label>
+            <p class="field-desc">{{ meta[key].description }}</p>
+            <div class="input-row">
+              <input
+                [id]="'s-' + key"
+                [type]="meta[key].secret && !revealed[key] ? 'password' : 'text'"
+                [(ngModel)]="draft[key]"
+                [name]="key"
+                [placeholder]="meta[key].placeholder"
+                autocomplete="off"
+                class="field-input"
+              />
+              @if (meta[key].secret) {
+                <button
+                  type="button"
+                  class="reveal-btn"
+                  (click)="revealed[key] = !revealed[key]"
+                  [attr.aria-label]="revealed[key] ? 'Hide' : 'Show'"
+                >{{ revealed[key] ? '&#x1F648;' : '&#x1F441;' }}</button>
+              }
+            </div>
+          </div>
+        }
+
+        @if (error()) {
+          <div class="msg error">{{ error() }}</div>
+        }
+        @if (saved()) {
+          <div class="msg success">Settings saved &#x2713;</div>
+        }
+
+        <div class="panel-actions">
+          <button type="button" class="btn-secondary" (click)="close()">Cancel</button>
+          <button type="submit" class="btn-primary" [disabled]="saving()">
+            {{ saving() ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+      </form>
+    }
+  </section>
+</div>

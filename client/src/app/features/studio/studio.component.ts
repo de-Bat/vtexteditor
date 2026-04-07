@@ -5,14 +5,14 @@ import { ClipService } from '../../core/services/clip.service';
 import { ProjectService } from '../../core/services/project.service';
 import { SseService } from '../../core/services/sse.service';
 import { ClipListComponent } from './clip-list/clip-list.component';
-import { TxtMediaPlayerComponent } from './txt-media-player/txt-media-player.component';
+import { TxtMediaPlayerV2Component } from './txt-media-player-v2/txt-media-player-v2.component';
 import { ExportPanelComponent } from './export-panel/export-panel.component';
 import { Clip } from '../../core/models/clip.model';
 
 @Component({
   selector: 'app-studio',
   standalone: true,
-  imports: [CommonModule, RouterLink, ClipListComponent, TxtMediaPlayerComponent, ExportPanelComponent],
+  imports: [CommonModule, RouterLink, ClipListComponent, TxtMediaPlayerV2Component, ExportPanelComponent],
   template: `
     <div class="studio-layout">
       <header class="studio-header">
@@ -43,7 +43,7 @@ import { Clip } from '../../core/models/clip.model';
 
         <section class="player-panel">
           @if (activeClip()) {
-            <app-txt-media-player [clip]="activeClip()!" />
+            <app-txt-media-player-v2 [clip]="activeClip()!" />
           } @else {
             <div class="empty-player">
               <p>Select a clip from the list to start editing</p>

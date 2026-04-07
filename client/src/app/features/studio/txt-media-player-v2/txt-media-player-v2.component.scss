@@ -22,12 +22,18 @@
   --error: #ff6e84;
   --error-container: #a70138;
 
-  display: grid;
-  grid-template-columns: 1fr 380px;
+  display: block;
   height: 100%;
   background: var(--bg);
   color: var(--on-surface);
   font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.player-v2 {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -812,7 +818,7 @@ audio {
 
 /* ═══════ Responsive ══════════════════════════════════ */
 @media (max-width: 1024px) {
-  :host {
+  .player-v2 {
     grid-template-columns: 1fr;
     grid-template-rows: 45vh 1fr;
   }
@@ -829,7 +835,7 @@ audio {
 }
 
 @media (min-width: 1600px) {
-  :host {
+  .player-v2 {
     grid-template-columns: 1fr 440px;
   }
 }

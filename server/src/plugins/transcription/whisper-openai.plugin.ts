@@ -96,7 +96,7 @@ export const whisperPlugin: IPlugin = {
 
     const clientOpts: ConstructorParameters<typeof OpenAI>[0] = {
       apiKey: apiKey ?? 'self-hosted',
-      ...(baseURL ? { baseURL } : {}),
+      ...(baseURL ? { baseURL: normalizeBaseURL(baseURL) } : {}),
     };
     const client = new OpenAI(clientOpts);
 
@@ -117,15 +117,33 @@ export const whisperPlugin: IPlugin = {
     try {
       const fileStream = fs.createReadStream(audioPath);
       const ext = path.extname(audioPath).slice(1) || 'wav';
+      void ext; // used implicitly by the stream
 
-      // Call Whisper with verbose_json response format for word timestamps
-      response = await (client.audio.transcriptions.create as Function)({
-      file: fileStream,
-      model: cfg.model ?? 'whisper-1',
-      response_format: 'verbose_json',
-        timestamp_granularities: ['word', 'segment'],
-        ...(cfg.language ? { language: cfg.language } : {}),
-      }) as WhisperResponse;
+      // First attempt: verbose_json with word+segment granularities (full timestamps)
+      try {
+        response = await (client.audio.transcriptions.create as Function)({
+          file: fileStream,
+          model: cfg.model ?? 'whisper-1',
+          response_format: 'verbose_json',
+          timestamp_granularities: ['word', 'segment'],
+          ...(cfg.language ? { language: cfg.language } : {}),
+        }) as WhisperResponse;
+      } catch (firstErr: unknown) {
+        const status = (firstErr as { status?: number }).status;
+        // 404/400/422 → server exists but doesn't support timestamp_granularities.
+        // Retry without that parameter (segments only, words estimated later).
+        if (status === 404 || status === 400 || status === 422) {
+          const retryStream = fs.createReadStream(audioPath);
+          response = await (client.audio.transcriptions.create as Function)({
+            file: retryStream,
+            model: cfg.model ?? 'whisper-1',
+            response_format: 'verbose_json',
+            ...(cfg.language ? { language: cfg.language } : {}),
+          }) as WhisperResponse;
+        } else {
+          throw firstErr;
+        }
+      }
     } finally {
       if (tempCreated && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
     }
@@ -178,6 +196,25 @@ export const whisperPlugin: IPlugin = {
     return { ...ctx, clips: [...ctx.clips, clip] };
   },
 };
+
+/**
+ * Ensure the baseURL always ends with a path so the OpenAI SDK constructs
+ * the correct transcription endpoint:
+ *   http://localhost:9000       → http://localhost:9000/v1
+ *   http://localhost:9000/      → http://localhost:9000/v1
+ *   http://localhost:9000/v1    → http://localhost:9000/v1  (unchanged)
+ *   http://localhost:9000/api   → http://localhost:9000/api (custom path, unchanged)
+ */
+function normalizeBaseURL(url: string): string {
+  const trimmed = url.trim().replace(/\/+$/, '');
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.pathname === '/' || parsed.pathname === '') {
+      return trimmed + '/v1';
+    }
+  } catch { /* invalid URL — pass through and let the SDK error naturally */ }
+  return trimmed;
+}
 
 function estimateWords(segId: string, text: string, start: number, end: number): Word[] {
   const tokens = text.split(/\s+/).filter(Boolean);

@@ -1,0 +1,145 @@
+<div class="onboarding-page">
+  <header class="page-header">
+    <div class="logo">
+      <span class="logo-icon">&#10022;</span>
+      <span class="logo-text">VTextStudio</span>
+    </div>
+    <p class="tagline">Edit your media by editing text</p>
+  </header>
+
+  @if (currentStep() === 'home') {
+    <section class="projects-section">
+      <div class="projects-header">
+        <h2>Your Projects</h2>
+        <button class="btn-primary" (click)="currentStep.set('upload')">+ New Project</button>
+      </div>
+
+      @if (loading()) {
+        <div class="projects-loading">
+          <span class="spinner"></span> Loading projects&hellip;
+        </div>
+      } @else {
+        <div class="projects-grid">
+          @for (p of projects(); track p.id) {
+            <div class="project-card">
+              <div class="card-top">
+                <div class="card-title-row">
+                  <h3 class="card-name">{{ p.name }}</h3>
+                  <span class="media-badge" [class.audio]="p.mediaType === 'audio'">
+                    {{ p.mediaType === 'video' ? 'Video' : 'Audio' }}
+                  </span>
+                </div>
+                <div class="card-file">{{ mediaFilename(p.mediaPath) }}</div>
+                @if (p.mediaInfo) {
+                  <div class="card-meta">
+                    {{ formatDuration(p.mediaInfo.duration) }}
+                    @if (p.mediaInfo.bitrate) {
+                      <span class="sep">&middot;</span>
+                      {{ (p.mediaInfo.bitrate / 1000).toFixed(0) }} kbps
+                    }
+                  </div>
+                }
+              </div>
+
+              <div class="card-stats">
+                <div class="stat">
+                  <span class="stat-val">{{ p.clipCount }}</span>
+                  <span class="stat-lbl">{{ p.clipCount !== 1 ? 'clips' : 'clip' }}</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-val">{{ p.segmentCount }}</span>
+                  <span class="stat-lbl">{{ p.segmentCount !== 1 ? 'segments' : 'segment' }}</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-val">{{ p.wordCount.toLocaleString() }}</span>
+                  <span class="stat-lbl">words</span>
+                </div>
+              </div>
+
+              <div class="card-transcription">
+                @if (p.hasTranscription) {
+                  <span class="tx-icon ok">&#10003;</span>
+                  <span class="tx-label">{{ pluginLabel(p.transcriptionPlugin) }}</span>
+                } @else {
+                  <span class="tx-icon none">&ndash;</span>
+                  <span class="tx-label muted">No transcription</span>
+                }
+              </div>
+
+              <div class="card-footer">
+                <span class="card-date">{{ formatRelativeDate(p.updatedAt) }}</span>
+                <div class="card-actions">
+                  <button class="btn-danger-sm" (click)="deleteProject(p.id)"
+                          [attr.aria-label]="'Delete ' + p.name">&#128465;</button>
+                  <button class="btn-primary" (click)="openProject(p.id)">Open &rarr;</button>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      @if (loadError()) {
+        <p class="error-msg">{{ loadError() }}</p>
+      }
+    </section>
+  }
+
+  @if (currentStep() !== 'home') {
+    <main class="wizard">
+      <div class="steps-bar">
+        <div class="step-item" [class.active]="currentStep() === 'upload'" [class.done]="isStepDone('upload')">
+          <span class="step-dot">{{ isStepDone('upload') ? '&#10003;' : '1' }}</span>
+          <span>Upload Media</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" [class.active]="currentStep() === 'pipeline'" [class.done]="isStepDone('pipeline')">
+          <span class="step-dot">{{ isStepDone('pipeline') ? '&#10003;' : '2' }}</span>
+          <span>Configure Pipeline</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" [class.active]="currentStep() === 'processing'">
+          <span class="step-dot">3</span>
+          <span>Process</span>
+        </div>
+      </div>
+
+      <div class="wizard-body">
+        @if (currentStep() === 'upload') {
+          <section class="wizard-step">
+            <div class="wizard-step-header">
+              @if (projects().length > 0) {
+                <button class="btn-back-home" (click)="currentStep.set('home')">&larr; Projects</button>
+              }
+              <h2>Upload your media file</h2>
+            </div>
+            <app-media-uploader (uploaded)="onMediaUploaded($event)" />
+          </section>
+        }
+
+        @if (currentStep() === 'pipeline') {
+          <section class="wizard-step">
+            <h2>Set up transcription pipeline</h2>
+            <app-pipeline-configurator #pipelineConfig />
+            <div class="wizard-actions">
+              <button class="btn-secondary" (click)="currentStep.set('upload')">&larr; Back</button>
+              <button class="btn-primary" (click)="runPipeline()">Run Pipeline &rarr;</button>
+            </div>
+          </section>
+        }
+
+        @if (currentStep() === 'processing') {
+          <section class="wizard-step">
+            <h2>Processing&hellip;</h2>
+            <app-processing-progress [event]="sseService.lastEvent()" />
+            @if (processingDone()) {
+              <div class="wizard-actions">
+                <button class="btn-primary" (click)="goToStudio()">Open Studio &rarr;</button>
+              </div>
+            }
+          </section>
+        }
+      </div>
+    </main>
+  }
+</div>

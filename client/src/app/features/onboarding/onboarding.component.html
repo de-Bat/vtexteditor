@@ -5,9 +5,6 @@
       <span class="logo-text">VTextStudio</span>
     </div>
     <p class="tagline">Edit your media by editing text</p>
-    <button class="settings-btn" (click)="showSettings.set(true)" aria-label="App Settings" title="App Settings">
-      &#9881;
-    </button>
   </header>
 
   @if (currentStep() === 'home') {
@@ -26,6 +23,7 @@
             }
             <button class="btn-danger-outline" (click)="clearAll()">Clear All</button>
             <button class="btn-secondary" (click)="toggleSelectionMode()">Select</button>
+            <button class="btn-icon" (click)="showSettings.set(true)" aria-label="App Settings" title="App Settings">&#9881;</button>
             <button class="btn-primary" (click)="currentStep.set('upload')">+ New Project</button>
           }
         </div>

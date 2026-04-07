@@ -49,12 +49,12 @@ export const whisperPlugin: IPlugin = {
         apiKey: {
           type: 'string',
           title: 'API Key',
-          description: 'API key (or set OPENAI_API_KEY env var). Leave blank for self-hosted servers that do not require authentication.',
+          description: 'Required for the OpenAI endpoint. Leave blank when using a self-hosted server (baseURL set in App Settings or below).',
         },
         baseURL: {
           type: 'string',
-          title: 'Base URL',
-          description: 'Override the API base URL for self-hosted servers, e.g. http://localhost:9000/v1 . Leave blank to use the official OpenAI endpoint.',
+          title: 'Base URL (self-hosted)',
+          description: 'e.g. http://localhost:8080/v1 — when set, the API key is not required.',
           default: '',
         },
         model: {
@@ -84,13 +84,13 @@ export const whisperPlugin: IPlugin = {
     const apiKey = cfg.apiKey ?? process.env['OPENAI_API_KEY'] ?? settingsService.get('OPENAI_API_KEY');
     const baseURL = cfg.baseURL?.trim() || process.env['WHISPER_BASE_URL'] || settingsService.get('WHISPER_BASE_URL');
 
-    // For self-hosted servers an API key is optional; use a placeholder so the
-    // OpenAI client does not throw about a missing key.
-    if (!apiKey && !baseURL) {
+    // Self-hosted servers do not need an API key.
+    // Only require one when targeting the official OpenAI endpoint.
+    if (!baseURL && !apiKey) {
       throw new Error(
         'API key required for the OpenAI endpoint. ' +
-        'Set OPENAI_API_KEY env var, configure it in App Settings, provide apiKey in the pipeline config, ' +
-        'or supply a baseURL for a self-hosted server.',
+        'Set OPENAI_API_KEY env var, configure it in App Settings, or provide it in the pipeline config. ' +
+        'No key is needed when a self-hosted Base URL is configured.',
       );
     }
 

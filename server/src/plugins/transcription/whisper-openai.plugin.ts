@@ -7,6 +7,7 @@ import { Clip } from '../../models/clip.model';
 import { Segment } from '../../models/segment.model';
 import { Word } from '../../models/word.model';
 import { v4 as uuidv4 } from 'uuid';
+import { extractAudioTrack, makeTempAudioPath } from '../../utils/ffmpeg.util';
 
 interface WhisperConfig {
   apiKey?: string;
@@ -76,20 +77,35 @@ export const whisperPlugin: IPlugin = {
 
     const client = new OpenAI({ apiKey });
 
-    const audioPath = ctx.mediaPath;
-    if (!fs.existsSync(audioPath)) throw new Error(`Media file not found: ${audioPath}`);
+    if (!fs.existsSync(ctx.mediaPath)) throw new Error(`Media file not found: ${ctx.mediaPath}`);
 
-    const fileStream = fs.createReadStream(audioPath);
-    const ext = path.extname(audioPath).slice(1) || 'mp4';
+    // For video files, strip the video track first — sending only the audio
+    // channel is faster, cheaper, and avoids API file-size limits.
+    let audioPath = ctx.mediaPath;
+    let tempCreated = false;
+    if (ctx.mediaInfo.videoCodec) {
+      const tempPath = makeTempAudioPath(uuidv4());
+      await extractAudioTrack(ctx.mediaPath, tempPath);
+      audioPath = tempPath;
+      tempCreated = true;
+    }
 
-    // Call Whisper with verbose_json response format for word timestamps
-    const response = await (client.audio.transcriptions.create as Function)({
+    let response: WhisperResponse;
+    try {
+      const fileStream = fs.createReadStream(audioPath);
+      const ext = path.extname(audioPath).slice(1) || 'wav';
+
+      // Call Whisper with verbose_json response format for word timestamps
+      response = await (client.audio.transcriptions.create as Function)({
       file: fileStream,
       model: cfg.model ?? 'whisper-1',
       response_format: 'verbose_json',
-      timestamp_granularities: ['word', 'segment'],
-      ...(cfg.language ? { language: cfg.language } : {}),
-    }) as WhisperResponse;
+        timestamp_granularities: ['word', 'segment'],
+        ...(cfg.language ? { language: cfg.language } : {}),
+      }) as WhisperResponse;
+    } finally {
+      if (tempCreated && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+    }
 
     // Build Clip from Whisper response
     const clipId = uuidv4();

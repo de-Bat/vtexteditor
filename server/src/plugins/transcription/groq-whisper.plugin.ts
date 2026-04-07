@@ -7,6 +7,7 @@ import { Clip } from '../../models/clip.model';
 import { Segment } from '../../models/segment.model';
 import { Word } from '../../models/word.model';
 import { v4 as uuidv4 } from 'uuid';
+import { extractAudioTrack, makeTempAudioPath } from '../../utils/ffmpeg.util';
 
 interface GroqConfig {
   apiKey?: string;
@@ -72,16 +73,32 @@ export const groqWhisperPlugin: IPlugin = {
 
     if (!fs.existsSync(ctx.mediaPath)) throw new Error(`Media file not found: ${ctx.mediaPath}`);
 
-    const fileStream = fs.createReadStream(ctx.mediaPath) as unknown as File;
+    // For video files, strip the video track first — sending only the audio
+    // channel is faster, cheaper, and avoids API file-size limits.
+    let audioPath = ctx.mediaPath;
+    let tempCreated = false;
+    if (ctx.mediaInfo.videoCodec) {
+      const tempPath = makeTempAudioPath(uuidv4());
+      await extractAudioTrack(ctx.mediaPath, tempPath);
+      audioPath = tempPath;
+      tempCreated = true;
+    }
 
-    // Groq transcription with word-level timestamps
-    const transcription = await groq.audio.transcriptions.create({
+    let transcription;
+    try {
+      const fileStream = fs.createReadStream(audioPath) as unknown as File;
+
+      // Groq transcription with word-level timestamps
+      transcription = await groq.audio.transcriptions.create({
       file: fileStream,
       model: (cfg.model ?? 'whisper-large-v3-turbo') as 'whisper-large-v3' | 'whisper-large-v3-turbo' | 'distil-whisper-large-v3-en',
       response_format: 'verbose_json',
-      timestamp_granularities: ['word', 'segment'],
-      ...(cfg.language ? { language: cfg.language } : {}),
-    });
+        timestamp_granularities: ['word', 'segment'],
+        ...(cfg.language ? { language: cfg.language } : {}),
+      });
+    } finally {
+      if (tempCreated && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+    }
 
     const raw = transcription as unknown as { segments?: GroqSegment[]; text?: string };
     const clipId = uuidv4();

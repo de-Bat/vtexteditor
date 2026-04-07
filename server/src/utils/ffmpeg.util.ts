@@ -1,3 +1,5 @@
+import os from 'os';
+import path from 'path';
 import ffmpeg, { FfprobeData } from 'fluent-ffmpeg';
 import { MediaInfo } from '../models/project.model';
 
@@ -28,4 +30,33 @@ export function getMediaInfo(filePath: string): Promise<MediaInfo> {
       resolve(info);
     });
   });
+}
+
+/**
+ * Extract the audio track from a video (or any media) file and write it as a
+ * 16 kHz mono WAV file to `outputPath`.  Ideal for speech-recognition APIs.
+ * If the source is already a pure-audio file the re-encode still works fine.
+ * Returns a promise that resolves on success and rejects on FFmpeg error.
+ */
+export function extractAudioTrack(inputPath: string, outputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .noVideo()
+      .audioChannels(1)
+      .audioFrequency(16000)
+      .audioCodec('pcm_s16le')
+      .format('wav')
+      .output(outputPath)
+      .on('error', (err: Error) => reject(new Error(`Audio extraction failed: ${err.message}`)))
+      .on('end', () => resolve())
+      .run();
+  });
+}
+
+/**
+ * Build a temporary file path for an extracted audio track.
+ * Uses os.tmpdir() so it never pollutes the uploads folder.
+ */
+export function makeTempAudioPath(baseName: string): string {
+  return path.join(os.tmpdir(), `vts-audio-${baseName}.wav`);
 }

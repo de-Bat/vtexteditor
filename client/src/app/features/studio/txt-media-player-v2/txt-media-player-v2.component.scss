@@ -204,6 +204,7 @@ audio {
   font-size: 1.125rem;
   pointer-events: none;
   white-space: nowrap;
+  direction: rtl;
 }
 
 /* ═══════ Timeline Panel ════════════════════════════════ */
@@ -455,6 +456,8 @@ audio {
   overflow-y: auto;
   padding: 24px;
   padding-bottom: 120px;
+  direction: rtl;
+  text-align: right;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -478,14 +481,14 @@ audio {
 /* ── Segment block ────────────────────────────────────── */
 .seg-block {
   position: relative;
-  padding-left: 40px;
+  padding-right: 40px;
   margin-bottom: 24px;
 
   &.active {
     background: rgba(25, 25, 28, 0.3);
     border-radius: 8px;
-    padding: 8px 8px 8px 40px;
-    margin-left: -8px;
+    padding: 8px 40px 8px 8px;
+    margin-right: -8px;
     border: 1px solid rgba(255, 255, 255, 0.05);
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);
   }
@@ -493,7 +496,7 @@ audio {
 
 .drag-ind {
   position: absolute;
-  left: 0;
+  right: 0;
   top: 0;
   bottom: 0;
   display: flex;
@@ -527,7 +530,7 @@ audio {
 
 .color-bar {
   position: absolute;
-  left: 32px;
+  right: 32px;
   top: 0;
   bottom: 0;
   width: 4px;
@@ -580,6 +583,8 @@ audio {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 8px;
+  direction: rtl;
+  justify-content: flex-start;
 }
 
 .word {
@@ -666,7 +671,7 @@ audio {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-left: 32px;
+  padding-right: 32px;
   margin: 8px 0;
 }
 

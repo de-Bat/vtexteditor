@@ -8,8 +8,12 @@ dist/
 client/.angular/
 
 # Storage (runtime data - not committed)
-server/storage/uploads/
-server/storage/projects/
+storage/uploads/
+storage/projects/
+
+# Loose test / scratch files
+captions.srt
+stitch/screen.png
 
 # Environment files
 .env

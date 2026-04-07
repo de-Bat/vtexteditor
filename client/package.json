@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "dev": "ng serve --host 127.0.0.1 --port 4201"
+    "dev": "ng serve --host 127.0.0.1 --port 8080"
   },
   "private": true,
   "packageManager": "npm@11.11.1",

@@ -587,6 +587,55 @@ audio {
   justify-content: flex-start;
 }
 
+/* ── Inline time marker ───────────────────────────────── */
+.inline-time {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--primary-dim);
+  background: rgba(186, 158, 255, 0.08);
+  cursor: pointer;
+  user-select: none;
+  flex-basis: 100%;      /* force a line break before the marker */
+
+  &:hover {
+    color: var(--primary);
+    background: rgba(186, 158, 255, 0.15);
+  }
+}
+
+/* ── Inline silence chip ──────────────────────────────── */
+.inline-silence {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--outline);
+  background: rgba(72, 71, 74, 0.15);
+  border: 1px dashed rgba(72, 71, 74, 0.25);
+  cursor: pointer;
+  user-select: none;
+
+  .material-symbols-outlined {
+    font-size: 10px;
+  }
+
+  &:hover {
+    color: var(--error);
+    border-color: var(--error);
+    background: rgba(255, 110, 132, 0.08);
+  }
+}
+
 .word {
   padding: 2px 4px;
   color: rgba(246, 243, 245, 0.8);

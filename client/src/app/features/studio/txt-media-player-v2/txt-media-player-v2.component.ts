@@ -31,6 +31,8 @@ const SEGMENT_PALETTE = [
 ];
 
 const SILENCE_THRESHOLD_SEC = 0.5;
+const INLINE_TIME_INTERVAL_SEC = 5;
+const INLINE_SILENCE_THRESHOLD_SEC = 0.3;
 
 /* ── Interfaces ─────────────────────────────────────────────── */
 
@@ -42,6 +44,12 @@ interface SegmentViewItem {
   bottom: number;
   silenceAfter: { durationText: string; midTime: number } | null;
 }
+
+/** Items rendered inside the word-flow: a word, a time marker, or a silence chip. */
+type FlowItem =
+  | { kind: 'word'; word: Word }
+  | { kind: 'time'; label: string; time: number; id: string }
+  | { kind: 'silence'; label: string; midTime: number; id: string };
 
 interface TrackItem {
   kind: 'segment' | 'gap';
@@ -240,25 +248,31 @@ interface TrackItem {
             </div>
 
             <div class="word-flow">
-              @for (word of seg.words; track word.id) {
-                @if (word.isRemoved) {
+              @for (fi of buildFlowItems(seg); track fi.kind === 'word' ? fi.word.id : fi.id) {
+                @if (fi.kind === 'time') {
+                  <span class="inline-time" (click)="seekToTime(fi.time)">{{ fi.label }}</span>
+                } @else if (fi.kind === 'silence') {
+                  <span class="inline-silence" (click)="seekToTime(fi.midTime)">
+                    <span class="material-symbols-outlined">hourglass_empty</span>{{ fi.label }}
+                  </span>
+                } @else if (fi.word.isRemoved) {
                   <span class="filler-badge"
-                    (click)="onWordClick(word, $event)"
-                    (dblclick)="toggleRemove(word)">
-                    <span class="filler-text">{{ word.text }}</span>
-                    <button class="filler-x" (click)="toggleRemove(word); $event.stopPropagation()">
+                    (click)="onWordClick(fi.word, $event)"
+                    (dblclick)="toggleRemove(fi.word)">
+                    <span class="filler-text">{{ fi.word.text }}</span>
+                    <button class="filler-x" (click)="toggleRemove(fi.word); $event.stopPropagation()">
                       <span class="material-symbols-outlined">close</span>
                     </button>
                   </span>
                 } @else {
                   <span class="word"
-                    [class.highlighted]="word.id === highlightedWordId()"
-                    [class.selected]="selectedWordIdSet().has(word.id)"
-                    [class.search-match]="searchMatchIds().has(word.id)"
-                    (click)="onWordClick(word, $event)"
-                    (dblclick)="toggleRemove(word)"
+                    [class.highlighted]="fi.word.id === highlightedWordId()"
+                    [class.selected]="selectedWordIdSet().has(fi.word.id)"
+                    [class.search-match]="searchMatchIds().has(fi.word.id)"
+                    (click)="onWordClick(fi.word, $event)"
+                    (dblclick)="toggleRemove(fi.word)"
                     [title]="'Double-click to remove'"
-                  >{{ word.text }}</span>
+                  >{{ fi.word.text }}</span>
                 }
               }
             </div>
@@ -675,6 +689,47 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /** @deprecated — use activeSegmentId() in template; kept for imperative code */
   isActiveSegment(seg: Segment): boolean {
     return seg.id === this.activeSegmentId();
+  }
+
+  /** Build inline flow items for a segment: words interleaved with time markers and silence chips. */
+  buildFlowItems(seg: Segment): FlowItem[] {
+    const words = seg.words;
+    if (!words.length) return [];
+    const items: FlowItem[] = [];
+    let nextTimeMark = Math.ceil(words[0].startTime / INLINE_TIME_INTERVAL_SEC) * INLINE_TIME_INTERVAL_SEC;
+
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+
+      // Time marker — when this word crosses a time-interval boundary
+      if (w.startTime >= nextTimeMark) {
+        items.push({
+          kind: 'time',
+          label: this.formatTimeShort(nextTimeMark),
+          time: nextTimeMark,
+          id: `t-${seg.id}-${nextTimeMark}`,
+        });
+        nextTimeMark += INLINE_TIME_INTERVAL_SEC;
+        // Skip any additional boundaries this word may cross
+        while (nextTimeMark <= w.startTime) nextTimeMark += INLINE_TIME_INTERVAL_SEC;
+      }
+
+      // Silence chip — gap between previous word's end and this word's start
+      if (i > 0) {
+        const gap = w.startTime - words[i - 1].endTime;
+        if (gap >= INLINE_SILENCE_THRESHOLD_SEC) {
+          items.push({
+            kind: 'silence',
+            label: gap >= 1 ? gap.toFixed(1) + 's' : Math.round(gap * 1000) + 'ms',
+            midTime: words[i - 1].endTime + gap / 2,
+            id: `sil-${seg.id}-${i}`,
+          });
+        }
+      }
+
+      items.push({ kind: 'word', word: w });
+    }
+    return items;
   }
 
   toggleRemove(word: Word): void {

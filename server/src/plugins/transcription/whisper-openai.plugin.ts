@@ -237,6 +237,11 @@ export const whisperPlugin: IPlugin = {
       }
     }
 
+    // Coerce showSilenceMarkers to boolean; settingsService.get() returns strings.
+    // String "false" is truthy in JavaScript, so we must explicitly convert.
+    const showSilenceMarkers = cfg.showSilenceMarkers === true
+      || String(cfg.showSilenceMarkers).toLowerCase() === 'true';
+
     const clip: Clip = {
       id: clipId,
       projectId: ctx.projectId,
@@ -244,7 +249,7 @@ export const whisperPlugin: IPlugin = {
       startTime: segments[0]?.startTime ?? 0,
       endTime: segments[segments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
       segments,
-      showSilenceMarkers: cfg.showSilenceMarkers ?? false,
+      showSilenceMarkers,
     };
 
     const totalWords = segments.reduce((n, s) => n + s.words.length, 0);

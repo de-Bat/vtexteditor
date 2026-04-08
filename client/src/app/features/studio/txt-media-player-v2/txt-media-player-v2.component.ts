@@ -362,22 +362,37 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     return v < 0.5 ? 'volume_down' : 'volume_up';
   });
 
+  /**
+   * Find the word under the playhead, with gap-bridging:
+   * when the time falls between two words, snap to the nearest one
+   * so the highlight never blinks off during micro-gaps.
+   */
   readonly currentWord = computed(() => {
     const t = this.currentTime();
-    for (const seg of this.clip().segments) {
+    const segments = this.clip().segments;
+    let lastBefore: Word | null = null;
+    for (const seg of segments) {
       for (const w of seg.words) {
-        if (!w.isRemoved && t >= w.startTime && t < w.endTime) return w;
+        if (w.isRemoved) continue;
+        if (t >= w.startTime && t < w.endTime) return w;
+        if (w.endTime <= t) lastBefore = w;
+        if (w.startTime > t) {
+          // We're in a gap — pick whichever neighbor is closer
+          if (lastBefore && (t - lastBefore.endTime) <= (w.startTime - t)) return lastBefore;
+          return w;
+        }
       }
     }
-    return null;
+    return lastBefore; // past the last word — keep it highlighted
   });
 
   readonly highlightedWordId = computed(() => this.currentWord()?.id ?? null);
 
   readonly activeSegmentId = computed(() => {
-    const t = this.currentTime();
+    const w = this.currentWord();
+    if (!w) return null;
     for (const seg of this.clip().segments) {
-      if (seg.words.some(w => t >= w.startTime && t < w.endTime)) return seg.id;
+      if (seg.id === w.segmentId) return seg.id;
     }
     return null;
   });
@@ -385,12 +400,13 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly selectedWordIdSet = computed(() => new Set(this.selectedWordIds()));
 
   readonly activeSegmentLabel = computed(() => {
-    const t = this.currentTime();
+    const segId = this.activeSegmentId();
+    if (!segId) return '';
     const segs = this.clip().segments;
-    const idx = segs.findIndex(s => s.words.some(w => t >= w.startTime && t < w.endTime));
-    if (idx < 0) return '';
-    const tags = segs[idx].tags;
-    return tags.length ? tags[0] : `Segment ${idx + 1}`;
+    const seg = segs.find(s => s.id === segId);
+    if (!seg) return '';
+    const idx = segs.indexOf(seg);
+    return seg.tags.length ? seg.tags[0] : `Segment ${idx + 1}`;
   });
 
   readonly mediaInfoLabel = computed(() => {

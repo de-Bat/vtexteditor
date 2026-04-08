@@ -2,7 +2,14 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
 
-export type SettingKey = 'OPENAI_API_KEY' | 'WHISPER_BASE_URL' | 'GROQ_API_KEY';
+export type SettingKey =
+  | 'OPENAI_API_KEY'
+  | 'WHISPER_BASE_URL'
+  | 'WHISPER_MODEL'
+  | 'WHISPER_LANGUAGE'
+  | 'SHOW_SILENCE_MARKERS'
+  | 'GROQ_API_KEY';
+
 export type AppSettings = Partial<Record<SettingKey, string>>;
 
 export const SETTING_META: Record<SettingKey, { label: string; description: string; placeholder: string; secret?: boolean }> = {
@@ -14,8 +21,23 @@ export const SETTING_META: Record<SettingKey, { label: string; description: stri
   },
   WHISPER_BASE_URL: {
     label: 'Whisper Base URL',
-    description: 'Override the OpenAI endpoint for a self-hosted Whisper server (e.g. http://localhost:9000/v1).',
-    placeholder: 'http://localhost:9000/v1',
+    description: 'Override the OpenAI endpoint for a self-hosted Whisper server (e.g. http://localhost:8000/v1).',
+    placeholder: 'http://localhost:8000/v1',
+  },
+  WHISPER_MODEL: {
+    label: 'Whisper Model',
+    description: 'Default model for transcription (e.g. ivrit-ai/whisper-large-v3-turbo-ct2).',
+    placeholder: 'ivrit-ai/whisper-large-v3-turbo-ct2',
+  },
+  WHISPER_LANGUAGE: {
+    label: 'Whisper Language',
+    description: 'ISO 639-1 language code (e.g. "he"). Leave blank for auto-detect.',
+    placeholder: 'he',
+  },
+  SHOW_SILENCE_MARKERS: {
+    label: 'Show Silence Markers',
+    description: 'Show gap markers between transcript segments. Can be overridden per pipeline run.',
+    placeholder: 'false',
   },
   GROQ_API_KEY: {
     label: 'Groq API Key',

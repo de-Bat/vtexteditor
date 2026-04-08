@@ -215,7 +215,7 @@ interface TrackItem {
       @for (item of renderedItems(); track item.segment.id) {
         @let seg = item.segment;
         @let segIdx = item.index;
-        @let active = isActiveSegment(seg);
+        @let active = seg.id === activeSegmentId();
         @let palette = SEGMENT_PALETTE[segColorIndex(seg, segIdx) % SEGMENT_PALETTE.length];
 
         <div class="seg-block" [class.active]="active">
@@ -252,9 +252,9 @@ interface TrackItem {
                   </span>
                 } @else {
                   <span class="word"
-                    [class.highlighted]="isHighlighted(word)"
-                    [class.selected]="isSelected(word.id)"
-                    [class.search-match]="isSearchMatch(word)"
+                    [class.highlighted]="word.id === highlightedWordId()"
+                    [class.selected]="selectedWordIdSet().has(word.id)"
+                    [class.search-match]="searchMatchIds().has(word.id)"
                     (click)="onWordClick(word, $event)"
                     (dblclick)="toggleRemove(word)"
                     [title]="'Double-click to remove'"
@@ -371,6 +371,18 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     }
     return null;
   });
+
+  readonly highlightedWordId = computed(() => this.currentWord()?.id ?? null);
+
+  readonly activeSegmentId = computed(() => {
+    const t = this.currentTime();
+    for (const seg of this.clip().segments) {
+      if (seg.words.some(w => t >= w.startTime && t < w.endTime)) return seg.id;
+    }
+    return null;
+  });
+
+  readonly selectedWordIdSet = computed(() => new Set(this.selectedWordIds()));
 
   readonly activeSegmentLabel = computed(() => {
     const t = this.currentTime();
@@ -632,21 +644,21 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   isSelected(wordId: string): boolean {
-    return this.selectedWordIds().includes(wordId);
+    return this.selectedWordIdSet().has(wordId);
   }
 
+  /** @deprecated — use highlightedWordId() in template; kept for imperative code */
   isHighlighted(word: Word): boolean {
-    const t = this.currentTime();
-    return t >= word.startTime && t < word.endTime;
+    return word.id === this.highlightedWordId();
   }
 
   isSearchMatch(word: Word): boolean {
     return this.searchMatchIds().has(word.id);
   }
 
+  /** @deprecated — use activeSegmentId() in template; kept for imperative code */
   isActiveSegment(seg: Segment): boolean {
-    const t = this.currentTime();
-    return seg.words.some(w => t >= w.startTime && t < w.endTime);
+    return seg.id === this.activeSegmentId();
   }
 
   toggleRemove(word: Word): void {
@@ -775,10 +787,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   private findActiveSegmentIndex(): number {
-    const t = this.currentTime();
-    return this.clip().segments.findIndex(seg =>
-      seg.words.some(w => t >= w.startTime && t < w.endTime)
-    );
+    const id = this.activeSegmentId();
+    if (!id) return -1;
+    return this.clip().segments.findIndex(s => s.id === id);
   }
 
   private scrollToCurrentWord(): void {

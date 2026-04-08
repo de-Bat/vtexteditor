@@ -80,6 +80,7 @@ export const whisperPlugin: IPlugin = {
   },
 
   async execute(ctx: PipelineContext): Promise<PipelineContext> {
+    const tag = '[whisper-openai]';
     const cfg = (ctx.metadata['whisper-openai'] ?? {}) as WhisperConfig & { clipName?: string };
     const apiKey = cfg.apiKey ?? process.env['OPENAI_API_KEY'] ?? settingsService.get('OPENAI_API_KEY');
     const baseURL = cfg.baseURL?.trim() || process.env['WHISPER_BASE_URL'] || settingsService.get('WHISPER_BASE_URL');
@@ -94,6 +95,11 @@ export const whisperPlugin: IPlugin = {
       );
     }
 
+    const resolvedBaseURL = baseURL ? normalizeBaseURL(baseURL) : '(OpenAI default)';
+    console.log(`${tag} endpoint: ${resolvedBaseURL}`);
+    console.log(`${tag} model: ${cfg.model ?? 'whisper-1'}  language: ${cfg.language || 'auto'}`);
+    console.log(`${tag} apiKey: ${apiKey ? '***' + apiKey.slice(-4) : '(none — self-hosted)'}`);
+
     const clientOpts: ConstructorParameters<typeof OpenAI>[0] = {
       apiKey: apiKey ?? 'self-hosted',
       ...(baseURL ? { baseURL: normalizeBaseURL(baseURL) } : {}),
@@ -107,19 +113,28 @@ export const whisperPlugin: IPlugin = {
     let audioPath = ctx.mediaPath;
     let tempCreated = false;
     if (ctx.mediaInfo.videoCodec) {
+      console.log(`${tag} video detected (codec: ${ctx.mediaInfo.videoCodec}) — extracting audio track`);
       const tempPath = makeTempAudioPath(uuidv4());
       await extractAudioTrack(ctx.mediaPath, tempPath);
       audioPath = tempPath;
       tempCreated = true;
+      console.log(`${tag} audio extracted → ${audioPath}`);
+    } else {
+      console.log(`${tag} audio-only file — sending directly: ${path.basename(audioPath)}`);
     }
 
+    const fileStat = fs.statSync(audioPath);
+    console.log(`${tag} sending file: ${path.basename(audioPath)}  size: ${(fileStat.size / 1024).toFixed(1)} KB`);
+
     let response: WhisperResponse;
+    let usedGranularities = false;
     try {
       const fileStream = fs.createReadStream(audioPath);
       const ext = path.extname(audioPath).slice(1) || 'wav';
       void ext; // used implicitly by the stream
 
       // First attempt: verbose_json with word+segment granularities (full timestamps)
+      console.log(`${tag} POST /audio/transcriptions  response_format=verbose_json  timestamp_granularities=[word,segment]`);
       try {
         response = await (client.audio.transcriptions.create as Function)({
           file: fileStream,
@@ -128,12 +143,15 @@ export const whisperPlugin: IPlugin = {
           timestamp_granularities: ['word', 'segment'],
           ...(cfg.language ? { language: cfg.language } : {}),
         }) as WhisperResponse;
+        usedGranularities = true;
       } catch (firstErr: unknown) {
         const status = (firstErr as { status?: number }).status;
+        console.warn(`${tag} first attempt failed (status=${status}) — retrying without timestamp_granularities`);
         // 404/400/422 → server exists but doesn't support timestamp_granularities.
         // Retry without that parameter (segments only, words estimated later).
         if (status === 404 || status === 400 || status === 422) {
           const retryStream = fs.createReadStream(audioPath);
+          console.log(`${tag} POST /audio/transcriptions  response_format=verbose_json  (no granularities)`);
           response = await (client.audio.transcriptions.create as Function)({
             file: retryStream,
             model: cfg.model ?? 'whisper-1',
@@ -145,8 +163,20 @@ export const whisperPlugin: IPlugin = {
         }
       }
     } finally {
-      if (tempCreated && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+      if (tempCreated && fs.existsSync(audioPath)) {
+        fs.unlinkSync(audioPath);
+        console.log(`${tag} temp audio file removed`);
+      }
     }
+
+    const segCount = response.segments?.length ?? 0;
+    const wordCount = response.segments?.reduce((n, s) => n + (s.words?.length ?? 0), 0) ?? 0;
+    const hasWordTimings = usedGranularities && wordCount > 0;
+    console.log(
+      `${tag} response received — segments: ${segCount}  words: ${wordCount}  ` +
+      `word-timestamps: ${hasWordTimings ? 'yes' : 'no (estimated)'}  ` +
+      `duration: ${response.duration != null ? response.duration.toFixed(1) + 's' : 'n/a'}`,
+    );
 
     // Build Clip from Whisper response
     const clipId = uuidv4();
@@ -192,6 +222,9 @@ export const whisperPlugin: IPlugin = {
       endTime: segments[segments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
       segments,
     };
+
+    const totalWords = segments.reduce((n, s) => n + s.words.length, 0);
+    console.log(`${tag} clip built — "${clipName}"  segments: ${segments.length}  words: ${totalWords}`);
 
     return { ...ctx, clips: [...ctx.clips, clip] };
   },

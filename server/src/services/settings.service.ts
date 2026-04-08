@@ -7,8 +7,14 @@ const SETTINGS_PATH = path.resolve(__dirname, '..', '..', '..', 'storage', 'sett
 export const KNOWN_SETTING_KEYS = [
   'OPENAI_API_KEY',
   'WHISPER_BASE_URL',
+  'WHISPER_MODEL',
+  'WHISPER_LANGUAGE',
+  'SHOW_SILENCE_MARKERS',
   'GROQ_API_KEY',
 ] as const;
+
+/** Keys whose values must never be returned to callers in plain text. */
+const SECRET_KEYS = new Set<string>(['OPENAI_API_KEY', 'GROQ_API_KEY']);
 
 export type SettingKey = (typeof KNOWN_SETTING_KEYS)[number];
 export type AppSettings = Partial<Record<SettingKey, string>>;
@@ -40,6 +46,21 @@ class SettingsService {
   getAll(): AppSettings {
     this.load();
     return { ...this.store } as AppSettings;
+  }
+
+  /**
+   * Return settings with secret key values masked (e.g. "***ab12").
+   * Use this for any response that is sent to a client.
+   */
+  getRedacted(): AppSettings {
+    this.load();
+    const result: Record<string, string> = { ...this.store };
+    for (const key of SECRET_KEYS) {
+      if (result[key]) {
+        result[key] = '***' + result[key].slice(-4);
+      }
+    }
+    return result as AppSettings;
   }
 
   /**

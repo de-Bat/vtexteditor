@@ -7,4 +7,5 @@ export interface Clip {
   startTime: number;
   endTime: number;
   segments: Segment[];
+  showSilenceMarkers?: boolean;
 }

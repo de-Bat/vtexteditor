@@ -43,6 +43,12 @@ export const whisperPlugin: IPlugin = {
   description: 'Transcribe audio/video using OpenAI Whisper API or any self-hosted OpenAI-compatible server (whisper.cpp, faster-whisper-server, LocalAI, etc.) with word-level timestamps.',
   type: 'transcription',
   hasUI: false,
+  settingsMap: {
+    model:               'WHISPER_MODEL',
+    baseURL:             'WHISPER_BASE_URL',
+    language:            'WHISPER_LANGUAGE',
+    showSilenceMarkers:  'SHOW_SILENCE_MARKERS',
+  },
   configSchema: {
       type: 'object',
       properties: {
@@ -70,6 +76,12 @@ export const whisperPlugin: IPlugin = {
           description: 'ISO 639-1 language code, e.g. "en". Leave blank for auto-detect.',
           default: '',
         },
+        showSilenceMarkers: {
+          type: 'boolean',
+          title: 'Show Silence Markers',
+          description: 'Show gap markers between segments in the transcript viewer.',
+          default: false,
+        },
         clipName: {
           type: 'string',
           title: 'Clip Name',
@@ -81,9 +93,11 @@ export const whisperPlugin: IPlugin = {
 
   async execute(ctx: PipelineContext): Promise<PipelineContext> {
     const tag = '[whisper-openai]';
-    const cfg = (ctx.metadata['whisper-openai'] ?? {}) as WhisperConfig & { clipName?: string };
+    const cfg = (ctx.metadata['whisper-openai'] ?? {}) as WhisperConfig & { clipName?: string; showSilenceMarkers?: boolean };
     const apiKey = cfg.apiKey ?? process.env['OPENAI_API_KEY'] ?? settingsService.get('OPENAI_API_KEY');
     const baseURL = cfg.baseURL?.trim() || process.env['WHISPER_BASE_URL'] || settingsService.get('WHISPER_BASE_URL');
+    const model = cfg.model?.trim() || settingsService.get('WHISPER_MODEL') || 'whisper-1';
+    const language = cfg.language?.trim() || settingsService.get('WHISPER_LANGUAGE') || '';
 
     // Self-hosted servers do not need an API key.
     // Only require one when targeting the official OpenAI endpoint.
@@ -97,8 +111,8 @@ export const whisperPlugin: IPlugin = {
 
     const resolvedBaseURL = baseURL ? normalizeBaseURL(baseURL) : '(OpenAI default)';
     console.log(`${tag} endpoint: ${resolvedBaseURL}`);
-    console.log(`${tag} model: ${cfg.model ?? 'whisper-1'}  language: ${cfg.language || 'auto'}`);
-    console.log(`${tag} apiKey: ${apiKey ? '***' + apiKey.slice(-4) : '(none — self-hosted)'}`);
+    console.log(`${tag} model: ${model}  language: ${language || 'auto'}`);
+    console.log(`${tag} apiKey: ${apiKey ? '(set)' : '(none — self-hosted)'}`);
 
     const clientOpts: ConstructorParameters<typeof OpenAI>[0] = {
       apiKey: apiKey ?? 'self-hosted',
@@ -138,10 +152,11 @@ export const whisperPlugin: IPlugin = {
       try {
         response = await (client.audio.transcriptions.create as Function)({
           file: fileStream,
-          model: cfg.model ?? 'whisper-1',
+          model,
           response_format: 'verbose_json',
           timestamp_granularities: ['word', 'segment'],
-          ...(cfg.language ? { language: cfg.language } : {}),
+          temperature: 0,
+          ...(language ? { language } : {}),
         }) as WhisperResponse;
         usedGranularities = true;
       } catch (firstErr: unknown) {
@@ -154,9 +169,10 @@ export const whisperPlugin: IPlugin = {
           console.log(`${tag} POST /audio/transcriptions  response_format=verbose_json  (no granularities)`);
           response = await (client.audio.transcriptions.create as Function)({
             file: retryStream,
-            model: cfg.model ?? 'whisper-1',
+            model,
             response_format: 'verbose_json',
-            ...(cfg.language ? { language: cfg.language } : {}),
+            temperature: 0,
+            ...(language ? { language } : {}),
           }) as WhisperResponse;
         } else {
           throw firstErr;
@@ -182,6 +198,13 @@ export const whisperPlugin: IPlugin = {
     const clipId = uuidv4();
     const clipName = cfg.clipName ?? 'Whisper Transcription';
     const segments: Segment[] = [];
+
+    if (!response.segments?.length && !response.text) {
+      throw new Error(
+        `${tag} Transcription response contained no segments and no text. ` +
+        'Verify that the faster-whisper server is reachable and the model name is correct.',
+      );
+    }
 
     if (response.segments?.length) {
       for (const seg of response.segments) {
@@ -221,6 +244,7 @@ export const whisperPlugin: IPlugin = {
       startTime: segments[0]?.startTime ?? 0,
       endTime: segments[segments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
       segments,
+      showSilenceMarkers: cfg.showSilenceMarkers ?? false,
     };
 
     const totalWords = segments.reduce((n, s) => n + s.words.length, 0);

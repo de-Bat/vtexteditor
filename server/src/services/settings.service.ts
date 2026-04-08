@@ -42,7 +42,11 @@ class SettingsService {
     return this.store[key] || undefined;
   }
 
-  /** Return all persisted settings. */
+  /**
+   * Return all persisted settings INCLUDING secret values in plain text.
+   * Do NOT call this from any code path that sends data to a client.
+   * Prefer {@link getRedacted} for outbound responses.
+   */
   getAll(): AppSettings {
     this.load();
     return { ...this.store } as AppSettings;

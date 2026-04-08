@@ -178,8 +178,9 @@ interface TrackItem {
           <button
             class="follow-btn"
             [class.active]="autoFollow()"
+            [attr.aria-pressed]="autoFollow()"
             [title]="autoFollow() ? 'Auto-follow on — click to pause' : 'Auto-follow paused — click to resume'"
-            (click)="autoFollow() ? autoFollow.set(false) : returnToCurrentWord()"
+            (click)="autoFollow() ? pauseFollow() : returnToCurrentWord()"
           >
             <span class="material-symbols-outlined">
               {{ autoFollow() ? 'my_location' : 'location_disabled' }}
@@ -667,6 +668,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.scrollToCurrentWord();
   }
 
+  pauseFollow(): void {
+    this.autoFollow.set(false);
+  }
+
   /* ── Time Formatting ─────────────────────────────────── */
   formatTimeLong(seconds: number): string {
     const h = Math.floor(seconds / 3600);
@@ -762,7 +767,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.measureTranscriptViewport();
 
     this.suppressScrollDetection = true;
-    setTimeout(() => { this.suppressScrollDetection = false; }, 150);
+    setTimeout(() => { this.suppressScrollDetection = false; }, 600);
 
     const highlighted = container.querySelector('.word.highlighted') as HTMLElement | null;
     if (highlighted) {

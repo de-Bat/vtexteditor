@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sS -m 5 http://localhost:10300/v1/models)",
+      "Bash(echo \"---HTTP:$?\")"
+    ]
+  }
+}

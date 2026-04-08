@@ -15,6 +15,9 @@ interface WhisperConfig {
   baseURL?: string;
   model?: string;
   language?: string;
+  segmentBySpeech?: boolean;
+  showSilenceMarkers?: boolean;
+  clipName?: string;
 }
 
 interface WhisperWord {
@@ -47,6 +50,7 @@ export const whisperPlugin: IPlugin = {
     model:               'WHISPER_MODEL',
     baseURL:             'WHISPER_BASE_URL',
     language:            'WHISPER_LANGUAGE',
+    segmentBySpeech:     'SEGMENT_BY_SPEECH',
     showSilenceMarkers:  'SHOW_SILENCE_MARKERS',
   },
   configSchema: {
@@ -76,10 +80,16 @@ export const whisperPlugin: IPlugin = {
           description: 'ISO 639-1 language code, e.g. "en". Leave blank for auto-detect.',
           default: '',
         },
+        segmentBySpeech: {
+          type: 'boolean',
+          title: 'Segment by Speech',
+          description: 'Split transcript into segments based on natural speech pauses. When off, merges everything into a single segment.',
+          default: true,
+        },
         showSilenceMarkers: {
           type: 'boolean',
-          title: 'Show Silence Markers',
-          description: 'Show gap markers between segments in the transcript viewer.',
+          title: 'Tag Silence Segments',
+          description: 'Mark silence gaps between speech segments in the transcript viewer.',
           default: false,
         },
         clipName: {
@@ -93,7 +103,7 @@ export const whisperPlugin: IPlugin = {
 
   async execute(ctx: PipelineContext): Promise<PipelineContext> {
     const tag = '[whisper-openai]';
-    const cfg = (ctx.metadata['whisper-openai'] ?? {}) as WhisperConfig & { clipName?: string; showSilenceMarkers?: boolean };
+    const cfg = (ctx.metadata['whisper-openai'] ?? {}) as WhisperConfig;
     const apiKey = cfg.apiKey ?? process.env['OPENAI_API_KEY'] ?? settingsService.get('OPENAI_API_KEY');
     const baseURL = cfg.baseURL?.trim() || process.env['WHISPER_BASE_URL'] || settingsService.get('WHISPER_BASE_URL');
     const model = cfg.model?.trim() || settingsService.get('WHISPER_MODEL') || 'whisper-1';
@@ -237,23 +247,33 @@ export const whisperPlugin: IPlugin = {
       }
     }
 
-    // Coerce showSilenceMarkers to boolean; settingsService.get() returns strings.
-    // String "false" is truthy in JavaScript, so we must explicitly convert.
-    const showSilenceMarkers = cfg.showSilenceMarkers === true
-      || String(cfg.showSilenceMarkers).toLowerCase() === 'true';
+    // Coerce boolean settings; settingsService.get() returns strings.
+    const coerceBool = (v: unknown, fallback: boolean) =>
+      v === true || String(v).toLowerCase() === 'true' ? true
+        : v === false || String(v).toLowerCase() === 'false' ? false
+        : fallback;
+
+    const segmentBySpeech = coerceBool(cfg.segmentBySpeech, true);
+    const showSilenceMarkers = coerceBool(cfg.showSilenceMarkers, false);
+
+    // When segmentBySpeech is off, merge all segments into a single segment.
+    const finalSegments = segmentBySpeech ? segments : mergeSegments(clipId, segments);
 
     const clip: Clip = {
       id: clipId,
       projectId: ctx.projectId,
       name: clipName,
-      startTime: segments[0]?.startTime ?? 0,
-      endTime: segments[segments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
-      segments,
+      startTime: finalSegments[0]?.startTime ?? 0,
+      endTime: finalSegments[finalSegments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
+      segments: finalSegments,
       showSilenceMarkers,
     };
 
-    const totalWords = segments.reduce((n, s) => n + s.words.length, 0);
-    console.log(`${tag} clip built — "${clipName}"  segments: ${segments.length}  words: ${totalWords}`);
+    const totalWords = finalSegments.reduce((n, s) => n + s.words.length, 0);
+    console.log(
+      `${tag} clip built — "${clipName}"  segments: ${finalSegments.length}  words: ${totalWords}` +
+      `  segmentBySpeech: ${segmentBySpeech}  showSilenceMarkers: ${showSilenceMarkers}`,
+    );
 
     return { ...ctx, clips: [...ctx.clips, clip] };
   },
@@ -276,6 +296,24 @@ function normalizeBaseURL(url: string): string {
     }
   } catch { /* invalid URL — pass through and let the SDK error naturally */ }
   return trimmed;
+}
+
+/** Merge all segments into a single segment with combined words. */
+function mergeSegments(clipId: string, segments: Segment[]): Segment[] {
+  if (segments.length <= 1) return segments;
+  const segId = uuidv4();
+  const allWords = segments.flatMap(s =>
+    s.words.map(w => ({ ...w, segmentId: segId })),
+  );
+  return [{
+    id: segId,
+    clipId,
+    startTime: segments[0].startTime,
+    endTime: segments[segments.length - 1].endTime,
+    text: segments.map(s => s.text).join(' '),
+    words: allWords,
+    tags: [],
+  }];
 }
 
 function estimateWords(segId: string, text: string, start: number, end: number): Word[] {

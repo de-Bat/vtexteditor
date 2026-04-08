@@ -15,6 +15,8 @@ interface GroqConfig {
   model?: string;
   language?: string;
   clipName?: string;
+  segmentBySpeech?: boolean;
+  showSilenceMarkers?: boolean;
 }
 
 interface GroqWord {
@@ -36,6 +38,10 @@ export const groqWhisperPlugin: IPlugin = {
   description: 'Fast transcription via Groq inference API using whisper-large-v3-turbo.',
   type: 'transcription',
   hasUI: false,
+  settingsMap: {
+    segmentBySpeech:     'SEGMENT_BY_SPEECH',
+    showSilenceMarkers:  'SHOW_SILENCE_MARKERS',
+  },
   configSchema: {
       type: 'object',
       properties: {
@@ -55,6 +61,18 @@ export const groqWhisperPlugin: IPlugin = {
           title: 'Language Code',
           description: 'ISO 639-1 code, e.g. "en". Leave blank for auto-detect.',
           default: '',
+        },
+        segmentBySpeech: {
+          type: 'boolean',
+          title: 'Segment by Speech',
+          description: 'Split transcript into segments based on natural speech pauses. When off, merges everything into a single segment.',
+          default: true,
+        },
+        showSilenceMarkers: {
+          type: 'boolean',
+          title: 'Tag Silence Segments',
+          description: 'Mark silence gaps between speech segments in the transcript viewer.',
+          default: false,
         },
         clipName: {
           type: 'string',
@@ -136,18 +154,49 @@ export const groqWhisperPlugin: IPlugin = {
       }
     }
 
+    // Coerce boolean settings; settingsService.get() returns strings.
+    const coerceBool = (v: unknown, fallback: boolean) =>
+      v === true || String(v).toLowerCase() === 'true' ? true
+        : v === false || String(v).toLowerCase() === 'false' ? false
+        : fallback;
+
+    const segmentBySpeech = coerceBool(cfg.segmentBySpeech, true);
+    const showSilenceMarkers = coerceBool(cfg.showSilenceMarkers, false);
+
+    // When segmentBySpeech is off, merge all segments into a single segment.
+    const finalSegments = segmentBySpeech ? segments : mergeSegments(clipId, segments);
+
     const clip: Clip = {
       id: clipId,
       projectId: ctx.projectId,
       name: clipName,
-      startTime: segments[0]?.startTime ?? 0,
-      endTime: segments[segments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
-      segments,
+      startTime: finalSegments[0]?.startTime ?? 0,
+      endTime: finalSegments[finalSegments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
+      segments: finalSegments,
+      showSilenceMarkers,
     };
 
     return { ...ctx, clips: [...ctx.clips, clip] };
   },
 };
+
+/** Merge all segments into a single segment with combined words. */
+function mergeSegments(clipId: string, segments: Segment[]): Segment[] {
+  if (segments.length <= 1) return segments;
+  const segId = uuidv4();
+  const allWords = segments.flatMap(s =>
+    s.words.map(w => ({ ...w, segmentId: segId })),
+  );
+  return [{
+    id: segId,
+    clipId,
+    startTime: segments[0].startTime,
+    endTime: segments[segments.length - 1].endTime,
+    text: segments.map(s => s.text).join(' '),
+    words: allWords,
+    tags: [],
+  }];
+}
 
 function estimateWords(segId: string, text: string, start: number, end: number): Word[] {
   const tokens = text.split(/\s+/).filter(Boolean);

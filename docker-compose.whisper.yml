@@ -1,0 +1,42 @@
+# OpenAI-compatible faster-whisper server for VTextStudio.
+#
+# Start:   docker compose -f docker-compose.whisper.yml up -d
+# Logs:    docker compose -f docker-compose.whisper.yml logs -f
+# Stop:    docker compose -f docker-compose.whisper.yml down
+#
+# After first start, set in VTextStudio App Settings:
+#   WHISPER_BASE_URL = http://localhost:8000/v1
+#   model            = Systran/faster-whisper-large-v3
+#
+# Verify:  curl http://localhost:8000/v1/models
+
+services:
+  speaches:
+    # CPU image. For NVIDIA GPU, switch to `ghcr.io/speaches-ai/speaches:latest-cuda`
+    # and uncomment the `deploy.resources` block below.
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    container_name: speaches
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Preload large-v3 so the first request doesn't pay the download cost.
+      WHISPER__MODEL: Systran/faster-whisper-large-v3
+      # CPU-friendly quantization. On GPU, use `float16`.
+      WHISPER__COMPUTE_TYPE: int8
+      WHISPER__DEVICE: cpu
+    volumes:
+      # Persist the Hugging Face model cache across container restarts.
+      - speaches-hf-cache:/home/ubuntu/.cache/huggingface
+
+    # --- GPU (NVIDIA) — uncomment this block and swap image to :latest-cuda ---
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  speaches-hf-cache:

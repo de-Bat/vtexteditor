@@ -37,6 +37,7 @@ const SILENCE_THRESHOLD_SEC = 0.5;
 interface SegmentViewItem {
   segment: Segment;
   index: number;
+  colorIndex: number;
   top: number;
   bottom: number;
   silenceAfter: { durationText: string; midTime: number } | null;
@@ -215,7 +216,7 @@ interface TrackItem {
         @let seg = item.segment;
         @let segIdx = item.index;
         @let active = isActiveSegment(seg);
-        @let palette = SEGMENT_PALETTE[segIdx % SEGMENT_PALETTE.length];
+        @let palette = SEGMENT_PALETTE[segColorIndex(seg, segIdx) % SEGMENT_PALETTE.length];
 
         <div class="seg-block" [class.active]="active">
           <!-- Drag handle -->
@@ -413,6 +414,24 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     return ids;
   });
 
+  /* ── Computed: Tag → Palette mapping ─────────────────── */
+  readonly tagColorMap = computed(() => {
+    const map = new Map<string, number>();
+    let nextIdx = 0;
+    for (const seg of this.clip().segments) {
+      const tag = seg.tags[0] ?? null;
+      if (tag && !map.has(tag)) map.set(tag, nextIdx++);
+    }
+    return map;
+  });
+
+  /** Palette index for a segment — segments sharing the same first tag share a color. */
+  segColorIndex(seg: Segment, fallbackIndex: number): number {
+    const tag = seg.tags[0] ?? null;
+    if (tag) return this.tagColorMap().get(tag) ?? fallbackIndex;
+    return this.tagColorMap().size + fallbackIndex;
+  }
+
   /* ── Computed: Timeline Track Items ──────────────────── */
   readonly trackItems = computed<TrackItem[]>(() => {
     const segments = this.clip().segments;
@@ -420,14 +439,15 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (!segments.length || dur <= 0) return [];
     const items: TrackItem[] = [];
     for (let i = 0; i < segments.length; i++) {
+      const ci = this.segColorIndex(segments[i], i);
       if (i > 0) {
         const gap = segments[i].startTime - segments[i - 1].endTime;
         if (gap > 0.1) {
-          items.push({ kind: 'gap', widthPercent: (gap / dur) * 100, colorIndex: i });
+          items.push({ kind: 'gap', widthPercent: (gap / dur) * 100, colorIndex: ci });
         }
       }
       const segDur = segments[i].endTime - segments[i].startTime;
-      items.push({ kind: 'segment', widthPercent: Math.max(0.3, (segDur / dur) * 100), colorIndex: i });
+      items.push({ kind: 'segment', widthPercent: Math.max(0.3, (segDur / dur) * 100), colorIndex: ci });
     }
     return items;
   });
@@ -444,6 +464,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       const item: SegmentViewItem = {
         segment,
         index,
+        colorIndex: this.segColorIndex(segment, index),
         top: offset,
         bottom: offset + estimatedHeight,
         silenceAfter: null,

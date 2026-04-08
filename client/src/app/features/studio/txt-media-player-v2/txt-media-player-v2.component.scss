@@ -602,7 +602,7 @@ audio {
   &.highlighted {
     background: var(--primary-container);
     color: var(--on-primary-container);
-    font-weight: 700;
+    text-shadow: 0.4px 0 0 currentColor;
     border-radius: 2px;
   }
 
@@ -616,7 +616,7 @@ audio {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dim) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    font-weight: 700;
+    text-shadow: none;
   }
 }
 

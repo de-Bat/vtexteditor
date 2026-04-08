@@ -168,10 +168,29 @@ interface TrackItem {
           <h2 class="transcript-title">Transcript</h2>
           <span class="auto-badge">AUTO-GEN</span>
         </div>
-        <button class="clean-all-btn" (click)="restoreAll()" title="Restore all removed words">
-          <span class="material-symbols-outlined">delete_sweep</span>
-          Clean All
-        </button>
+        <div class="header-right">
+          @if (!autoFollow()) {
+            <button class="return-btn" (click)="returnToCurrentWord()" title="Return to current word">
+              <span class="material-symbols-outlined">keyboard_return</span>
+              Return
+            </button>
+          }
+          <button
+            class="follow-btn"
+            [class.active]="autoFollow()"
+            [title]="autoFollow() ? 'Auto-follow on — click to pause' : 'Auto-follow paused — click to resume'"
+            (click)="autoFollow() ? autoFollow.set(false) : returnToCurrentWord()"
+          >
+            <span class="material-symbols-outlined">
+              {{ autoFollow() ? 'my_location' : 'location_disabled' }}
+            </span>
+            {{ autoFollow() ? 'Following' : 'Paused' }}
+          </button>
+          <button class="clean-all-btn" (click)="restoreAll()" title="Restore all removed words">
+            <span class="material-symbols-outlined">delete_sweep</span>
+            Clean All
+          </button>
+        </div>
       </div>
       <div class="search-wrap">
         <span class="material-symbols-outlined search-icon">search</span>
@@ -245,7 +264,7 @@ interface TrackItem {
         </div>
 
         <!-- Silence marker -->
-        @if (item.silenceAfter; as sil) {
+        @if (clip().showSilenceMarkers && item.silenceAfter; as sil) {
           <div class="silence-row">
             <div class="silence-line"></div>
             <div class="silence-pill" (click)="seekToTime(sil.midTime)">
@@ -313,6 +332,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly volume;
 
   /* ── Local Signals ───────────────────────────────────── */
+  readonly autoFollow = signal(true);
   readonly jumpCutMode = signal(false);
   readonly showOverlay = signal(false);
   readonly searchQuery = signal('');
@@ -482,6 +502,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   });
 
   /* ── Private State ───────────────────────────────────── */
+  private suppressScrollDetection = false;
   private pendingWordUpdates = new Map<string, boolean>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly handleResize = () => this.measureTranscriptViewport();
@@ -636,6 +657,14 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (!this.transcriptElRef) return;
     this.transcriptScrollTop.set(this.transcriptElRef.nativeElement.scrollTop);
     if (!this.transcriptViewportHeight()) this.measureTranscriptViewport();
+    if (!this.suppressScrollDetection) {
+      this.autoFollow.set(false);
+    }
+  }
+
+  returnToCurrentWord(): void {
+    this.autoFollow.set(true);
+    this.scrollToCurrentWord();
   }
 
   /* ── Time Formatting ─────────────────────────────────── */
@@ -727,9 +756,14 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   private scrollToCurrentWord(): void {
+    if (!this.autoFollow()) return;
     if (!this.transcriptElRef) return;
     const container = this.transcriptElRef.nativeElement;
     this.measureTranscriptViewport();
+
+    this.suppressScrollDetection = true;
+    setTimeout(() => { this.suppressScrollDetection = false; }, 150);
+
     const highlighted = container.querySelector('.word.highlighted') as HTMLElement | null;
     if (highlighted) {
       const cRect = container.getBoundingClientRect();

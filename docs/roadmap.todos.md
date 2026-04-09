@@ -64,4 +64,5 @@
 - [] muted words have visual indication, diffrent than removed
 - [] export - support export by segments, tags
 - [] transcription plugin - add suport for fixing words. let user choose on plugin panel 
-- transcription panel (player) - support fix words
+- [] transcription panel (player) - support fix words
+- [] performance - upload file if not in cache, upload file in server side - not through browser,  try transcribe mutiple parts simoulansly

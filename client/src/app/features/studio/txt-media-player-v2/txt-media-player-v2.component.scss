@@ -851,6 +851,7 @@ audio {
   overflow: hidden;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 3px;
   padding: 1px 6px;
   border-radius: 9999px;
@@ -878,6 +879,12 @@ audio {
 
   .material-symbols-outlined {
     font-size: 10px;
+  }
+
+  /* Compact: short gaps — icon only, no label text */
+  &.compact {
+    padding: 1px 4px;
+    gap: 0;
   }
 
   &:hover {

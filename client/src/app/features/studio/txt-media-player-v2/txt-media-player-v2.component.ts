@@ -49,7 +49,7 @@ interface SegmentViewItem {
 type FlowItem =
   | { kind: 'word'; word: Word }
   | { kind: 'time'; label: string; time: number; id: string }
-  | { kind: 'silence'; label: string; midTime: number; gapStart: number; gapEnd: number; id: string };
+  | { kind: 'silence'; label: string; midTime: number; gapStart: number; gapEnd: number; duration: number; id: string };
 
 interface TrackItem {
   kind: 'segment' | 'gap';
@@ -208,11 +208,6 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         </div>
         <!-- Auto-follow -->
         <div class="hdr-group hdr-divider">
-          @if (!autoFollow()) {
-            <button class="hdr-btn" (click)="returnToCurrentWord()" title="Return to current word">
-              <span class="material-symbols-outlined">keyboard_return</span>
-            </button>
-          }
           <button class="hdr-btn" [class.active]="autoFollow()" [attr.aria-pressed]="autoFollow()"
             [title]="autoFollow() ? 'Auto-follow on' : 'Auto-follow paused'"
             (click)="autoFollow() ? pauseFollow() : returnToCurrentWord()">
@@ -320,10 +315,14 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 } @else if (fi.kind === 'silence') {
                   <span class="inline-silence"
                     [class.silence-playing]="activeSilence()?.id === fi.id"
-                    [class.silence-hl]="highlightSilence() && (fi.gapEnd - fi.gapStart) >= silenceIntervalSec()"
+                    [class.silence-hl]="highlightSilence() && fi.duration >= silenceIntervalSec()"
+                    [class.compact]="fi.duration < 0.5"
                     [style.--sil-prog]="activeSilence()?.id === fi.id ? activeSilence()!.progress : 0"
+                    [style.min-width.px]="silenceChipWidth(fi.duration)"
+                    [title]="fi.label"
                     (click)="seekToTime(fi.midTime)">
-                    <span class="material-symbols-outlined">hourglass_empty</span>{{ fi.label }}
+                    <span class="material-symbols-outlined">hourglass_empty</span>
+                    @if (fi.duration >= 0.5) { {{ fi.label }} }
                   </span>
                 } @else if (fi.word.isRemoved) {
                   <span class="filler-badge"
@@ -505,7 +504,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     return lastBefore; // past the last word — keep it highlighted
   });
 
-  readonly highlightedWordId = computed(() => this.currentWord()?.id ?? null);
+  readonly highlightedWordId = computed(() =>
+    this.activeSilence() ? null : this.currentWord()?.id ?? null
+  );
 
   /**
    * When playback is inside an inline silence gap, returns the chip id and
@@ -854,6 +855,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
             midTime: gapStart + gap / 2,
             gapStart,
             gapEnd,
+            duration: gap,
             id: `sil-${seg.id}-${i}`,
           });
         }
@@ -906,6 +908,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   pauseFollow(): void {
     this.autoFollow.set(false);
+  }
+
+  /** Return pixel width for a silence chip — scales with duration, clamped to [20, 80]. */
+  silenceChipWidth(duration: number): number {
+    return Math.min(80, Math.max(20, Math.round(duration * 40)));
   }
 
   /* ── Time Formatting ─────────────────────────────────── */

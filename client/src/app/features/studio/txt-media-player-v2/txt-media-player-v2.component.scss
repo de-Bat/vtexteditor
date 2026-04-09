@@ -847,6 +847,8 @@ audio {
 
 /* ── Inline silence chip ──────────────────────────────── */
 .inline-silence {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -860,6 +862,19 @@ audio {
   border: 1px dashed rgba(72, 71, 74, 0.25);
   cursor: pointer;
   user-select: none;
+  transition: color 150ms, border-color 150ms, background 150ms;
+
+  /* Progress fill bar — drawn at bottom, width driven by --sil-prog (0–1) */
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    width: calc(var(--sil-prog, 0) * 100%);
+    background: var(--secondary);
+    border-radius: 0 1px 1px 0;
+  }
 
   .material-symbols-outlined {
     font-size: 10px;
@@ -869,6 +884,26 @@ audio {
     color: var(--error);
     border-color: var(--error);
     background: rgba(255, 110, 132, 0.08);
+  }
+
+  /* Active: playhead is inside this silence gap */
+  &.silence-playing {
+    color: var(--secondary);
+    border-color: var(--secondary);
+    background: rgba(144, 147, 255, 0.1);
+
+    &:hover {
+      color: var(--error);
+      border-color: var(--error);
+      background: rgba(255, 110, 132, 0.08);
+    }
+  }
+
+  /* Smart-Cut highlight: this gap meets the silence interval threshold */
+  &.silence-hl {
+    color: var(--secondary);
+    border-color: var(--secondary);
+    border-style: solid;
   }
 }
 
@@ -906,12 +941,6 @@ audio {
   &.filler-hl {
     text-decoration: underline;
     text-decoration-color: #f59e0b;
-    text-underline-offset: 3px;
-  }
-
-  &.silence-hl {
-    text-decoration: underline;
-    text-decoration-color: var(--secondary);
     text-underline-offset: 3px;
   }
 }

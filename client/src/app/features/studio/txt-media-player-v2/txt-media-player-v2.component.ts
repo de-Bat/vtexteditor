@@ -49,7 +49,7 @@ interface SegmentViewItem {
 type FlowItem =
   | { kind: 'word'; word: Word }
   | { kind: 'time'; label: string; time: number; id: string }
-  | { kind: 'silence'; label: string; midTime: number; id: string };
+  | { kind: 'silence'; label: string; midTime: number; gapStart: number; gapEnd: number; id: string };
 
 interface TrackItem {
   kind: 'segment' | 'gap';
@@ -318,7 +318,11 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 @if (fi.kind === 'time') {
                   <span class="inline-time" (click)="seekToTime(fi.time)">{{ fi.label }}</span>
                 } @else if (fi.kind === 'silence') {
-                  <span class="inline-silence" (click)="seekToTime(fi.midTime)">
+                  <span class="inline-silence"
+                    [class.silence-playing]="activeSilence()?.id === fi.id"
+                    [class.silence-hl]="highlightSilence() && (fi.gapEnd - fi.gapStart) >= silenceIntervalSec()"
+                    [style.--sil-prog]="activeSilence()?.id === fi.id ? activeSilence()!.progress : 0"
+                    (click)="seekToTime(fi.midTime)">
                     <span class="material-symbols-outlined">hourglass_empty</span>{{ fi.label }}
                   </span>
                 } @else if (fi.word.isRemoved) {
@@ -336,7 +340,6 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     [class.search-match]="searchMatchIds().has(fi.word.id)"
                     [class.filler-hl]="isFillerWord(fi.word)"
-                    [class.silence-hl]="isSilenceAdjacent(fi.word, seg)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)"
                     [title]="'Double-click to remove'"
@@ -503,6 +506,29 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   });
 
   readonly highlightedWordId = computed(() => this.currentWord()?.id ?? null);
+
+  /**
+   * When playback is inside an inline silence gap, returns the chip id and
+   * a 0–1 fill progress so the chip can animate a progress bar.
+   */
+  readonly activeSilence = computed<{ id: string; progress: number } | null>(() => {
+    const t = this.currentTime();
+    for (const seg of this.clip().segments) {
+      const words = seg.words;
+      for (let i = 1; i < words.length; i++) {
+        const gapStart = words[i - 1].endTime;
+        const gapEnd = words[i].startTime;
+        const gap = gapEnd - gapStart;
+        if (gap >= INLINE_SILENCE_THRESHOLD_SEC && t >= gapStart && t < gapEnd) {
+          return {
+            id: `sil-${seg.id}-${i}`,
+            progress: (t - gapStart) / gap,
+          };
+        }
+      }
+    }
+    return null;
+  });
 
   readonly activeSegmentId = computed(() => {
     const w = this.currentWord();
@@ -818,12 +844,16 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
       // Silence chip — gap between previous word's end and this word's start
       if (i > 0) {
-        const gap = w.startTime - words[i - 1].endTime;
+        const gapStart = words[i - 1].endTime;
+        const gapEnd = w.startTime;
+        const gap = gapEnd - gapStart;
         if (gap >= INLINE_SILENCE_THRESHOLD_SEC) {
           items.push({
             kind: 'silence',
             label: gap >= 1 ? gap.toFixed(1) + 's' : Math.round(gap * 1000) + 'ms',
-            midTime: words[i - 1].endTime + gap / 2,
+            midTime: gapStart + gap / 2,
+            gapStart,
+            gapEnd,
             id: `sil-${seg.id}-${i}`,
           });
         }
@@ -938,13 +968,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   isFillerWord(word: Word): boolean {
     if (!this.highlightFillers()) return false;
     return this.selectedFillers().has(word.text.toLowerCase());
-  }
-
-  isSilenceAdjacent(word: Word, seg: Segment): boolean {
-    if (!this.highlightSilence()) return false;
-    const idx = seg.words.indexOf(word);
-    if (idx < 0 || idx >= seg.words.length - 1) return false;
-    return (seg.words[idx + 1].startTime - word.endTime) >= this.silenceIntervalSec();
   }
 
   private applyWordUpdates(updates: Array<{ id: string; isRemoved: boolean }>, recordHistory: boolean): void {

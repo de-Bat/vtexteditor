@@ -1086,6 +1086,22 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.suppressScrollDetection = true;
     setTimeout(() => { this.suppressScrollDetection = false; }, 600);
 
+    // If playback is in a silence gap, scroll to the silence chip
+    const silence = this.activeSilence();
+    if (silence) {
+      const silenceEl = container.querySelector(`.inline-silence[id="${silence.id}"]`) as HTMLElement | null
+        || Array.from(container.querySelectorAll('.inline-silence')).find((el: any) => el.title === silence.id) as HTMLElement | null;
+      if (silenceEl) {
+        const cRect = container.getBoundingClientRect();
+        const eRect = silenceEl.getBoundingClientRect();
+        if (eRect.top < cRect.top || eRect.bottom > cRect.bottom) {
+          silenceEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+        return;
+      }
+    }
+
+    // Otherwise, scroll to the highlighted word
     const highlighted = container.querySelector('.word.highlighted') as HTMLElement | null;
     if (highlighted) {
       const cRect = container.getBoundingClientRect();

@@ -38,10 +38,11 @@ interface MutableEvent {
             <div class="event-header">
               @if (event.editingTitle) {
                 <input
+                  #titleInput
                   class="title-input"
                   [value]="event.title"
-                  (blur)="finishEditTitle(event, $any($event.target).value)"
-                  (keydown.enter)="finishEditTitle(event, $any($event.target).value)"
+                  (blur)="finishEditTitle(event, titleInput.value)"
+                  (keydown.enter)="finishEditTitle(event, titleInput.value)"
                   aria-label="Event title"
                 />
               } @else {
@@ -171,7 +172,7 @@ interface MutableEvent {
 })
 export class StoryReviewPanelComponent {
   readonly proposal = input.required<StoryProposal>();
-  readonly segmentTexts = input<Record<string, string>>({});
+  readonly segmentTexts = input<Record<string, string | undefined>>({});
 
   readonly commit = output<StoryEvent[]>();
   readonly discard = output<void>();

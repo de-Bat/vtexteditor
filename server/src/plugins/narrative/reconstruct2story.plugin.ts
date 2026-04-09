@@ -104,11 +104,12 @@ export const reconstruct2storyPlugin: IPlugin = {
     };
 
     const project = projectService.get(ctx.projectId);
-    if (project) {
-      projectService.update(ctx.projectId, {
-        metadata: { ...(project.metadata ?? {}), [PROPOSAL_KEY]: proposal },
-      });
+    if (!project) {
+      throw new Error(`reconstruct2story: project ${ctx.projectId} not found; cannot persist proposal.`);
     }
+    projectService.update(ctx.projectId, {
+      metadata: { ...(project.metadata ?? {}), [PROPOSAL_KEY]: proposal },
+    });
 
     // Return context unchanged — clips are replaced only after user review
     return ctx;
@@ -148,6 +149,12 @@ export const reconstruct2storyPlugin: IPlugin = {
       const { events } = req.body as { events: StoryEvent[] };
       if (!Array.isArray(events)) {
         return void res.status(400).json({ error: 'Request body must include events array' });
+      }
+      const malformed = events.some(
+        e => typeof e?.id !== 'string' || !Array.isArray(e?.segments),
+      );
+      if (malformed) {
+        return void res.status(400).json({ error: 'Each event must have a string id and a segments array' });
       }
 
       const sourceClips = project.clips.filter(c =>

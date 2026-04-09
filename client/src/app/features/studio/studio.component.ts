@@ -239,8 +239,8 @@ export class StudioComponent implements OnInit {
 
   private storyApi = inject(StoryApiService);
 
-  readonly segmentTexts = computed(() => {
-    const texts: Record<string, string> = {};
+  readonly segmentTexts = computed((): Record<string, string | undefined> => {
+    const texts: Record<string, string | undefined> = {};
     for (const clip of this.clipService.clips()) {
       for (const seg of clip.segments) {
         texts[seg.id] = seg.text;

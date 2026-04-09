@@ -6,17 +6,17 @@
 
 ---
 
-## Phase 1: Project Scaffolding
+## Phase 1: Project Scaffolding ✅
 
 **Dependencies**: None  
-**Estimated scope**: Foundation for all subsequent phases
+**Status**: Complete
 
 | # | Task | Details |
 |---|------|---------|
 | 1.1 | Initialize git repository | `git init`, create `.gitignore` (node_modules, dist, storage/uploads, storage/projects) |
 | 1.2 | Create monorepo structure | Root directory with `server/` and `client/` subdirectories |
 | 1.3 | Scaffold backend | `npm init` in `server/`, install Express, TypeScript, cors, multer, fluent-ffmpeg, uuid; configure `tsconfig.json` with strict mode |
-| 1.4 | Scaffold frontend | `ng new client --style=scss --routing --standalone` with Angular 18; configure proxy to backend (:3000) |
+| 1.4 | Scaffold frontend | `ng new client --style=scss --routing --standalone` with Angular 20+; configure proxy to backend (:3000) |
 | 1.5 | Define shared models | Create TypeScript interfaces in `server/src/models/` and `client/src/app/core/models/` for Project, Clip, Segment, Word, PipelineStep, PipelineContext |
 | 1.6 | Dev tooling | ESLint + Prettier configs; `concurrently` in root `package.json` for `npm run dev` (starts both servers) |
 
@@ -27,7 +27,7 @@
 
 ---
 
-## Phase 2: Media Upload & Streaming
+## Phase 2: Media Upload & Streaming ✅
 
 **Dependencies**: Phase 1
 
@@ -46,7 +46,7 @@
 
 ---
 
-## Phase 3: Plugin Architecture
+## Phase 3: Plugin Architecture ✅
 
 **Dependencies**: Phase 1  
 **Parallel with**: Phase 2
@@ -67,9 +67,11 @@
 
 ---
 
-## Phase 4: Onboarding Frontend
+## Phase 4: Onboarding Frontend ✅
 
 **Dependencies**: Phases 2 and 3
+
+> **Implementation note**: Onboarding is dual-mode — project home grid (when projects exist) + wizard (new project creation). Multi-project support via `GET /api/projects`.
 
 | # | Task | Details |
 |---|------|---------|
@@ -86,10 +88,12 @@
 
 ---
 
-## Phase 5: Core Transcription Plugins
+## Phase 5: Core Transcription Plugins ✅
 
 **Dependencies**: Phase 3  
 **Parallel with**: Phase 4
+
+> **Implementation note**: Three plugins implemented: `whisper-openai`, `groq-whisper`, `srt-import`. Plugins declare a `settingsMap` to auto-fill config from app-level settings.
 
 | # | Task | Details |
 |---|------|---------|
@@ -104,15 +108,17 @@
 
 ---
 
-## Phase 6: Studio View & Clip Management
+## Phase 6: Studio View & Clip Management ✅
 
 **Dependencies**: Phase 4
+
+> **Implementation note**: Clip panel is 280px (not 240px). Multi-project support with project-scoped routes (`/studio/:id`).
 
 | # | Task | Details |
 |---|------|---------|
 | 6.1 | Clips API endpoints | `GET /api/clips` — return all clips from project with nested segments/words; `GET /api/clips/:id` — single clip; `GET /api/clips/:id/stream` — proxy to media stream with clip time range |
 | 6.2 | ClipService (frontend) | Angular service with signals: `clips` (all), `selectedClip` (current), `selectedClipWords` (flat word array for binary search); fetch from API on studio load |
-| 6.3 | Studio layout component | Route `/studio` → `StudioComponent`; CSS Grid layout: sidebar (240px fixed) + main (flex); bottom transport bar (fixed) |
+| 6.3 | Studio layout component | Route `/studio/:id` → `StudioComponent`; Flex layout: clip panel (280px fixed) + player panel (flex:1) + export panel; no transport bar — controls via hover overlay |
 | 6.4 | ClipList component | Scrollable list in sidebar; each item: clip name, time range (`DurationPipe`), segment count; click to select (updates `ClipService.selectedClip` signal); active clip: blue left border, highlighted background |
 | 6.5 | Routing wiring | Onboarding navigates to `/studio` after pipeline complete; studio redirects to `/` if no project loaded |
 
@@ -123,10 +129,12 @@
 
 ---
 
-## Phase 7: txtMediaPlayer — Playback & Transcript
+## Phase 7: txtMediaPlayer — Playback & Transcript ✅
 
 **Dependencies**: Phase 6  
 **This is the core feature phase**
+
+> **Implementation note**: Now `TxtMediaPlayerV2Component`. Uses FlowItems pattern (words interleaved with inline time markers every 5s and silence chips for gaps ≥300ms). Hover overlay replaces transport bar. Gap-bridging word highlighting.
 
 | # | Task | Details |
 |---|------|---------|
@@ -147,7 +155,7 @@
 
 ---
 
-## Phase 8: Segment Timeline
+## Phase 8: Segment Timeline ✅
 
 **Dependencies**: Phase 7.4 (MediaPlayerService)  
 **Parallel with**: Phase 7.5–7.8
@@ -167,10 +175,12 @@
 
 ---
 
-## Phase 9: Text-Based Editing (Word Removal)
+## Phase 9: Text-Based Editing (Word Removal) ✅
 
 **Dependencies**: Phase 7  
 **Core editing feature**
+
+> **Implementation note**: Removed words use the filler-badge pattern (dashed border, italic red text, dotted underline) instead of strikethrough. Action footer (floating glass panel) replaces the floating toolbar concept.
 
 | # | Task | Details |
 |---|------|---------|
@@ -190,9 +200,11 @@
 
 ---
 
-## Phase 10: Export
+## Phase 10: Export ✅
 
 **Dependencies**: Phases 7 and 9
+
+> **Implementation note**: Export panel is an inline right sidebar (not modal). Uses polling-based status (1500ms interval), not SSE-driven progress. Three formats: Video (MP4), Plain Text, SRT.
 
 | # | Task | Details |
 |---|------|---------|
@@ -209,10 +221,12 @@
 
 ---
 
-## Phase 11: Advanced Plugins
+## Phase 11: Advanced Plugins ⬜
 
 **Dependencies**: Phase 3 (plugin architecture)  
 **Can start after**: Phase 5
+
+> **Status**: Plugin subdirectories exist (`detection/`, `diarization/`, `narrative/`, `translation/`) but no implementations yet.
 
 | # | Task | Details |
 |---|------|---------|
@@ -231,15 +245,17 @@
 
 ---
 
-## Phase 12: Polish & Hardening
+## Phase 12: Polish & Hardening 🟡
 
 **Dependencies**: All previous phases  
 **Final phase**
 
+> **Status**: Partially complete. Error handling ✅ (`HttpErrorInterceptor`, `NotificationService`), virtual scrolling ✅ (≥1200 words, 700px overscan), keyboard shortcuts ✅ (`KeyboardShortcutsService`), settings service ✅. Tests ⬜ not yet written.
+
 | # | Task | Details |
 |---|------|---------|
 | 12.1 | Error handling | Backend: global Express error handler middleware, typed error responses; Frontend: interceptor for HTTP errors, toast notification service for user-facing errors |
-| 12.2 | Large transcript performance | Angular CDK virtual scrolling for TranscriptView when word count > 1000; efficient binary search (pre-sorted word array) for word highlighting |
+| 12.2 | Large transcript performance | Custom virtual scrolling for TranscriptView when word count ≥ 1200; 700px overscan buffer; segment height estimation (`16 + ceil(words/10) * 28`px); efficient binary search for word highlighting |
 | 12.3 | Keyboard shortcuts | Global keyboard listener service; Space = play/pause, Ctrl+Z = undo, Ctrl+Shift+Z = redo, Delete = remove selected, Left/Right arrows = seek ±5s |
 | 12.4 | Responsive layout | Collapsible sidebar (hamburger toggle); flexible main area; minimum width 1024px; media player resizes proportionally |
 | 12.5 | Loading states | Skeleton loaders for: clip list, transcript view, pipeline progress; loading spinners for async operations |
@@ -277,19 +293,29 @@ Phase 1 (Scaffolding)
                                              Phase 12 (Polish)
 ```
 
+## Phase 13: UX Enhancements ⬜
+
+**Dependencies**: Phases 7–10  
+**Status**: Planned — see `docs/roadmap.todos.md` for the full prioritized list.
+
+Key items: header/footer revamp, smart cut (silence + filler detection), timeline ruler, scrollbar playback indicator, export flyout redesign, dashboard navigation, resizable panels.
+
+---
+
 ## Summary
 
-| Phase | Name | Depends On | Can Parallel With |
-|-------|------|-----------|-------------------|
-| 1 | Project Scaffolding | — | — |
-| 2 | Media Upload & Streaming | 1 | 3 |
-| 3 | Plugin Architecture | 1 | 2 |
-| 4 | Onboarding Frontend | 2, 3 | 5 |
-| 5 | Transcription Plugins | 3 | 4 |
-| 6 | Studio & Clip Management | 4 | — |
-| 7 | txtMediaPlayer | 6 | — |
-| 8 | Segment Timeline | 7.4 | 7.5–7.8 |
-| 9 | Text-Based Editing | 7 | — |
-| 10 | Export | 7, 9 | 11 |
-| 11 | Advanced Plugins | 3, 5 | 10 |
-| 12 | Polish & Hardening | All | — |
+| Phase | Name | Status | Depends On | Can Parallel With |
+|-------|------|--------|-----------|-------------------|
+| 1 | Project Scaffolding | ✅ | — | — |
+| 2 | Media Upload & Streaming | ✅ | 1 | 3 |
+| 3 | Plugin Architecture | ✅ | 1 | 2 |
+| 4 | Onboarding Frontend | ✅ | 2, 3 | 5 |
+| 5 | Transcription Plugins | ✅ | 3 | 4 |
+| 6 | Studio & Clip Management | ✅ | 4 | — |
+| 7 | txtMediaPlayer | ✅ | 6 | — |
+| 8 | Segment Timeline | ✅ | 7.4 | 7.5–7.8 |
+| 9 | Text-Based Editing | ✅ | 7 | — |
+| 10 | Export | ✅ | 7, 9 | 11 |
+| 11 | Advanced Plugins | ⬜ | 3, 5 | 10 |
+| 12 | Polish & Hardening | 🟡 | All | — |
+| 13 | UX Enhancements | ⬜ | 7–10 | — |

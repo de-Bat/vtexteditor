@@ -4,141 +4,185 @@
 
 | Route | View | Description |
 |-------|------|-------------|
-| `/` | Onboarding | Media upload, pipeline configuration, processing |
-| `/studio` | Studio | Clip list, media player, transcript editing, export |
+| `/` | Onboarding | Project home (list existing projects) or wizard (upload → configure → process) |
+| `/studio/:id` | Studio | Clip list, media player with hover controls, transcript editing, export |
 
 ---
 
 ## 2. Onboarding View
 
-Full-page centered layout. Step-by-step flow: upload → configure → process → navigate.
+Dual-mode view selected automatically: **Project Home** when projects exist, **Wizard** for new project creation.
 
-### Components
+### Project Home
 
-#### MediaUploader
-- Large drop zone (centered, dashed border) accepting drag-and-drop or click-to-browse
-- Accepted formats listed below the zone: MP4, WebM, MKV, MP3, WAV, FLAC, OGG
-- Upload progress bar shown during file transfer
+Full-page layout showing all existing projects in a responsive grid.
+
+**ProjectsGrid**
+- Responsive column grid of project cards
+- Each card: project title, filename + duration + format, stats (clips, segments, words), transcription status badge
+- Card footer: "Open" button navigates to `/studio/:id`; overflow menu (⋮) with "Delete" action
+- "New Project" placeholder card triggers wizard mode
+
+**Project Card States**
+- Default: `surface-container-high` on `surface` (tonal lift)
+- Hover: ambient glow effect
+
+### Wizard
+
+Step-by-step flow: Upload → Configure → Process → auto-navigate to `/studio/:id`.
+
+#### Components
+
+**StepsBar**
+- Three steps displayed horizontally: ① Upload, ② Configure, ③ Process
+- Active step highlighted with `primary` accent; completed steps show check icon
+
+**MediaUploader**
+- Large drop zone accepting drag-and-drop or click-to-browse
+- Accepted formats: MP4, WebM, MKV, MP3, WAV, FLAC, OGG
+- Upload progress bar during file transfer
 - Error state for rejected file types
 
-#### FileInfoPanel
+**FileInfoPanel**
 - Appears after successful upload
 - Displays: filename, duration (formatted), format/codec, resolution (video) or bitrate (audio)
-- Compact horizontal metadata strip
 
-#### PipelineConfigurator
+**PipelineConfigurator**
 - Horizontal card layout with left-to-right flow arrows between steps
-- Each card shows: plugin icon/name and type badge
-- `[+]` button at the end to add a pipeline step (opens a dropdown of available plugins)
-- Drag-to-reorder cards; click `×` to remove a step
-- Fetches available plugins from `GET /api/plugins`
+- Each card: plugin name (Manrope 700) and type badge (Space Grotesk)
+- `[+]` button to add a pipeline step (dropdown of available plugins)
+- Click `×` to remove a step
+- Fetches plugins from `GET /api/plugins`
+- Plugin config fields auto-filled from app-level settings via `settingsMap`
 
-#### PluginOptionsPanel
-- Appears below the pipeline when a step card is selected
+**PluginOptionsPanel**
+- Below the pipeline when a step card is selected
 - Dynamically generated form from the plugin's JSON Schema `configSchema`
 - Supports: text inputs, dropdowns, number fields, toggles
-- Section header shows the plugin name
 
-#### ProcessingProgress
-- Full-width progress bar below the pipeline section
-- Shows: current step label (e.g., "Transcribing..."), step count (e.g., "1/3"), percentage
-- Multi-step: bar fills proportionally across all pipeline steps
-- Subscribes to `GET /api/events` (SSE)
+**ProcessingProgress**
+- Full-width progress bar below the pipeline
+- Shows: current step label, step count, percentage
+- Subscribes to `GET /api/events` (SSE) for `pipeline:progress` events
 
-#### ProcessButton
-- Primary action button: `▶ Process`
-- Disabled until media is uploaded and at least one pipeline step is configured
+**ProcessButton**
+- Glass & Gradient style: `linear-gradient(135deg, primary, primary-dim)`
+- Disabled until media uploaded and at least one pipeline step configured
 - Replaced by ProcessingProgress during execution
 
 ### Flow
-1. User drops/selects media → MediaUploader uploads → FileInfoPanel appears
+1. User drops/selects media → upload → FileInfoPanel appears
 2. User configures pipeline → PipelineConfigurator + PluginOptionsPanel
-3. User clicks Process → ProcessingProgress shows → on complete, auto-navigate to `/studio`
+3. User clicks Process → ProcessingProgress → on complete, auto-navigate to `/studio/:id`
 
 ---
 
 ## 3. Studio View
 
-Three-area layout: left sidebar + main content area + bottom transport bar.
+Three-panel flex layout: clip panel (left) + player panel (center) + export panel (right). **No transport bar** — playback controls are a hover overlay on the media element.
 
 ### Layout
 
 ```
-┌─────────────┬──────────────────────────────────────────┐
-│  Sidebar    │  Main Content                            │
-│  (240px)    │  ┌──────────────────────────────────────┐ │
-│             │  │  Media Player                        │ │
-│  ClipList   │  └──────────────────────────────────────┘ │
-│             │  ┌──────────────────────────────────────┐ │
-│             │  │  Transcript                          │ │
-│             │  └──────────────────────────────────────┘ │
-│             │  ┌──────────────────────────────────────┐ │
-│             │  │  Segment Timeline                    │ │
-│             │  └──────────────────────────────────────┘ │
-├─────────────┴──────────────────────────────────────────┤
-│  Transport Controls                                    │
-└────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  Header: Logo │ project-name (flex:1) │ [← Back]                │
+├──────────┬──────────────────────────────────────┬────────────────┤
+│          │                                      │                │
+│ Clip     │  Media Player (hover overlay)        │  Export Panel  │
+│ Panel    │  ┌──────────────────────────────────┐│  (min 240px)   │
+│ (280px)  │  │  <video>/<audio>                 ││                │
+│          │  │  ┌ ▶ 01:23/05:45  Spkr A   🔊 ┐ ││  ○ Video       │
+│          │  │  └──── overlay (on hover) ──────┘││  ○ Plain Text  │
+│          │  └──────────────────────────────────┘│  ○ SRT         │
+│          │                                      │                │
+│          │  Transcript (FlowItems, scrollable)  │  [Export]      │
+│          │  ┌──────────────────────────────────┐│                │
+│          │  │ words · time-markers · silence   ││                │
+│          │  │ chips within segment cards       ││                │
+│          │  └──────────────────────────────────┘│                │
+│          │                                      │                │
+│          │  Segment Timeline                    │                │
+│          │  ┌──────────────────────────────────┐│                │
+│          │  │ [█ Seg1 █][███ Seg2 ███] ▲       ││                │
+│          │  └──────────────────────────────────┘│                │
+│          │                                      │                │
+│          │  Action Footer (floating, on select) │                │
+│          │  ┌──────────────────────────────────┐│                │
+│          │  │ ✂ ⟳ │ 3 sel · 1 rem │ Smart Cut ││                │
+│          │  └──────────────────────────────────┘│                │
+├──────────┴──────────────────────────────────────┴────────────────┤
 ```
 
 ### Components
 
-#### ClipList (Sidebar)
-- Scrollable vertical list
-- Each item shows: clip name, time range (formatted), segment count
-- Selected clip: highlighted row with blue left border accent
-- Click to select → loads clip into TxtMediaPlayer
-- Header: "CLIPS" label
-- Footer: optional "← Back" link to return to Onboarding
+#### ClipPanel (Left Sidebar)
+- Width: 280px fixed (transforms offscreen at ≤1024px breakpoint)
+- Each item: clip name (Inter 500), time range + segment count (Space Grotesk), colored left accent from segment palette
+- Selected clip: `surface-container-high` background, accent left bar
+- Click to select → loads clip into TxtMediaPlayerV2
 
-#### TxtMediaPlayer (Main)
-Container component that composes: MediaPlayer, TranscriptView, SegmentTimeline.
+#### TxtMediaPlayerV2 (Main)
+Container component that composes: media element with hover overlay, transcript with FlowItems, segment timeline, and action footer.
 
-**MediaPlayer area:**
-- HTML5 `<video>` or `<audio>` element (determined by media type)
-- Source: `GET /api/clips/:id/stream` (or full media stream with time offset)
-- No native controls — custom controls in transport bar
+**Media Element + Hover Overlay:**
+- HTML5 `<video>` or `<audio>` element (determined by `project.mediaType`)
+- Source: proxied through API
+- **No native controls** — custom overlay appears on hover over the media frame
+- Overlay controls:
+  - **Left**: Play/Pause icon button, timecode display (`HH:MM:SS / HH:MM:SS` in Space Grotesk), active segment label
+  - **Right**: Volume button (dynamic icon: `volume_off` / `volume_down` / `volume_up`), Fullscreen button
+- Overlay background: linear gradient (bottom transparent → semi-opaque), `opacity` transition 300ms
 
-**TranscriptView area:**
-- Segments rendered as visually distinct cards/blocks
-- Each segment card has:
-  - Header: segment tag labels (e.g., "Speaker A") with colored indicator
-  - Body: words rendered as individual `<span>` elements, inline flow (wrapping)
-- Word states:
-  - **Normal**: default text style
-  - **Active (playing)**: highlighted background (primary color at 20% opacity), bold text
-  - **Hover**: subtle underline, pointer cursor
-  - **Removed**: strikethrough, opacity 0.35, subtle red-tinted background
-- Scroll container with auto-scroll to active word during playback
+**Transcript (FlowItems):**
+- Segments rendered as visually distinct cards with colored header (tag label + accent from segment palette)
+- Within each segment, words are rendered as a continuous inline flow interleaved with:
+  - **Inline time markers** (every 5 seconds): small `primary`-tinted pill with `MM:SS` label (Space Grotesk). Forces a line break via `flex-basis: 100%`. Clickable → seek.
+  - **Silence chips** (gaps ≥ 300ms between words): inline pill with `hourglass_empty` icon and gap duration. Clickable → seek to gap midpoint.
+- Scroll container with auto-follow: scrolls to keep the active word in view during playback
+- Auto-follow toggle: `my_location` / `location_disabled` icon button; "Return to playhead" button (with pulse animation) appears when scrolled away
+- **Virtual scrolling**: activates when total word count ≥ 1200 words. Overscan buffer: 700px. Segment heights estimated at `16 + ceil(words/10) * 28` px.
+- **Search bar**: filters/highlights matching words with gradient text effect
 
-**SegmentTimeline area:**
-- Horizontal bar spanning the clip duration
-- Segments as proportional-width blocks, colored by primary tag value
-- Playhead: vertical line indicator at current playback position
-- Click anywhere on timeline → seek to that time position
-- Segment hover: tooltip with segment info (text preview, duration, tag)
+**Word States:**
 
-#### MediaControls (Transport Bar)
-- Full-width bar at bottom of Studio view
-- Elements (left to right):
-  - Skip back button (◀◀)
-  - Play/Pause toggle (▶ / ⏸)
-  - Skip forward button (▶▶)
-  - Seek bar (range slider with elapsed/total time labels)
-  - Volume control (icon + slider)
-  - Playback speed selector (0.5×, 0.75×, 1×, 1.25×, 1.5×, 2×)
+| State | Visual Treatment |
+|-------|-----------------|
+| Normal | `rgba(246,243,245,0.8)` text, `2px 4px` padding, pointer cursor |
+| Hover | Text color → `primary` |
+| Highlighted (current playback) | `primary-container` background, `on-primary-container` text, `text-shadow: 0.4px`, 2px radius |
+| Selected | 1px `primary` outline at 65% opacity, `primary` background at 25% opacity |
+| Search match | Gradient text (`primary` → `primary-dim`) via `background-clip: text` |
+| Filler / Removed | Filler-badge wrapper: `rgba(44,44,47,0.4)` bg, 1px dashed border, 4px radius. Text: `error` color, italic, 12px, dotted underline |
 
-#### ExportPanel
-- Triggered from toolbar "Export ▾" dropdown button
-- Opens as a modal or slide-out drawer
-- Options: format selection (Video/Audio, SRT, TXT), quality settings for media export
-- Export progress bar (SSE-driven)
-- Download button appears on completion
+**Gap-Bridging Highlight:** When the playhead is between words (in a gap), the system highlights the nearest non-removed word rather than showing no highlight.
 
-#### Word Selection & Removal Toolbar
-- Floating toolbar appears above the text selection
-- Appears when one or more words are selected (Shift+click range or native selection)
-- Actions: "Remove" (for normal words), "Restore" (for removed words)
-- Keyboard shortcut: Delete key to remove selected words
+**Segment Timeline:**
+- Horizontal bar, full width of player panel
+- Segments as proportional-width blocks colored from the 6-color palette (`bar` variant at 60% opacity)
+- Separated by 2px empty space (base background), not borders
+- Playhead: 2px `secondary` (#9093ff) vertical line with tinted glow
+- Click anywhere → seek to that time position
+
+**Action Footer (Floating):**
+- Absolutely positioned at bottom of player panel (32px inset)
+- Glass effect: `rgba(44,44,47,0.92)` background, `backdrop-filter: blur(12px)`, 12px radius
+- Three sections:
+  - **Left**: Cut (`content_cut`), Jump-Cut toggle (`auto_awesome`), Restore (`settings_backup_restore`)
+  - **Center**: "N selected" + "M removed" meta chips
+  - **Right**: Smart Cut action button
+- Appears on word selection; dismisses when selection is cleared
+
+#### ExportPanel (Right Sidebar)
+- Docked inline to right of player panel, `min-width: 240px`
+- Left border for separation (tonal shift)
+- Format radio group:
+  - **Video (MP4)** — "Removed words cut from media"
+  - **Plain Text** — "Active words as plain text"
+  - **SRT Subtitles** — "Active words as .srt file"
+- Export button: Glass & Gradient style
+- Status progression: `idle` → `pending` (spinner animation) → `done` (download link) → `error`
+- **Polling-based**: checks export status every 1500ms (not SSE)
+- Hidden at ≤1024px breakpoint
 
 ---
 
@@ -146,39 +190,38 @@ Container component that composes: MediaPlayer, TranscriptView, SegmentTimeline.
 
 ### Word Highlighting (Playback Sync)
 - On every `timeupdate` event from the HTML5 player
-- Binary search through the current clip's words (sorted by startTime) to find the word where `startTime <= currentTime < endTime`
-- Apply `.active` CSS class to that word's `<span>`, remove from previous
-- If the active word is removed, find the next non-removed word and skip playhead there
+- Binary search through the current clip's words (sorted by `startTime`) to find the word where `startTime <= currentTime < endTime`
+- Gap-bridging: if the playhead falls in a gap between words, the nearest non-removed word is highlighted
+- Apply `.highlighted` CSS class to that word, remove from previous
 
 ### Word Click → Seek
-- Click handler on every word `<span>`
-- On click: `player.currentTime = word.startTime`
-- Works for both normal and removed words (seeking to a removed word does not trigger removal skip)
+- Click handler on every word span: `MediaPlayerService.seek(word.startTime)`
+- Works for both normal and filler-badge (removed) words
+- Time markers and silence chips also clickable → seek to their respective times
 
 ### Word Selection
+- **Click**: select a single word
 - **Shift+Click**: select all words between the last-clicked word and the Shift+clicked word
-- **Native text selection**: detect which word `<span>` elements are within the browser selection range
-- Selected words receive a temporary `.selected` CSS class (blue highlight)
-- Floating toolbar appears above the selection
+- Selected words receive `.selected` class (purple outline + background)
+- Action footer appears with contextual actions
 
 ### Jump-Cut Playback
-- On `timeupdate`, check if the next word(s) are removed
-- If entering a removed region: calculate the start time of the next non-removed word after the removed range
-- Set `player.currentTime` to that time, creating a seamless jump cut
+- On `timeupdate`, check if current/next words are removed
+- If entering a removed region: calculate `startTime` of next non-removed word → seek there
+- Creates seamless jump cuts during playback
 - Edge case: if all remaining words are removed, pause playback
+
+### Auto-Follow
+- Toggle button (`my_location` / `location_disabled` icon) enables/disables auto-scroll
+- When enabled: `scrollIntoView({ behavior: 'smooth', block: 'center' })` on active word
+- When user manually scrolls away: "Return to playhead" button appears with `pulse-border` animation
+- Clicking return button scrolls back and re-enables follow
 
 ### Undo / Redo
 - **Ctrl+Z**: undo last word removal or restoration
 - **Ctrl+Shift+Z**: redo
-- Edit history stack: each entry stores the affected word IDs and their previous `isRemoved` state
-- Stack is maintained by `EditHistoryService` and persisted with the project
-
-### Pipeline Builder (Onboarding)
-- Click `[+]` button → dropdown with available plugin names
-- Select a plugin → card appears in pipeline row
-- Drag cards horizontally to reorder
-- Click card → PluginOptionsPanel shows its config form
-- Click `×` on card → remove from pipeline (confirm if it was configured)
+- Edit history stack maintained by `EditHistoryService`
+- Each entry stores affected word IDs and their previous `isRemoved` state
 
 ---
 
@@ -186,19 +229,22 @@ Container component that composes: MediaPlayer, TranscriptView, SegmentTimeline.
 
 | Shortcut | Action |
 |----------|--------|
-| Space | Play / Pause |
-| Ctrl+Z | Undo |
-| Ctrl+Shift+Z | Redo |
-| Delete | Remove selected words |
-| Left Arrow | Seek back 5 seconds |
-| Right Arrow | Seek forward 5 seconds |
-| Shift+Click (word) | Extend selection to clicked word |
+| `Space` | Play / Pause |
+| `Ctrl+Z` | Undo |
+| `Ctrl+Shift+Z` | Redo |
+| `Delete` | Remove selected words |
+| `←` Left Arrow | Seek back 5 seconds |
+| `→` Right Arrow | Seek forward 5 seconds |
+| `Shift+Click` (word) | Extend selection to clicked word |
 
 ---
 
 ## 6. Responsive Behavior
 
-- Minimum supported width: 1024px
-- Sidebar is collapsible (hamburger toggle) on narrower viewports
-- Media player area stacks above transcript on very constrained heights
-- Onboarding view is single-column centered, max-width 720px
+- **Minimum supported width**: 1024px
+- **≤1024px breakpoint**:
+  - Clip panel: fixed position, transforms offscreen (toggle to show/hide)
+  - Export panel: hidden
+  - Grid changes to single-column layout
+- **Media player**: resizes proportionally with container
+- **Onboarding**: single-column centered, max-width 720px

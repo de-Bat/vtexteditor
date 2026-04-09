@@ -1,163 +1,171 @@
 # VTextStudio — UI Design
 
+> Design system: **"The Editorial Timeline"** — see `stitch/DESIGN.md` for the full creative brief.
+
 ## 1. Design System
 
-### 1.1 Color Tokens (Dark Theme)
+### 1.1 Creative North Star
+
+Move away from the cluttered "knobs-and-dials" look of legacy video editors toward a high-end, editorial experience. Key principles:
+
+- **Tonal Depth over Lines** — surfaces feel carved from a single piece of obsidian, not boxes drawn on a screen.
+- **Intentional Asymmetry** — wide margins for the transcript, condensed high-density utility bars for the timeline.
+- **The "No-Line" Rule** — never use 1px solid borders to section off the interface. Boundaries are defined by tonal shifts between surface levels and 40px vertical spacing gaps.
+
+### 1.2 Colors & Surface Hierarchy
+
+The palette is rooted in a deep, nocturnal base to keep focus on video content and text.
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--bg-primary` | `#0F1117` | Page background |
-| `--bg-surface` | `#1A1D27` | Cards, panels, sidebar |
-| `--bg-surface-hover` | `#242837` | Hovered cards, list items |
-| `--bg-surface-active` | `#2D3247` | Selected/active surfaces |
-| `--color-primary` | `#6C8EEF` | Accent, buttons, links, active indicators |
-| `--color-primary-hover` | `#8AA4F4` | Hover state of primary elements |
-| `--color-primary-muted` | `rgba(108, 142, 239, 0.2)` | Active word background, selection highlight |
-| `--color-text` | `#E1E4ED` | Primary text |
-| `--color-text-secondary` | `#8B8FA3` | Secondary text, labels, captions |
-| `--color-text-disabled` | `#4A4E5E` | Disabled text |
-| `--color-danger` | `#EF4444` | Destructive actions, errors |
-| `--color-danger-muted` | `rgba(239, 68, 68, 0.1)` | Removed word background |
-| `--color-success` | `#22C55E` | Success states, completed steps |
-| `--color-warning` | `#F59E0B` | Warning states |
-| `--color-border` | `#2A2E3D` | Borders, dividers |
-| `--color-border-focus` | `#6C8EEF` | Focused input borders |
+| `surface` | `#0e0e10` | Base workspace background |
+| `surface-container-lowest` | `#000000` | Sunken content wells (transcript, video preview) |
+| `surface-container-low` | `#1a1a1d` | Recessed panels |
+| `surface-container-high` | `#242427` | Lifted cards, clip thumbnails |
+| `surface-bright` | `#2c2c2f` | Floating utilities (with `backdrop-blur`) |
+| `primary` | `#ba9eff` | Accent, active states, main actions |
+| `primary-dim` | `#8455ef` | Gradient endpoint for primary buttons |
+| `primary-container` | — | Active word highlight background |
+| `on-primary-container` | — | Active word highlight text |
+| `secondary` | `#9093ff` | Playhead, secondary accents |
+| `tertiary` | `#ff716a` | Destructive text actions |
+| `error` | `#ff6e84` | Calibrated error (dark-theme tuned, not standard red) |
+| `error-container` | `#a70138` | Deleted word background (at 20% opacity) |
+| `on-surface` | `#f6f3f5` | Primary text (never pure `#FFFFFF`) |
+| `outline-variant` | `#48474a` | Ghost borders (at 15% opacity) |
 
-### 1.2 Segment Tag Color Palette
+**The "Glass & Gradient" Rule** — main actions (Export, Cut, Process) use a subtle `linear-gradient(135deg, primary, primary-dim)` for holographic depth.
 
-Rotating palette assigned by tag value (deterministic hash):
+### 1.3 Segment Color Palette
 
-| Index | Color | Example Tag |
-|-------|-------|-------------|
-| 0 | `#6C8EEF` (blue) | speaker:Alice |
-| 1 | `#F59E0B` (amber) | speaker:Bob |
-| 2 | `#22C55E` (green) | speaker:Charlie |
-| 3 | `#EF4444` (red) | speaker:Dave |
-| 4 | `#A855F7` (purple) | topic:intro |
-| 5 | `#EC4899` (pink) | topic:main |
-| 6 | `#14B8A6` (teal) | topic:closing |
-| 7 | `#F97316` (orange) | (additional) |
+Six-color rotating palette assigned by segment index. Each color has four opacity variants:
 
-### 1.3 Typography
+| Index | Name | Bar (60%) | Track (40%) | Border | Glow (40%) |
+|-------|------|-----------|-------------|--------|------------|
+| 0 | Purple | `rgba(139,92,246,0.6)` | `rgba(139,92,246,0.4)` | `#a78bfa` | `rgba(139,92,246,0.4)` |
+| 1 | Green | `rgba(16,185,129,0.6)` | `rgba(16,185,129,0.4)` | `#34d399` | `rgba(16,185,129,0.4)` |
+| 2 | Amber | `rgba(245,158,11,0.6)` | `rgba(245,158,11,0.4)` | `#fbbf24` | `rgba(245,158,11,0.4)` |
+| 3 | Rose | `rgba(244,63,94,0.6)` | `rgba(244,63,94,0.4)` | `#fb7185` | `rgba(244,63,94,0.4)` |
+| 4 | Sky | `rgba(14,165,233,0.6)` | `rgba(14,165,233,0.4)` | `#38bdf8` | `rgba(14,165,233,0.4)` |
+| 5 | Fuchsia | `rgba(217,70,239,0.6)` | `rgba(217,70,239,0.4)` | `#e879f9` | `rgba(217,70,239,0.4)` |
 
-| Element | Font | Weight | Size | Line Height |
-|---------|------|--------|------|-------------|
-| Page title | Inter | 600 | 20px | 28px |
-| Section header | Inter | 600 | 16px | 24px |
-| Body text | Inter | 400 | 14px | 20px |
-| Small / caption | Inter | 400 | 12px | 16px |
-| Transcript text | JetBrains Mono | 400 | 14px | 22px |
-| Timeline label | JetBrains Mono | 500 | 11px | 16px |
-| Button | Inter | 500 | 14px | 20px |
-| Input | Inter | 400 | 14px | 20px |
+Usage: `bar` for timeline segment blocks, `track` for segment card backgrounds, `border` for segment header accents, `glow` for hover/active effects.
 
-### 1.4 Spacing & Layout
+### 1.4 Typography
+
+Tri-font system balancing technical precision with editorial elegance:
+
+| Role | Font | Weights | Usage |
+|------|------|---------|-------|
+| Display & Headlines | **Manrope** | 400, 700, 800 | Project titles, badges, buttons, captions, transcript title. Wide aperture keeps the dark theme airy. |
+| Body & Transcription | **Inter** | 400, 500, 600 | Transcript words, body text, form labels. High x-height for reading long-form transcripts. |
+| Utility & Labels | **Space Grotesk** | 400, 500, 700 | Timecodes, metadata, uppercase labels. Mono-spaced feel for technical precision. |
+
+**Rule:** Always use Space Grotesk for numbers (timecodes, frame rates) to ensure numerical alignment.
+
+### 1.5 Spacing & Layout
 
 - **Grid unit**: 8px
 - **Page padding**: 24px (3 units)
 - **Card padding**: 16px (2 units)
-- **Component gap**: 16px
-- **Border radius**: 8px (cards, modals), 4px (buttons, inputs, tags)
-- **Sidebar width**: 240px (fixed, collapsible)
+- **Section break**: 40px vertical gap (replaces divider lines per No-Line Rule)
+- **Border radius**: `md` 0.375rem (cards, buttons), `sm` 0.125rem (word highlights), `full` 9999px (status chips only)
+- **Clip panel width**: 280px (fixed, transforms offscreen on mobile)
 - **Max content width** (Onboarding): 720px centered
 
-### 1.5 Shadows & Effects
+### 1.6 Elevation & Depth
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--shadow-sm` | `0 1px 2px rgba(0,0,0,0.3)` | Buttons, small elevations |
-| `--shadow-md` | `0 4px 12px rgba(0,0,0,0.4)` | Cards, dropdowns |
-| `--shadow-lg` | `0 8px 24px rgba(0,0,0,0.5)` | Modals, floating toolbar |
+Depth is achieved through **Tonal Layering**, not traditional shadows.
+
+| Technique | Spec | Usage |
+|-----------|------|-------|
+| Tonal lift | Place `surface-container-high` on `surface-container-low` | Cards, clip thumbnails |
+| Ambient glow | `0 0 32px rgba(186,158,255,0.06)` | Floating menus, action footer |
+| Ghost border | `outline-variant` (#48474a) at 15% opacity | Buttons needing separation on similar surfaces |
+| Backdrop blur | `backdrop-filter: blur(12px)` on `surface-bright` | Floating panels, action footer |
 
 ---
 
 ## 2. Onboarding View
 
-### 2.1 Layout
+Dual-mode view: **Project Home** (default when projects exist) and **Wizard** (new project creation).
+
+### 2.1 Project Home Layout
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  HEADER BAR                                                      │
-│  ┌──────┐                                                        │
-│  │ Logo │  VTextStudio                                           │
-│  └──────┘                                                        │
+│  HEADER                                                          │
+│  Logo  VTextStudio      tagline                                  │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│              ┌────────────────────────────────────┐              │
-│              │                                    │              │
-│              │   ┌────────────────────────────┐   │              │
-│              │   │     ↑                      │   │              │
-│              │   │     Drop media file here   │   │  ← Drop Zone│
-│              │   │     or click to browse     │   │    200px h   │
-│              │   │                            │   │    dashed    │
-│              │   │  MP4 · WebM · MP3 · WAV    │   │    border    │
-│              │   └────────────────────────────┘   │              │
-│              │                                    │              │
-│              │   ── File Info ─────────────────   │              │
-│              │   📄 interview.mp4                  │              │
-│              │   ⏱ 45:23  ·  H.264  · 1080p      │              │
-│              │                                    │              │
-│              │   ── Pipeline ─────────────────    │              │
-│              │   ┌──────────┐  →  ┌──────────┐   │              │
-│              │   │Transcribe│     │ Diarize  │   │              │
-│              │   │ Whisper  │     │ Speakers │   │              │
-│              │   └──────────┘     └──────────┘   │              │
-│              │                            [ + ]   │              │
-│              │                                    │              │
-│              │   ── Options (Whisper) ────────    │              │
-│              │   Language  [English       ▾]      │              │
-│              │   Model     [large-v3      ▾]      │              │
-│              │   Server    [localhost:8080  ]      │              │
-│              │                                    │              │
-│              │              ┌─────────────────┐   │              │
-│              │              │   ▶ Process     │   │              │
-│              │              └─────────────────┘   │              │
-│              │                                    │              │
-│              │   ┌────────────────────────────┐   │              │
-│              │   │ ████████░░░░░░░ 45% (1/2)  │   │              │
-│              │   │ Transcribing with Whisper   │   │              │
-│              │   └────────────────────────────┘   │              │
-│              │                                    │              │
-│              └────────────────────────────────────┘              │
+│  PROJECTS GRID (responsive columns)                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │ Project A   │  │ Project B   │  │ + New       │             │
+│  │ interview…  │  │ podcast…    │  │   Project   │             │
+│  │ 2:34 · mp4  │  │ 45:10 · mp3 │  │             │             │
+│  │ 3 clips     │  │ 1 clip      │  │             │             │
+│  │ 142 segs    │  │ 28 segs     │  │             │             │
+│  │ ✓ Done      │  │ ✓ Done      │  │             │             │
+│  │─────────────│  │─────────────│  │             │             │
+│  │ [Open]  [⋮] │  │ [Open]  [⋮] │  │             │             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 Component Specs
+**Project Card**: title row, file info (duration · format), stats (clips, segments, words), transcription status badge, footer with Open button and overflow menu (delete).
+
+### 2.2 Wizard Layout
+
+Step-by-step flow triggered by "New Project" or when no projects exist.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  HEADER                                                          │
+│  Logo  VTextStudio                                               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  STEPS BAR:  ① Upload  ─  ② Configure  ─  ③ Process            │
+│                                                                  │
+│  WIZARD BODY (centered, max-width 720px)                         │
+│  ┌────────────────────────────────────────┐                      │
+│  │                                        │                      │
+│  │   Step-specific content:               │                      │
+│  │   • Upload: drop zone + file info      │                      │
+│  │   • Configure: pipeline cards + opts   │                      │
+│  │   • Process: progress bar + status     │                      │
+│  │                                        │                      │
+│  └────────────────────────────────────────┘                      │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 2.3 Component Specs
 
 **Drop Zone**
-- Height: 200px, full content width
-- Border: 2px dashed `--color-border`, radius 8px
-- Background: `--bg-surface`
-- Hover/dragover: border color → `--color-primary`, background → `--color-primary-muted`
-- Icon: upload cloud icon, 48px, `--color-text-secondary`
-- Text: "Drop media file here" (16px, secondary) + "or click to browse" (14px, link style)
-- Accepted formats: listed below in 12px caption text
+- Full content width, dashed border (Ghost Border style)
+- Background: `surface-container-low`
+- Hover/dragover: border → `primary`, background shift
+- Icon: `upload` Material Symbol, 48px
+- Text: "Drop media file here" + "or click to browse"
 
 **Pipeline Card**
-- Width: 140px, height: 80px
-- Background: `--bg-surface`, border: 1px solid `--color-border`
-- Radius: 8px
-- Content: plugin name (14px, bold) + type badge (11px, muted)
-- Hover: border → `--color-primary`, shadow-sm
-- Selected: border → `--color-primary`, background → `--bg-surface-active`
-- Close button (×): top-right corner, 16px, visible on hover
-- Arrow between cards: `→` character in `--color-text-secondary`, 16px
+- Background: `surface-container-high`, no border (tonal lift)
+- Radius: `md` (0.375rem)
+- Content: plugin name (Manrope 700) + type badge (Space Grotesk)
+- Close button (×): visible on hover
+- Arrow between cards: `→` in muted text
 
 **Process Button**
-- Width: auto (min 160px), centered
-- Height: 44px
-- Background: `--color-primary`, radius 4px
-- Text: "▶ Process" white, 14px, weight 500
-- Hover: `--color-primary-hover`
-- Disabled: opacity 0.5, no pointer events
+- Gradient: `linear-gradient(135deg, primary, primary-dim)`
+- Radius: `md`, no border
+- Text: "▶ Process" in `on-surface`, Manrope 700
 
 **Progress Bar**
-- Height: 8px, full width, radius 4px
-- Track: `--bg-surface`
-- Fill: `--color-primary`, animated width transition
-- Label above: step name + percentage (14px)
-- Sub-label: step count "Step 1/2" (12px, secondary)
+- Height: 8px, full width, radius `sm`
+- Track: `surface-container-low`
+- Fill: `primary`, animated width transition
+- Label: step name + percentage (Inter 500) + step count (Space Grotesk)
 
 ---
 
@@ -165,172 +173,196 @@ Rotating palette assigned by tag value (deterministic hash):
 
 ### 3.1 Layout
 
+Three-panel flex layout. **No transport bar** — playback controls are a hover overlay on the media element.
+
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │  HEADER BAR                                                      │
-│  Logo  VTextStudio  │  project-name        [← Back] [Export ▾]  │
-├──────────┬───────────────────────────────────────────────────────┤
-│          │                                                       │
-│ SIDEBAR  │  MEDIA PLAYER                                         │
-│ 240px    │  ┌───────────────────────────────────────────────┐    │
-│          │  │                                               │    │
-│ ┌──────┐ │  │         <video> / <audio> element             │    │
-│ │Clip 1│ │  │              aspect-ratio: 16/9               │    │
-│ │active│ │  │                                               │    │
-│ └──────┘ │  └───────────────────────────────────────────────┘    │
-│          │                                                       │
-│ ┌──────┐ │  TRANSCRIPT                                           │
-│ │Clip 2│ │  ┌───────────────────────────────────────────────┐    │
-│ │      │ │  │ ┌─ Speaker A ───────────────────────────────┐ │    │
-│ └──────┘ │  │ │ Hello and welcome to today's show. We     │ │    │
-│          │  │ │ have a ~~great~~ lineup for you today.    │ │    │
-│ ┌──────┐ │  │ └───────────────────────────────────────────┘ │    │
-│ │Clip 3│ │  │                                               │    │
-│ │      │ │  │ ┌─ Speaker B ───────────────────────────────┐ │    │
-│ └──────┘ │  │ │ Thanks for having me here. I'm really     │ │    │
-│          │  │ │ excited to **discuss** this topic today.   │ │    │
-│          │  │ └───────────────────────────────────────────┘ │    │
-│          │  └───────────────────────────────────────────────┘    │
-│          │                                                       │
-│          │  SEGMENT TIMELINE                                     │
-│          │  ┌───────────────────────────────────────────────┐    │
-│          │  │[███ Seg 1 ███][██████ Seg 2 ██████][██ S3 ██] │    │
-│          │  │       ▲ playhead                               │    │
-│          │  └───────────────────────────────────────────────┘    │
-│          │                                                       │
-├──────────┴───────────────────────────────────────────────────────┤
-│  TRANSPORT BAR                                                   │
-│  ◀◀  ▶  ▶▶  ━━━━━━●━━━━━━━━━━━━━━━  00:34 / 02:15  🔊━━━ 1.0× │
-└──────────────────────────────────────────────────────────────────┘
+│  Logo  VTextStudio  │  project-name (flex:1)     [← Back]       │
+├──────────┬──────────────────────────────────────┬────────────────┤
+│          │                                      │                │
+│ CLIP     │  MEDIA PLAYER (hover for controls)   │  EXPORT        │
+│ PANEL    │  ┌──────────────────────────────────┐│  PANEL         │
+│ 280px    │  │                                  ││  (min 240px)   │
+│          │  │       <video> / <audio>           ││                │
+│ ┌──────┐ │  │                                  ││  Format:       │
+│ │Clip 1│ │  │  ┌────────────────────────────┐  ││  ○ Video (MP4) │
+│ │active│ │  │  │ ▶ 01:23/05:45  Speaker A 🔊│  ││  ○ Plain Text  │
+│ └──────┘ │  │  └── hover overlay ───────────┘  ││  ○ SRT         │
+│          │  └──────────────────────────────────┘│                │
+│ ┌──────┐ │                                      │  [Export]      │
+│ │Clip 2│ │  TRANSCRIPT (FlowItems)              │                │
+│ └──────┘ │  ┌──────────────────────────────────┐│                │
+│          │  │ ┌─ Speaker A ──────────────────┐ ││                │
+│ ┌──────┐ │  │ │ Hello and welcome 00:05      │ ││                │
+│ │Clip 3│ │  │ │ to today's show. We have a   │ ││                │
+│ └──────┘ │  │ │ ⌛ 0.4s  great lineup for    │ ││                │
+│          │  │ │ you today. 00:10             │ ││                │
+│          │  │ └──────────────────────────────┘ ││                │
+│          │  │ ┌─ Speaker B ──────────────────┐ ││                │
+│          │  │ │ Thanks for having me here.    │ ││                │
+│          │  │ └──────────────────────────────┘ ││                │
+│          │  └──────────────────────────────────┘│                │
+│          │                                      │                │
+│          │  SEGMENT TIMELINE                    │                │
+│          │  ┌──────────────────────────────────┐│                │
+│          │  │[███ Seg 1 ███][████ Seg 2 ████]  ││                │
+│          │  │       ▲ playhead                  ││                │
+│          │  └──────────────────────────────────┘│                │
+│          │                                      │                │
+│          │  ACTION FOOTER (floating, appears on selection)       │
+│          │  ┌──────────────────────────────────┐│                │
+│          │  │ ✂ Cut  ⟳ Restore │ 3 sel · 1 rem││                │
+│          │  └──────────────────────────────────┘│                │
+│          │                                      │                │
+├──────────┴──────────────────────────────────────┴────────────────┤
 ```
 
 ### 3.2 Component Specs
 
-**Sidebar — ClipList**
-- Width: 240px fixed (collapsible to 0 via hamburger toggle in header)
-- Background: `--bg-surface`
-- Header: "CLIPS" label, 12px, weight 600, uppercase, `--color-text-secondary`, padding 16px
-- Clip item:
-  - Padding: 12px 16px
-  - Name: 14px, weight 500, `--color-text`
-  - Meta: 12px, `--color-text-secondary` (e.g., "0:00 - 2:15 · 3 segments")
-  - Hover: background → `--bg-surface-hover`
-  - Selected: background → `--bg-surface-active`, left border 3px solid `--color-primary`
-- Divider: 1px `--color-border` between items
+**Clip Panel (Left Sidebar)**
+- Width: 280px fixed (transforms offscreen at ≤1024px)
+- Background: tonal shift from base `surface`
+- Clip item: name (Inter 500), time range + segment count (Space Grotesk), colored left accent from segment palette
+- Selected: `surface-container-high` background, left accent bar
 
-**Media Player Area**
-- Max height: 40% of main area (for video); hidden for audio-only (replaced by album art or waveform placeholder)
-- Video: aspect ratio 16:9, rounded corners 8px, background black
-- Audio fallback: 120px height, centered waveform visualization placeholder
+**Media Player — Hover Overlay**
 
-**Transcript Area**
-- Scrollable container, flex-grow to fill remaining space
-- Padding: 16px
+Controls appear on hover over the video/audio frame with a bottom-to-transparent gradient background. Fade transition: `opacity 300ms`.
 
-**Segment Card**
-- Background: `--bg-surface`
-- Border-left: 3px solid (tag-derived color from palette)
-- Border-radius: 8px
-- Padding: 12px 16px
-- Margin-bottom: 8px
-- Header: tag label (e.g., "Speaker A"), 12px, weight 600, colored matching left border
-- Body: word spans, JetBrains Mono 14px, line-height 22px
+| Position | Controls |
+|----------|----------|
+| Left | Play/Pause icon button, timecode (`HH:MM:SS / HH:MM:SS` in Space Grotesk), active segment label |
+| Right | Volume button (dynamic icon: `volume_off` / `volume_down` / `volume_up`), Fullscreen button |
 
-**Word `<span>` States**
+**Transcript — FlowItems**
+
+Words are rendered as a continuous inline flow within each segment card, interleaved with two types of inline markers:
+
+- **Time markers** (every 5 seconds): small `primary`-tinted pill showing `MM:SS` (Space Grotesk). Force a line break (`flex-basis: 100%`) so they visually anchor the timeline. Clickable → seek.
+- **Silence chips** (gaps ≥ 300ms): inline pill with `hourglass_empty` icon and gap duration label. Positioned between the words surrounding the gap. Clickable → seek to gap midpoint.
+
+Words flow naturally with `display: inline` / `flex-wrap: wrap`.
+
+**Word States**
 
 | State | Styles |
 |-------|--------|
-| Normal | `color: --color-text; cursor: pointer;` |
-| Hover | `text-decoration: underline; text-underline-offset: 2px;` |
-| Active (playing) | `background: --color-primary-muted; font-weight: 600; border-radius: 2px; padding: 1px 2px;` |
-| Selected | `background: rgba(108, 142, 239, 0.3); border-radius: 2px;` |
-| Removed | `text-decoration: line-through; opacity: 0.35; background: --color-danger-muted; border-radius: 2px; padding: 1px 2px;` |
-| Removed + Hover | `opacity: 0.5; cursor: pointer;` (to allow restore) |
+| Normal | `color: rgba(246,243,245,0.8); padding: 2px 4px; cursor: pointer;` |
+| Hover | `color: var(--primary);` |
+| Highlighted (playing) | `background: var(--primary-container); color: var(--on-primary-container); text-shadow: 0.4px 0 0 currentColor; border-radius: 2px;` |
+| Selected | `outline: 1px solid rgba(186,158,255,0.65); background: rgba(186,158,255,0.25); border-radius: 2px;` |
+| Search match | `background: linear-gradient(135deg, primary, primary-dim); -webkit-background-clip: text; -webkit-text-fill-color: transparent;` |
+| Filler (removed) | Filler-badge: `background: rgba(44,44,47,0.4); border: 1px dashed rgba(72,71,74,0.3); border-radius: 4px;` Text: `color: var(--error); font-style: italic; font-size: 12px; text-decoration: underline dotted;` |
 
 **Segment Timeline**
-- Height: 40px
-- Background: `--bg-primary`
-- Border: 1px solid `--color-border`, radius 4px
-- Segment blocks: height 32px (centered vertically), radius 2px, background from tag palette at 60% opacity
-- Playhead: width 2px, height 40px, background `--color-primary`, absolute positioned
-- Hover on segment: tooltip with shadow-md
+- Segment blocks use colors from the 6-color palette at 60% opacity (`bar` variant)
+- Playhead: 2px line in `secondary` (#9093ff) with `surface-tint` glow
+- Segments separated by 2px empty space (base background), not borders
+- Click anywhere → seek to that time position
 
-**Transport Bar**
-- Height: 56px
-- Background: `--bg-surface`
-- Border-top: 1px solid `--color-border`
-- Padding: 0 24px
-- Layout: flexbox, items center-aligned, gap 16px
-- Buttons: 32×32px, icon only, `--color-text`, hover → `--color-primary`
-- Seek bar: flex-grow, custom range input styled with `--color-primary` thumb and track
-- Time display: JetBrains Mono 12px, `--color-text-secondary`
-- Volume: 80px width slider
-- Speed: dropdown button, 12px
+**Action Footer (Floating)**
+- Position: absolute, bottom 32px, left/right 32px
+- Background: `rgba(44,44,47,0.92)` with `backdrop-filter: blur(12px)`
+- Border-radius: 12px, padding: 12px 16px
+- Three sections:
+  - Left: Cut (`content_cut`), Jump-Cut toggle (`auto_awesome`), Restore (`settings_backup_restore`) icon buttons
+  - Center: "N selected" chip + "M removed" chip (meta info)
+  - Right: Smart Cut action button
+- Appears when words are selected; dismisses on deselection
 
-**Floating Removal Toolbar**
-- Position: absolute, above text selection
-- Background: `--bg-surface`, shadow-lg, radius 8px
-- Padding: 4px 8px
-- Buttons: "Remove" (danger color) or "Restore" (primary color), 12px, weight 500
-- Arrow pointer at bottom (CSS triangle)
-- Dismiss: on click outside or Escape key
-
-**Export Panel (Modal)**
-- Overlay: black at 50% opacity
-- Modal: `--bg-surface`, 480px wide, radius 12px, shadow-lg
-- Header: "Export Clip" 18px weight 600, close button
-- Body: radio group for format (Media, SRT, TXT), quality dropdown (for media)
-- Footer: "Start Export" primary button, progress bar, download link on completion
+**Export Panel (Inline Sidebar)**
+- Docked to right of player panel, `min-width: 240px`
+- Background: tonal shift with left border
+- Format radio group: Video (MP4), Plain Text, SRT Subtitles
+- Export button: Glass & Gradient style
+- Status: `idle` → `pending` (spinner) → `done` (download link) → `error`
+- Polling-based progress (1500ms interval), not SSE
 
 ---
 
 ## 4. Motion & Animation
 
-| Element | Animation | Duration | Easing |
-|---------|-----------|----------|--------|
-| Page transition (Onboarding ↔ Studio) | Fade + slide up | 300ms | ease-out |
-| Word active highlight | Background color transition | 150ms | ease-in-out |
-| Word removal | Opacity + strikethrough | 200ms | ease-out |
-| Playhead movement | Left position (smooth, no transition — updated per frame) | — | — |
-| Sidebar collapse | Width 240px → 0 | 250ms | ease-in-out |
-| Floating toolbar appear | Fade in + scale(0.95 → 1) | 150ms | ease-out |
-| Modal appear | Fade in + translateY(8px → 0) | 200ms | ease-out |
-| Progress bar fill | Width transition | 300ms | ease-out |
+| Element | Property | Duration | Easing |
+|---------|----------|----------|--------|
+| Hover overlay visibility | `opacity` | 300ms | — |
+| Text color changes (hover, state) | `color` | 200ms | — |
+| Button / icon state changes | `all` | 200ms | — |
+| Border animations | `border-color` | 200ms | — |
+| Filter effects (brightness) | `filter` | 200ms | — |
+| Follow toggle state | `color, border-color, background` | 150ms | — |
+| Playhead movement | `left` (per frame, no CSS transition) | — | — |
+| Progress bar fill | `width` | 300ms | ease-out |
 | Toast notification | Slide in from top-right | 250ms | ease-out |
-| Tooltip | Fade in | 100ms | ease-in |
+
+**Keyframe Animations**
+
+```
+pulse-border  — 0.8s ease-in-out infinite alternate
+  from: box-shadow: 0 0 0 0 color-mix(primary 40%, transparent)
+  to:   box-shadow: 0 0 0 4px color-mix(primary 0%, transparent)
+  Usage: "Return to playhead" button pulse
+
+spin  — 0.8s linear infinite
+  to: rotate(360deg)
+  Usage: Export progress spinner
+```
 
 ---
 
 ## 5. Icons
 
-Use a minimal icon set (Lucide Icons or similar):
+**Material Symbols Outlined** loaded from Google Fonts with variable settings:
+
+```
+font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+```
 
 | Icon | Usage |
 |------|-------|
-| `upload-cloud` | Media drop zone |
-| `play`, `pause` | Transport play/pause |
-| `skip-back`, `skip-forward` | Transport skip |
-| `volume-2`, `volume-x` | Volume control |
-| `plus` | Add pipeline step |
-| `x` | Remove pipeline step, close modal |
-| `undo-2`, `redo-2` | Undo/redo (if shown in UI) |
-| `download` | Export download |
-| `scissors` | Remove words action |
-| `rotate-ccw` | Restore words action |
-| `chevron-down` | Dropdown indicators |
-| `grip-vertical` | Drag handle (pipeline reorder) |
-| `file-audio`, `file-video` | Media type indicators |
-| `clock` | Duration display |
-| `layers` | Segment count |
+| `play_arrow` / `pause` | Hover overlay play/pause |
+| `volume_off` / `volume_down` / `volume_up` | Hover overlay volume (dynamic) |
+| `fullscreen` | Hover overlay expand |
+| `my_location` / `location_disabled` | Auto-follow toggle |
+| `keyboard_return` | Return-to-playhead button |
+| `delete_sweep` | Restore all removed words |
+| `search` | Transcript search |
+| `content_cut` | Cut / remove words |
+| `auto_awesome` | Smart Cut / jump-cut toggle |
+| `settings_backup_restore` | Restore removed words |
+| `hourglass_empty` | Silence chip icon |
+| `timer` | Inline time marker |
+| `drag_indicator` | Drag handle (pipeline reorder) |
+| `more_horiz` | Overflow menu |
+| `close` | Close / dismiss |
+| `reorder` | Clip list reorder |
+| `upload` | Media drop zone |
 
 ---
 
-## 6. Accessibility
+## 6. Do's and Don'ts
 
-- All interactive elements have visible focus indicators (2px `--color-border-focus` outline)
-- Color is not the only indicator for word states (strikethrough for removed, bold for active)
-- Minimum contrast ratio: 4.5:1 for text on all backgrounds
-- ARIA labels on icon-only buttons (play, pause, skip, volume)
+### Do:
+- **Do** use Space Grotesk for all numbers (timecodes, frame rates, durations) — ensures numerical alignment.
+- **Do** lean into `surface-container-lowest` for the main video preview area to make colors pop.
+- **Do** use `9999px` (full) roundedness for status chips only (e.g., "Rendering," "Done").
+- **Do** use `on-surface` (#f6f3f5) for all text — never pure `#FFFFFF`.
+- **Do** define boundaries through tonal surface shifts, not lines.
+
+### Don't:
+- **Don't** use 1px dividers anywhere. If you feel you need a line, increase padding by 8px instead.
+- **Don't** use standard red for errors. Use the calibrated `error` (#ff6e84) tuned for dark-theme vibrance.
+- **Don't** use drop shadows. Use ambient glow (primary-tinted, 32px blur, 6% opacity) or tonal layering.
+- **Don't** use flat backgrounds for primary action buttons. Apply the Glass & Gradient rule.
+
+---
+
+## 7. Accessibility
+
+- All interactive elements have visible focus indicators using `primary` outline
+- Word states use redundant cues beyond color: `text-shadow` for active (highlighted), dashed border + italic for filler (removed)
+- Minimum contrast ratio: 4.5:1 for `on-surface` text on all surface levels
+- ARIA labels on all icon-only buttons (play, pause, volume, fullscreen, cut, restore)
 - Keyboard navigation: Tab through controls, Enter/Space to activate
-- Screen reader: transcript words announce their text and state (removed/active)
-- Reduced motion: respect `prefers-reduced-motion` — disable non-essential animations
+- Screen reader: transcript words announce their text and state
+- Reduced motion: respect `prefers-reduced-motion` — disable non-essential animations (pulse, transitions)

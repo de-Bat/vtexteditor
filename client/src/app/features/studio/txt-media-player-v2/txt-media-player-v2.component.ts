@@ -151,6 +151,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         </div>
       </div>
       <div class="timeline-track" (click)="onTimelineClick($event)">
+        <div class="ruler">
+          @for (mark of rulerMarks(); track mark.percent) {
+            <span class="ruler-tick" [style.left.%]="mark.percent">
+              <span class="ruler-label">{{ mark.label }}</span>
+            </span>
+          }
+        </div>
         <div class="track-blocks">
           @for (item of trackItems(); track $index) {
             @if (item.kind === 'segment') {
@@ -277,6 +284,8 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
     <!-- Scrollable Transcript -->
     <div class="transcript-body" #transcriptEl (scroll)="onTranscriptScroll()">
+      <!-- Scrollbar playback indicator -->
+      <div class="scroll-indicator" [style.top.%]="scrollIndicatorPercent()"></div>
       @if (shouldVirtualize()) {
         <div class="v-spacer" [style.height.px]="virtualPaddingTop()"></div>
       }
@@ -621,6 +630,33 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       items.push({ kind: 'segment', widthPercent: Math.max(0.3, (segDur / dur) * 100), colorIndex: ci });
     }
     return items;
+  });
+
+  /* ── Computed: Timeline Ruler Marks ──────────────────── */
+  readonly rulerMarks = computed<Array<{ percent: number; label: string }>>(() => {
+    const dur = this.duration();
+    if (dur <= 0) return [];
+    // Adaptive interval: aim for 8–15 marks
+    let interval: number;
+    if (dur <= 60) interval = 5;
+    else if (dur <= 300) interval = 15;
+    else if (dur <= 1200) interval = 60;
+    else interval = 300;
+    const marks: Array<{ percent: number; label: string }> = [];
+    for (let t = 0; t <= dur; t += interval) {
+      marks.push({ percent: (t / dur) * 100, label: this.formatTimeShort(t) });
+    }
+    return marks;
+  });
+
+  /* ── Computed: Scrollbar Playback Indicator ──────────── */
+  readonly scrollIndicatorPercent = computed(() => {
+    if (!this.transcriptElRef) return 0;
+    const el = this.transcriptElRef.nativeElement;
+    const scrollHeight = el.scrollHeight - el.clientHeight;
+    if (scrollHeight <= 0) return 0;
+    // Estimate: progress through media ≈ progress through transcript
+    return this.progress();
   });
 
   /* ── Computed: Virtual Scrolling ─────────────────────── */

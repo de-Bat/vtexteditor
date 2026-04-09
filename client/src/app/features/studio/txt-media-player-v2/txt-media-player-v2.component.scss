@@ -298,6 +298,37 @@ audio {
   cursor: pointer;
 }
 
+.ruler {
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 14px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.ruler-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ruler-label {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 7px;
+  font-weight: 600;
+  color: var(--outline-variant);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
 .track-blocks {
   position: absolute;
   inset: 0;
@@ -694,9 +725,10 @@ audio {
   padding-bottom: 16px;
   direction: rtl;
   text-align: right;
+  position: relative;
 
   &::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
   }
 
   &::-webkit-scrollbar-track {
@@ -707,6 +739,19 @@ audio {
     background: var(--surface-container-highest);
     border-radius: 10px;
   }
+}
+
+.scroll-indicator {
+  position: fixed;
+  right: 1px;
+  width: 6px;
+  height: 3px;
+  background: var(--secondary);
+  border-radius: 3px;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 0 6px rgba(144, 147, 255, 0.6);
+  transition: top 100ms linear;
 }
 
 .v-spacer {

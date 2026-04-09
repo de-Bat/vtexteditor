@@ -3,6 +3,7 @@ import { IPlugin } from './plugin.interface';
 import { srtImportPlugin } from './transcription/srt-import.plugin';
 import { whisperPlugin } from './transcription/whisper-openai.plugin';
 import { groqWhisperPlugin } from './transcription/groq-whisper.plugin';
+import { reconstruct2storyPlugin } from './narrative/reconstruct2story.plugin';
 
 class PluginRegistry {
   private plugins: Map<string, IPlugin> = new Map();
@@ -11,6 +12,7 @@ class PluginRegistry {
     this.register(srtImportPlugin);
     this.register(whisperPlugin);
     this.register(groqWhisperPlugin);
+    this.register(reconstruct2storyPlugin);
   }
 
   register(plugin: IPlugin): void {

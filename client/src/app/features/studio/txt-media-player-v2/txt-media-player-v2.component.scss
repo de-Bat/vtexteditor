@@ -863,6 +863,8 @@ audio {
   border: 1px dashed rgba(72, 71, 74, 0.25);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: color 150ms, border-color 150ms, background 150ms;
 
   /* Progress fill bar — drawn at bottom, width driven by --sil-prog (0–1) */

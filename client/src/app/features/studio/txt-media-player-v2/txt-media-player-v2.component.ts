@@ -318,7 +318,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.silence-hl]="highlightSilence() && fi.duration >= silenceIntervalSec()"
                     [class.compact]="fi.duration < 0.5"
                     [style.--sil-prog]="activeSilence()?.id === fi.id ? activeSilence()!.progress : 0"
-                    [style.min-width.px]="silenceChipWidth(fi.duration)"
+                    [style.width.px]="silenceChipWidth(fi.duration)"
                     [title]="fi.label"
                     (click)="seekToTime(fi.midTime)">
                     <span class="material-symbols-outlined">hourglass_empty</span>
@@ -851,7 +851,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         if (gap >= INLINE_SILENCE_THRESHOLD_SEC) {
           items.push({
             kind: 'silence',
-            label: gap >= 1 ? gap.toFixed(1) + 's' : Math.round(gap * 1000) + 'ms',
+            label: gap >= 10 ? Math.round(gap) + 's' : gap.toFixed(1) + 's',
             midTime: gapStart + gap / 2,
             gapStart,
             gapEnd,
@@ -910,9 +910,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.autoFollow.set(false);
   }
 
-  /** Return pixel width for a silence chip — scales with duration, clamped to [20, 80]. */
+  /** Return pixel width for a silence chip — sqrt scale for proportional sizing, clamped to [24, 120]. */
   silenceChipWidth(duration: number): number {
-    return Math.min(80, Math.max(20, Math.round(duration * 40)));
+    return Math.min(120, Math.max(24, Math.round(Math.sqrt(duration) * 55)));
   }
 
   /* ── Time Formatting ─────────────────────────────────── */

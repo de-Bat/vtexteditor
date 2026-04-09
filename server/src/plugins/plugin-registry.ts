@@ -1,9 +1,9 @@
+import { Express } from 'express';
 import { IPlugin } from './plugin.interface';
 import { srtImportPlugin } from './transcription/srt-import.plugin';
 import { whisperPlugin } from './transcription/whisper-openai.plugin';
 import { groqWhisperPlugin } from './transcription/groq-whisper.plugin';
 
-/** Central registry of all available plugins */
 class PluginRegistry {
   private plugins: Map<string, IPlugin> = new Map();
 
@@ -15,6 +15,13 @@ class PluginRegistry {
 
   register(plugin: IPlugin): void {
     this.plugins.set(plugin.id, plugin);
+  }
+
+  /** Call after all plugins are registered and the Express app is ready. */
+  registerRoutes(app: Express): void {
+    for (const plugin of this.plugins.values()) {
+      plugin.registerRoutes?.(app);
+    }
   }
 
   getAll(): IPlugin[] {

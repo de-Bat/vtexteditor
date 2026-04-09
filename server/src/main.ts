@@ -10,6 +10,7 @@ import { clipRoutes } from './routes/clip.routes';
 import { sseRoutes } from './routes/sse.routes';
 import { exportRoutes } from './routes/export.routes';
 import { settingsRoutes } from './routes/settings.routes';
+import { pluginRegistry } from './plugins/plugin-registry';
 
 const app = express();
 
@@ -28,6 +29,9 @@ app.use('/api/clips', clipRoutes);
 app.use('/api/events', sseRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/settings', settingsRoutes);
+
+// Let plugins self-register their own routes
+pluginRegistry.registerRoutes(app);
 
 // Global error handler
 app.use((err: Error & { code?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

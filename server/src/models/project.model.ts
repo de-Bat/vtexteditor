@@ -43,6 +43,7 @@ export interface Project {
   clips: Clip[];
   pipelineConfig: PipelineStep[];
   editHistory: EditAction[];
+  metadata?: Record<string, unknown>;
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 }

@@ -1,4 +1,11 @@
-import { Component, OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ClipService } from '../../core/services/clip.service';
@@ -7,12 +14,22 @@ import { SseService } from '../../core/services/sse.service';
 import { ClipListComponent } from './clip-list/clip-list.component';
 import { TxtMediaPlayerV2Component } from './txt-media-player-v2/txt-media-player-v2.component';
 import { ExportPanelComponent } from './export-panel/export-panel.component';
+import { StoryReviewPanelComponent } from './story-review-panel/story-review-panel.component';
+import { StoryApiService } from './story-review-panel/story-api.service';
 import { Clip } from '../../core/models/clip.model';
+import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.model';
 
 @Component({
   selector: 'app-studio',
-  standalone: true,
-  imports: [CommonModule, RouterLink, ClipListComponent, TxtMediaPlayerV2Component, ExportPanelComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    CommonModule,
+    RouterLink,
+    ClipListComponent,
+    TxtMediaPlayerV2Component,
+    ExportPanelComponent,
+    StoryReviewPanelComponent,
+  ],
   template: `
     <div class="studio-layout">
       <header class="studio-header">
@@ -26,6 +43,14 @@ import { Clip } from '../../core/models/clip.model';
           <a routerLink="/" class="nav-link">← New Project</a>
         </nav>
       </header>
+
+      @if (pendingProposal()) {
+        <div class="proposal-banner" role="alert">
+          <span>A story reconstruction is ready for your review.</span>
+          <button class="banner-btn" (click)="openReviewPanel()">Review Story</button>
+          <button class="banner-dismiss" (click)="pendingProposal.set(null)" aria-label="Dismiss banner">×</button>
+        </div>
+      }
 
       <main class="studio-body">
         <aside class="clip-panel" [class.open]="isSidebarOpen()">
@@ -54,6 +79,17 @@ import { Clip } from '../../core/models/clip.model';
         @if (projectService.project(); as proj) {
           <aside class="export-panel-wrapper">
             <app-export-panel [projectId]="proj.id" />
+          </aside>
+        }
+
+        @if (showReviewPanel() && pendingProposal()) {
+          <aside class="review-panel-wrapper">
+            <app-story-review-panel
+              [proposal]="pendingProposal()!"
+              [segmentTexts]="segmentTexts()"
+              (commit)="onCommit($event)"
+              (discard)="onDiscard()"
+            />
           </aside>
         }
       </main>
@@ -161,12 +197,57 @@ import { Clip } from '../../core/models/clip.model';
         display: none;
       }
     }
+    .proposal-banner {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: .5rem 1.25rem;
+      background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+      border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+      font-size: .85rem;
+    }
+    .banner-btn {
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: .25rem .7rem;
+      cursor: pointer;
+      font-size: .82rem;
+    }
+    .banner-dismiss {
+      margin-left: auto;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--color-muted);
+      font-size: 1rem;
+    }
+    .review-panel-wrapper {
+      flex-shrink: 0;
+      overflow-y: auto;
+      border-left: 1px solid var(--color-border);
+    }
   `]
 })
 export class StudioComponent implements OnInit {
   readonly activeClip = signal<Clip | null>(null);
   readonly isSidebarOpen = signal(false);
   readonly isLoadingClips = signal(true);
+  readonly pendingProposal = signal<StoryProposal | null>(null);
+  readonly showReviewPanel = signal(false);
+
+  private storyApi = inject(StoryApiService);
+
+  readonly segmentTexts = computed(() => {
+    const texts: Record<string, string> = {};
+    for (const clip of this.clipService.clips()) {
+      for (const seg of clip.segments) {
+        texts[seg.id] = seg.text;
+      }
+    }
+    return texts;
+  });
 
   constructor(
     readonly clipService: ClipService,
@@ -176,13 +257,54 @@ export class StudioComponent implements OnInit {
 
   ngOnInit(): void {
     this.sseService.connect();
-    this.projectService.load().subscribe();
+    this.projectService.load().subscribe({
+      next: (project) => this.checkForProposal(project?.id),
+    });
     this.clipService.loadAll().subscribe({
       next: (clips) => {
         if (clips.length) this.activeClip.set(clips[0]);
       },
       complete: () => this.isLoadingClips.set(false),
       error: () => this.isLoadingClips.set(false),
+    });
+  }
+
+  private checkForProposal(projectId: string | undefined): void {
+    if (!projectId) return;
+    this.storyApi.getProposal(projectId).subscribe({
+      next: (proposal) => this.pendingProposal.set(proposal),
+      error: () => { /* 404 = no proposal, ignore */ },
+    });
+  }
+
+  openReviewPanel(): void {
+    this.showReviewPanel.set(true);
+  }
+
+  onCommit(events: StoryEvent[]): void {
+    const projectId = this.projectService.project()?.id;
+    if (!projectId) return;
+    this.storyApi.commit(projectId, events).subscribe({
+      next: () => {
+        this.pendingProposal.set(null);
+        this.showReviewPanel.set(false);
+        this.clipService.loadAll().subscribe({
+          next: (clips) => {
+            if (clips.length) this.activeClip.set(clips[0]);
+          },
+        });
+      },
+    });
+  }
+
+  onDiscard(): void {
+    const projectId = this.projectService.project()?.id;
+    if (!projectId) return;
+    this.storyApi.discard(projectId).subscribe({
+      next: () => {
+        this.pendingProposal.set(null);
+        this.showReviewPanel.set(false);
+      },
     });
   }
 

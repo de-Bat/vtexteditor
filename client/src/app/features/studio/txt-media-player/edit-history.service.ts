@@ -11,6 +11,9 @@ export class EditHistoryService {
   private readonly undoStack: WordEditChange[][] = [];
   private readonly redoStack: WordEditChange[][] = [];
 
+  get canUndo(): boolean { return this.undoStack.length > 0; }
+  get canRedo(): boolean { return this.redoStack.length > 0; }
+
   record(changes: WordEditChange[]): void {
     if (!changes.length) return;
     this.undoStack.push(changes);

@@ -4,7 +4,7 @@
 
 ```
 ┌─────────────────┐     HTTP / SSE     ┌──────────────────┐      FS
-│   Angular 18    │  ◄──────────────►  │   Express.js     │  ◄────────►  Local Storage
+│   Angular 20+   │  ◄──────────────►  │   Express.js     │  ◄────────►  Local Storage
 │   (Browser)     │                    │   (Node.js/TS)   │             (media + JSON)
 └─────────────────┘                    └────────┬─────────┘
                                                 │
@@ -15,14 +15,15 @@
                                     ┌───────────┼───────────┐
                                     ▼           ▼           ▼
                                 Whisper     Groq API     FFmpeg
-                                Server
+                                (OpenAI)
 ```
 
-- **Frontend**: Angular 18 SPA with standalone components and signals-based state.
-- **Backend**: Express.js REST API with SSE for real-time progress.
-- **Storage**: Local filesystem — uploaded media in `storage/uploads/`, project state as JSON in `storage/projects/`.
+- **Frontend**: Angular 20+ SPA with standalone components (default, no `standalone: true` needed) and signals-based state.
+- **Backend**: Express.js REST API with SSE for real-time progress. Singleton service instances (no DI framework).
+- **Storage**: Local filesystem — uploaded media in `storage/uploads/`, project state as JSON in `storage/projects/{id}/project.json`, app settings in `storage/settings.json`.
 - **Media Processing**: FFmpeg/ffprobe for metadata, streaming, and export rendering.
 - **Plugin System**: Server-side plugin registry with a defined interface; plugins can optionally provide Angular UI components.
+- **Design System**: "Editorial Timeline" — dark theme (#0e0e10 base), tri-font (Manrope/Inter/Space Grotesk), no-line rule, glass & gradient buttons.
 
 ---
 
@@ -37,45 +38,45 @@ server/
 │   ├── config.ts                       # Paths, ports, allowed file types
 │   ├── routes/
 │   │   ├── media.routes.ts             # POST /api/media, GET /api/media/:id/stream, GET /api/media/:id/info
-│   │   ├── project.routes.ts           # GET /api/project, PUT /api/project
-│   │   ├── clips.routes.ts             # GET /api/clips, GET /api/clips/:id, GET /api/clips/:id/stream, PUT /api/clips/:id/words
-│   │   ├── plugins.routes.ts           # GET /api/plugins, POST /api/pipeline/run
+│   │   ├── project.routes.ts           # GET /api/project, PUT /api/project (current project)
+│   │   ├── projects.routes.ts          # GET /api/projects, POST /api/projects/:id/open, DELETE /api/projects/:id
+│   │   ├── clip.routes.ts              # GET /api/clips, GET /api/clips/:id, GET /api/clips/:id/stream, PUT /api/clips/:id/words
+│   │   ├── plugin.routes.ts            # GET /api/plugins, POST /api/plugins/pipeline/run
 │   │   ├── export.routes.ts            # POST /api/export, GET /api/export/:id/status, GET /api/export/:id/download
+│   │   ├── settings.routes.ts          # GET /api/settings, PUT /api/settings
 │   │   └── sse.routes.ts               # GET /api/events
 │   ├── services/
-│   │   ├── media.service.ts            # File save (multer), metadata extraction (ffprobe)
-│   │   ├── project.service.ts          # Read/write project JSON
+│   │   ├── project.service.ts          # Multi-project CRUD, current project tracking, atomic JSON writes
 │   │   ├── clip.service.ts             # Clip CRUD, word removal state persistence
 │   │   ├── pipeline.service.ts         # Orchestrate plugin chain, emit progress via SSE
-│   │   ├── export.service.ts           # Build FFmpeg concat filter for jump-cut export
+│   │   ├── export.service.ts           # Build FFmpeg concat filter for jump-cut export, SRT/TXT generation
+│   │   ├── settings.service.ts         # App-wide settings persistence (API keys, whisper config, etc.)
 │   │   └── sse.service.ts              # EventEmitter-based SSE broadcast
 │   ├── plugins/
 │   │   ├── plugin.interface.ts         # IPlugin interface definition
-│   │   ├── plugin-registry.ts          # Auto-discover and register plugins
+│   │   ├── plugin-registry.ts          # Register plugins; expose getAll()/getById()
 │   │   ├── transcription/
-│   │   │   ├── whisper.plugin.ts       # Local Whisper server HTTP integration
-│   │   │   ├── groq.plugin.ts          # Groq API integration
+│   │   │   ├── whisper-openai.plugin.ts # OpenAI-compatible Whisper API integration
+│   │   │   ├── groq-whisper.plugin.ts  # Groq API integration
 │   │   │   └── srt-import.plugin.ts    # Parse SRT → segments/words
-│   │   ├── diarization/
-│   │   │   └── speaker-diarization.plugin.ts
-│   │   ├── detection/
-│   │   │   └── silence-detection.plugin.ts
-│   │   ├── narrative/
-│   │   │   └── narrative-restructure.plugin.ts
-│   │   └── translation/
-│   │       └── translation.plugin.ts
+│   │   ├── diarization/                # (placeholder)
+│   │   ├── detection/                  # (placeholder)
+│   │   ├── narrative/                  # (placeholder)
+│   │   └── translation/               # (placeholder)
 │   ├── models/
-│   │   ├── project.model.ts
-│   │   ├── clip.model.ts
-│   │   ├── segment.model.ts
-│   │   └── word.model.ts
+│   │   ├── project.model.ts            # Project, ProjectSummary, MediaInfo, EditAction
+│   │   ├── clip.model.ts               # Clip (with showSilenceMarkers flag)
+│   │   ├── segment.model.ts            # Segment with flat string tags
+│   │   ├── word.model.ts               # Word with isRemoved flag
+│   │   ├── plugin.model.ts             # PluginMeta, PluginType, PipelineStep (with settingsMap)
+│   │   └── pipeline-context.model.ts   # PipelineContext passed between plugins
 │   └── utils/
 │       ├── ffmpeg.util.ts              # fluent-ffmpeg / ffprobe wrappers
 │       ├── time.util.ts                # Time formatting, SRT parsing helpers
-│       └── file.util.ts                # File path/extension utilities
+│       └── file.util.ts                # File path/extension utilities, atomic JSON writes
 ├── storage/
 │   ├── uploads/                        # Uploaded media files
-│   └── projects/                       # Project JSON files
+│   └── projects/                       # Project JSON files ({id}/project.json)
 ├── package.json
 └── tsconfig.json
 ```
@@ -83,51 +84,68 @@ server/
 ### 2.2 Key Services
 
 #### MediaService
+- No separate service — media handling is done inline in `media.routes.ts`
 - Handles file upload via multer middleware
 - Saves files as `storage/uploads/{uuid}.{originalExtension}`
 - Extracts metadata via `ffprobe`: duration, format, codecs, resolution, bitrate
 - Supports HTTP range requests for streaming (partial content, 206 responses)
 
+#### ProjectService
+- Manages multi-project lifecycle: create, get, update, delete, list, open
+- Tracks current active project via `currentProjectId`
+- Reads/writes `storage/projects/{id}/project.json`
+- Atomic write: write to temp file, then rename (prevents corruption)
+- Contains full project state: media reference, pipeline config, clips, edit history
+- `list()` returns `ProjectSummary[]` sorted by last updated
+
 #### PipelineService
-- Accepts a `PipelineStep[]` configuration and a `PipelineContext`
+- Accepts pipeline params (projectId, mediaPath, mediaInfo, steps, metadata)
 - Iterates steps in order, invoking each plugin's `execute(ctx)` method
 - After each step, emits progress events via `SseService`
-- Returns the final `PipelineContext` with populated clips/segments/words
+- Persists resulting clips into the project on completion
 
 #### SseService
 - Node.js `EventEmitter` wrapper
 - Maintains a set of active SSE connections
-- Broadcasts typed events: `pipeline:progress`, `pipeline:complete`, `pipeline:error`, `export:progress`, `export:complete`
+- Broadcasts typed events: `pipeline:progress`, `pipeline:complete`, `pipeline:error`, `export:progress`, `export:complete`, `export:error`
+- Heartbeat every 30s to keep connections alive
 
 #### ExportService
 - Builds an FFmpeg filter chain from non-removed time ranges
 - Uses `fluent-ffmpeg` to concatenate segments and render output file
-- Supports video (re-mux or re-encode) and audio-only export
-- Generates adjusted SRT and plain TXT transcripts
+- Supports video (re-encode with libx264/aac) export
+- Generates SRT (with adjusted timecodes) and plain TXT transcripts
+- Reports progress via SSE during FFmpeg processing
 
-#### ProjectService
-- Reads/writes `storage/projects/{id}/project.json`
-- Atomic write: write to temp file, then rename (prevents corruption)
-- Contains full project state: media reference, pipeline config, clips, edit history
+#### SettingsService
+- Persists app-wide settings to `storage/settings.json`
+- Manages known settings: API keys, Whisper config, Groq key, silence markers
+- Redacts secret values (API keys) in responses — only shows last 4 chars
+- Merge-based updates: empty string removes a key
 
 ### 2.3 API Endpoints
 
 | Method | Endpoint | Service | Description |
 |--------|----------|---------|-------------|
-| POST | `/api/media` | MediaService | Upload media file (multipart/form-data) |
-| GET | `/api/media/:id/info` | MediaService | Return media metadata JSON |
-| GET | `/api/media/:id/stream` | MediaService | Stream media with range-request support |
+| POST | `/api/media` | media.routes | Upload media file (multipart/form-data) |
+| GET | `/api/media/:id/info` | media.routes | Return media metadata JSON |
+| GET | `/api/media/:id/stream` | media.routes | Stream media with range-request support |
 | GET | `/api/project` | ProjectService | Get current project state |
-| PUT | `/api/project` | ProjectService | Update project state |
-| GET | `/api/plugins` | PluginRegistry | List available plugins with config schemas |
-| POST | `/api/pipeline/run` | PipelineService | Execute plugin pipeline |
+| PUT | `/api/project` | ProjectService | Update current project state |
+| GET | `/api/projects` | ProjectService | List all projects as ProjectSummary[] |
+| POST | `/api/projects/:id/open` | ProjectService | Set project as current and return it |
+| DELETE | `/api/projects/:id` | ProjectService | Delete a project and its data |
+| GET | `/api/plugins` | PluginRegistry | List available plugins with config schemas (settings pre-filled) |
+| POST | `/api/plugins/pipeline/run` | PipelineService | Execute plugin pipeline |
 | GET | `/api/clips` | ClipService | List all clips with segments and words |
 | GET | `/api/clips/:id` | ClipService | Get single clip detail |
-| GET | `/api/clips/:id/stream` | MediaService | Stream clip media range |
+| GET | `/api/clips/:id/stream` | media.routes | Stream clip media range |
 | PUT | `/api/clips/:id/words` | ClipService | Update word isRemoved states |
 | POST | `/api/export` | ExportService | Start export job |
 | GET | `/api/export/:id/status` | ExportService | Check export progress |
 | GET | `/api/export/:id/download` | ExportService | Download exported file |
+| GET | `/api/settings` | SettingsService | Get app settings (secrets redacted) |
+| PUT | `/api/settings` | SettingsService | Update app settings |
 | GET | `/api/events` | SseService | SSE event stream |
 
 ---
@@ -156,18 +174,18 @@ interface PipelineContext {
   mediaPath: string;                       // Absolute path to uploaded media
   mediaInfo: MediaInfo;                    // Duration, format, codecs
   clips: Clip[];                           // Accumulated clips (grows as plugins run)
-  metadata: Record<string, any>;           // Arbitrary metadata passed between plugins
+  metadata: Record<string, unknown>;       // Arbitrary metadata; plugin configs merged by ID key
 }
 ```
 
 ### 3.3 Plugin Registry
 
-- On server startup, scans `server/src/plugins/` subdirectories
-- Each plugin directory exports a default `IPlugin` implementation
+- Plugins are manually registered in `plugin-registry.ts` constructor
+- Currently registered: `srt-import`, `whisper-openai`, `groq-whisper`
 - Registry exposes:
   - `getAll(): IPlugin[]` — list all registered plugins
   - `getById(id: string): IPlugin` — get a specific plugin
-- `GET /api/plugins` returns plugin metadata (id, name, type, configSchema, hasUI) — not the execute function
+- `GET /api/plugins` returns plugin metadata with `settingsMap` used to pre-fill config defaults from app settings
 
 ### 3.4 Plugin UI Loading
 
@@ -187,13 +205,38 @@ interface Project {
   name: string;
   mediaPath: string;                       // Relative path within storage/uploads/
   mediaType: 'video' | 'audio';
-  mediaDuration: number;                   // Seconds
-  mediaFormat: string;                     // e.g. "mp4", "mp3"
+  mediaInfo: MediaInfo | null;
   clips: Clip[];
   pipelineConfig: PipelineStep[];
   editHistory: EditAction[];               // Undo/redo stack
   createdAt: string;                       // ISO 8601
   updatedAt: string;                       // ISO 8601
+}
+
+interface ProjectSummary {
+  id: string;
+  name: string;
+  mediaPath: string;
+  mediaType: 'video' | 'audio';
+  mediaInfo: MediaInfo | null;
+  pipelineConfig: PipelineStep[];
+  createdAt: string;
+  updatedAt: string;
+  clipCount: number;
+  segmentCount: number;
+  wordCount: number;
+  hasTranscription: boolean;
+  transcriptionPlugin: string | null;
+}
+
+interface MediaInfo {
+  duration: number;                        // Seconds
+  format: string;                          // e.g. "mp4"
+  codec: string;
+  videoCodec?: string;
+  width?: number;
+  height?: number;
+  bitrate?: number;
 }
 
 interface Clip {
@@ -203,6 +246,7 @@ interface Clip {
   startTime: number;                       // Seconds (float)
   endTime: number;
   segments: Segment[];
+  showSilenceMarkers?: boolean;            // Toggle inter-segment silence pills
 }
 
 interface Segment {
@@ -226,8 +270,18 @@ interface Word {
 
 interface PipelineStep {
   pluginId: string;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   order: number;
+}
+
+interface PluginMeta {
+  id: string;
+  name: string;
+  description: string;
+  type: PluginType;
+  configSchema: Record<string, unknown>;   // JSON Schema for config options
+  hasUI: boolean;
+  settingsMap?: Record<string, string>;    // Maps config props to app setting keys for auto-fill
 }
 
 interface EditAction {
@@ -260,50 +314,53 @@ storage/
 client/
 ├── src/
 │   ├── main.ts
+│   ├── index.html
+│   ├── styles.scss                        # Global styles
 │   ├── app/
-│   │   ├── app.component.ts
+│   │   ├── app.ts                         # Root component
+│   │   ├── app.html                       # Root template
+│   │   ├── app.scss                       # Root styles
 │   │   ├── app.routes.ts                  # '/' → Onboarding, '/studio' → Studio
-│   │   ├── app.config.ts
+│   │   ├── app.config.ts                  # Providers: router, httpClient, error interceptor
 │   │   ├── core/
+│   │   │   ├── interceptors/
+│   │   │   │   └── http-error.interceptor.ts  # Global HTTP error handler → NotificationService
 │   │   │   ├── services/
-│   │   │   │   ├── api.service.ts         # HttpClient wrapper, base URL config
-│   │   │   │   ├── project.service.ts     # Project state (signal-based)
-│   │   │   │   ├── clip.service.ts        # Clips, segments, words (signal-based)
-│   │   │   │   ├── media-player.service.ts# Shared player state: currentTime, isPlaying, duration
-│   │   │   │   ├── sse.service.ts         # EventSource wrapper, typed event observables
-│   │   │   │   └── edit-history.service.ts# Undo/redo stack management
+│   │   │   │   ├── api.service.ts             # HttpClient wrapper with error handling
+│   │   │   │   ├── project.service.ts         # Project state (signal), multi-project: load, list, open, delete
+│   │   │   │   ├── clip.service.ts            # Clips signal, loadAll, updateWordStates
+│   │   │   │   ├── plugin.service.ts          # Plugin list, pipeline execution
+│   │   │   │   ├── sse.service.ts             # EventSource wrapper, typed signal-based events
+│   │   │   │   ├── notification.service.ts    # Toast notification system (signal-based message queue)
+│   │   │   │   └── settings.service.ts        # App settings CRUD (API keys, whisper config)
 │   │   │   └── models/
-│   │   │       ├── clip.model.ts
-│   │   │       ├── segment.model.ts
-│   │   │       ├── word.model.ts
-│   │   │       └── plugin.model.ts
+│   │   │       ├── clip.model.ts              # Clip interface (with showSilenceMarkers)
+│   │   │       ├── segment.model.ts           # Segment with tags
+│   │   │       ├── word.model.ts              # Word with isRemoved
+│   │   │       ├── plugin.model.ts            # PluginMeta, PluginType, PipelineStep
+│   │   │       └── project.model.ts           # Project, ProjectSummary, MediaInfo, EditAction
 │   │   ├── features/
 │   │   │   ├── onboarding/
-│   │   │   │   ├── onboarding.component.ts
-│   │   │   │   ├── media-uploader/
-│   │   │   │   ├── pipeline-configurator/
-│   │   │   │   ├── plugin-options/
-│   │   │   │   └── processing-progress/
-│   │   │   ├── studio/
-│   │   │   │   ├── studio.component.ts
-│   │   │   │   ├── clip-list/
-│   │   │   │   └── export-panel/
-│   │   │   └── txt-media-player/
-│   │   │       ├── txt-media-player.component.ts
-│   │   │       ├── media-controls/
-│   │   │       ├── transcript-view/
-│   │   │       └── segment-timeline/
+│   │   │   │   ├── onboarding.component.ts    # Dual-mode: project home grid + 3-step wizard
+│   │   │   │   └── onboarding.component.html  # External template
+│   │   │   └── studio/
+│   │   │       ├── studio.component.ts        # Layout: clip-panel + player-panel + export-aside
+│   │   │       ├── clip-list/
+│   │   │       │   └── clip-list.component.ts # Sidebar clip list
+│   │   │       ├── export-panel/
+│   │   │       │   └── export-panel.component.ts  # Format selection, export trigger, polling
+│   │   │       ├── txt-media-player/
+│   │   │       │   ├── media-player.service.ts    # Shared signal-based media element state
+│   │   │       │   ├── edit-history.service.ts    # Undo/redo stacks with WordEditChange
+│   │   │       │   └── keyboard-shortcuts.service.ts  # Global keyboard handler factory
+│   │   │       └── txt-media-player-v2/
+│   │   │           ├── txt-media-player-v2.component.ts   # Main player + transcript editor (V2)
+│   │   │           └── txt-media-player-v2.component.scss # All V2 styles
 │   │   └── shared/
-│   │       ├── components/
-│   │       │   └── progress-bar/
-│   │       └── pipes/
-│   │           ├── duration.pipe.ts
-│   │           └── time-format.pipe.ts
-│   ├── assets/
-│   └── styles/
-│       ├── _variables.scss
-│       └── styles.scss
+│   │       └── components/                # Shared UI components
+│   └── public/                            # Static assets
 ├── angular.json
+├── proxy.conf.json                        # Dev proxy: /api/* → Express :3000
 ├── package.json
 └── tsconfig.json
 ```
@@ -314,16 +371,25 @@ Angular signals (no external state library):
 
 | Service | Signals | Purpose |
 |---------|---------|---------|
-| `ProjectService` | `project`, `isLoading` | Current project state |
-| `ClipService` | `clips`, `selectedClip`, `selectedClipWords` | Clip data and selection |
-| `MediaPlayerService` | `currentTime`, `isPlaying`, `duration`, `playbackRate` | Shared player state |
-| `EditHistoryService` | `canUndo`, `canRedo` | Edit stack state |
+| `ProjectService` | `project` | Current project state |
+| `ClipService` | `clips` | Clip data |
+| `PluginService` | `plugins` | Available plugin metadata |
+| `MediaPlayerService` | `currentTime`, `isPlaying`, `duration`, `playbackRate`, `volume` | Shared media element state |
+| `SseService` | `lastEvent` | Latest SSE event |
+| `NotificationService` | `messages` | Active toast messages |
+| `EditHistoryService` | (private stacks) | Undo/redo word edit history |
+
+**Player V2 Local Signals** (in `TxtMediaPlayerV2Component`):
+- `autoFollow`, `jumpCutMode`, `showOverlay`, `searchQuery`, `selectedWordIds`, `selectionAnchorWordId`, `transcriptScrollTop`, `transcriptViewportHeight`, `editVersion`
+
+**Player V2 Key Computeds**:
+- `progress`, `currentWord` (gap-bridging), `highlightedWordId`, `activeSegmentId`, `removedCount`, `selectedCount`, `totalWordCount`, `searchMatchIds`, `tagColorMap`, `trackItems`, `segmentViewItems`, `renderedItems` (virtual scrolling), `shouldVirtualize` (≥1200 words)
 
 ### 5.3 Communication
 
-- **HTTP**: Angular `HttpClient` for all REST API calls
-- **SSE**: Native `EventSource` wrapped in an Angular service, exposed as RxJS observables for pipeline/export progress
-- **Proxy**: Angular dev server proxies `/api/*` to the Express backend (configured in `angular.json` or `proxy.conf.json`)
+- **HTTP**: Angular `HttpClient` with global error interceptor → `NotificationService` for toast errors
+- **SSE**: Native `EventSource` wrapped in `SseService`, events exposed as a signal (`lastEvent`)
+- **Proxy**: Angular dev server proxies `/api/*` to the Express backend (configured in `proxy.conf.json`)
 
 ---
 
@@ -336,10 +402,16 @@ Angular signals (no external state library):
 | Angular signals (no NgRx) | App state is modest; signals + services are sufficient |
 | FFmpeg for export | Industry-standard for reliable media concatenation |
 | Plugin configSchema as JSON Schema | Well-tooled standard; enables dynamic form generation |
+| Plugin settingsMap for auto-fill | Config defaults pre-populated from app settings without client changes |
 | Flat string tags on segments | Maximum flexibility with no schema overhead |
-| Segment-level timeline (not word-level) | Cleaner overview UX; word detail lives in the transcript panel |
 | Monorepo (server/ + client/) | Simple structure; no monorepo tooling overhead |
 | Models duplicated (not shared package) | Loose coupling; avoids shared build complexity |
+| Singleton service instances on server | Simple pattern; no DI framework needed |
+| Material Symbols Outlined (not Lucide) | Consistent icon system used throughout frontend |
+| Virtual scrolling threshold: 1200 words | Balances DOM performance with smooth experience for shorter transcripts |
+| Gap-bridging word highlight | Binary search + gap proximity snapping prevents highlight blinking |
+| FlowItems pattern in transcript | Words, timestamps, and silence chips interleaved inline for natural flow |
+| Design system: "Editorial Timeline" | Premium dark editorial aesthetic per stitch/DESIGN.md |
 
 ---
 
@@ -355,13 +427,13 @@ Angular signals (no external state library):
 | `fluent-ffmpeg` | FFmpeg/ffprobe Node.js wrapper |
 | `uuid` | Generate unique IDs |
 | `typescript` | Language |
-| `tsx` / `ts-node` | TypeScript execution |
+| `tsx` | TypeScript execution (dev) |
 
 ### Frontend
 
 | Package | Purpose |
 |---------|---------|
-| `@angular/core` (v18) | Framework |
+| `@angular/core` (v20+) | Framework (standalone components default) |
 | `@angular/router` | Routing |
 | `@angular/forms` | Reactive forms (plugin config) |
 | `@angular/cdk` | Virtual scrolling, drag-and-drop |

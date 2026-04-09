@@ -4,7 +4,7 @@
 
 VTextStudio is a text-based media editor web application. Users upload video or audio, run a chainable plugin pipeline (transcription, diarization, silence detection, narrative restructuring, translation), and edit the result by selecting/removing words from the transcript — producing jump-cut playback and export.
 
-**Tech Stack**: Node.js + Express (TypeScript) backend, Angular 18 frontend.  
+**Tech Stack**: Node.js + Express (TypeScript) backend, Angular 20+ frontend.  
 **Deployment**: Single-user, local machine.
 
 ---
@@ -32,13 +32,18 @@ VTextStudio is a text-based media editor web application. Users upload video or 
 | FR-2.6 | Pipeline execution reports progress to the frontend via SSE (Server-Sent Events) |
 | FR-2.7 | The user can add, remove, and reorder plugins before execution |
 
-**Built-in Plugins (v1):**
+**Built-in Plugins (implemented):**
+
+| Plugin | Type | Status | Description |
+|--------|------|--------|-------------|
+| Whisper (OpenAI-compatible) | transcription | ✅ | OpenAI-compatible API — produces segments and words with timestamps. Supports self-hosted servers. |
+| Groq Whisper | transcription | ✅ | Groq cloud API — produces segments and words with timestamps |
+| SRT Import | transcription | ✅ | Parse `.srt` file into segments with estimated word-level timestamps |
+
+**Planned Plugins (not yet implemented):**
 
 | Plugin | Type | Description |
 |--------|------|-------------|
-| Whisper Transcription | transcription | Local Whisper server — produces segments and words with timestamps |
-| Groq Transcription | transcription | Groq cloud API — produces segments and words with timestamps |
-| SRT Import | transcription | Parse `.srt` file into segments with estimated word-level timestamps |
 | Speaker Diarization | diarization | Label segments by speaker identity |
 | Silence Detection | detection | Detect silent gaps via FFmpeg; optionally split clips at silences |
 | Narrative Restructuring | narrative | Reorder segments (e.g., interview → story narrative) |
@@ -49,7 +54,7 @@ VTextStudio is a text-based media editor web application. Users upload video or 
 | ID | Requirement |
 |----|-------------|
 | FR-3.1 | The plugin pipeline produces one or more clips from the source media |
-| FR-3.2 | Each **Clip** has: `id`, `name`, `startTime`, `endTime`, `segments[]` |
+| FR-3.2 | Each **Clip** has: `id`, `name`, `startTime`, `endTime`, `segments[]`, optional `showSilenceMarkers` flag |
 | FR-3.3 | Each **Segment** has: `id`, `clipId`, `startTime`, `endTime`, `text`, `words[]`, `tags[]` (flat strings, e.g., `"speaker:Alice"`) |
 | FR-3.4 | Each **Word** has: `id`, `segmentId`, `text`, `startTime`, `endTime`, `isRemoved` flag |
 | FR-3.5 | REST API: list all clips with full segment/word data |
@@ -59,16 +64,20 @@ VTextStudio is a text-based media editor web application. Users upload video or 
 
 | ID | Requirement |
 |----|-------------|
-| FR-4.1 | HTML5 video/audio player with custom playback controls (play/pause, seek, volume, speed 0.5×–2×) |
-| FR-4.2 | Transcript panel: text grouped by segment, each segment visually distinct (color, label, border) |
-| FR-4.3 | Segment-level timeline: horizontal bar with proportional-width blocks per segment |
-| FR-4.4 | During playback, highlight the currently playing word in the transcript |
+| FR-4.1 | HTML5 video/audio player with custom playback controls in hover overlay (play/pause, seek, volume, speed 0.5×–2×, fullscreen) |
+| FR-4.2 | Transcript panel: word-flow layout grouped by segment, with inline time markers (every 5s) and silence chips (gaps ≥ 300ms) interleaved |
+| FR-4.3 | Segment-level timeline: horizontal bar with proportional-width blocks per segment, color-coded by tag palette |
+| FR-4.4 | During playback, highlight the currently playing word with gap-bridging (snaps to nearest word during micro-gaps) |
 | FR-4.5 | Clicking a word repositions the playhead to that word's `startTime` |
-| FR-4.6 | Select one or more words (Shift+click range or native text selection) to mark as removed |
-| FR-4.7 | Removed words display with strikethrough + dimmed style and are skipped during playback (jump cut) |
-| FR-4.8 | Removed words can be restored (click to restore, or select + "Restore" action) |
-| FR-4.9 | Undo/redo support for word removal edits (Ctrl+Z / Ctrl+Shift+Z) |
-| FR-4.10 | Transcript auto-scrolls to keep the active word visible during playback |
+| FR-4.6 | Select one or more words (Shift+click range) to mark as removed. Double-click to toggle a single word. |
+| FR-4.7 | Removed words display as "filler badges" (with close button) and are skipped during jump-cut playback |
+| FR-4.8 | Removed words can be restored (click close button on badge, or select + Restore action) |
+| FR-4.9 | Undo/redo support for word removal edits (Ctrl+Z / Ctrl+Shift+Z) via EditHistoryService |
+| FR-4.10 | Transcript auto-scrolls to keep the active word visible; auto-follow toggle with pause/resume |
+| FR-4.11 | Virtual scrolling for transcripts ≥ 1200 words (segment-based viewport calculation with 700px overscan) |
+| FR-4.12 | Search bar to highlight matching words in transcript |
+| FR-4.13 | Inter-segment silence markers (pills) when `showSilenceMarkers` is enabled on clip |
+| FR-4.14 | Current word caption overlay on video frame during playback |
 
 ### FR-5 Export
 
@@ -84,10 +93,21 @@ VTextStudio is a text-based media editor web application. Users upload video or 
 
 | ID | Requirement |
 |----|-------------|
-| FR-6.1 | Single project at a time |
+| FR-6.1 | Multiple projects supported; one active at a time |
 | FR-6.2 | Project state persisted as JSON on server filesystem (`storage/projects/{id}/project.json`) |
 | FR-6.3 | Project stores: media reference, pipeline config, all clips with segments/words, edit history |
 | FR-6.4 | Undo/redo edit history persisted with the project on save |
+| FR-6.5 | Project dashboard: list all projects with summary info (clip/segment/word counts, transcription status) |
+| FR-6.6 | Open, create, and delete projects from the dashboard |
+
+### FR-7 App Settings
+
+| ID | Requirement |
+|----|-------------|
+| FR-7.1 | Persist app-wide settings: API keys, Whisper config, Groq key, display preferences |
+| FR-7.2 | Settings stored in `storage/settings.json` |
+| FR-7.3 | Secret values (API keys) redacted in API responses |
+| FR-7.4 | Plugin config schemas auto-filled with current settings via `settingsMap` |
 
 ---
 
@@ -96,13 +116,13 @@ VTextStudio is a text-based media editor web application. Users upload video or 
 | ID | Requirement |
 |----|-------------|
 | NFR-1 | **Backend**: Node.js + Express, TypeScript |
-| NFR-2 | **Frontend**: Angular 18, standalone components, signals-based state management |
+| NFR-2 | **Frontend**: Angular 20+, standalone components (default), signals-based state management |
 | NFR-3 | **Storage**: Local filesystem only (no database, no cloud storage) |
 | NFR-4 | **Dependencies**: FFmpeg and ffprobe must be available on the host machine |
 | NFR-5 | **Responsive**: Minimum supported viewport width is 1024px |
 | NFR-6 | **Real-time**: SSE for one-way server→client progress events (pipeline, export) |
 | NFR-7 | **Authentication**: None — single-user, local app |
-| NFR-8 | **Performance**: Handle media files up to 2 hours; virtual scrolling for transcripts exceeding 1000 words |
+| NFR-8 | **Performance**: Handle media files up to 2 hours; virtual scrolling for transcripts exceeding 1200 words |
 | NFR-9 | **Browser Support**: Latest Chrome and Firefox |
 
 ---

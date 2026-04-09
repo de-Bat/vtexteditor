@@ -57,6 +57,10 @@ interface TrackItem {
   colorIndex: number;
 }
 
+/* ── Filler Words ───────────────────────────────────────────── */
+const FILLER_WORDS_EN = ['um', 'uh', 'like', 'you know', 'so', 'basically', 'actually', 'literally', 'right', 'okay', 'well', 'anyway'];
+const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו', 'נכון', 'אוקיי', 'טוב', 'ברור', 'שניה', 'רגע'];
+
 /* ── Component ──────────────────────────────────────────────── */
 
 @Component({
@@ -172,45 +176,107 @@ interface TrackItem {
 
     <!-- Header -->
     <div class="transcript-header">
-      <div class="header-row">
-        <div class="header-left">
+      <!-- Row 1: title + edit group + selection group + auto-follow + export -->
+      <div class="header-row1">
+        <div class="hdr-title-group">
           <h2 class="transcript-title">Transcript</h2>
           <span class="auto-badge">AUTO-GEN</span>
         </div>
-        <div class="header-right">
+        <!-- Edit group -->
+        <div class="hdr-group" role="group" aria-label="Edit history">
+          <button class="hdr-btn" (click)="restoreAll()" title="Restore all removed words">
+            <span class="material-symbols-outlined">settings_backup_restore</span>
+          </button>
+          <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Ctrl+Z)">
+            <span class="material-symbols-outlined">undo</span>
+          </button>
+          <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Ctrl+Shift+Z)">
+            <span class="material-symbols-outlined">redo</span>
+          </button>
+        </div>
+        <!-- Selection group -->
+        <div class="hdr-group hdr-divider" role="group" aria-label="Selection actions">
+          <button class="hdr-btn" (click)="removeSelected()" [disabled]="!selectedCount()" title="Cut selected">
+            <span class="material-symbols-outlined">content_cut</span>
+          </button>
+          <button class="hdr-btn" (click)="restoreSelected()" [disabled]="!selectedCount()" title="Restore selected">
+            <span class="material-symbols-outlined">healing</span>
+          </button>
+          <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" title="Jump-cut preview">
+            <span class="material-symbols-outlined">auto_awesome</span>
+          </button>
+        </div>
+        <!-- Auto-follow -->
+        <div class="hdr-group hdr-divider">
           @if (!autoFollow()) {
-            <button class="return-btn" (click)="returnToCurrentWord()" title="Return to current word">
+            <button class="hdr-btn" (click)="returnToCurrentWord()" title="Return to current word">
               <span class="material-symbols-outlined">keyboard_return</span>
-              Return
             </button>
           }
-          <button
-            class="follow-btn"
-            [class.active]="autoFollow()"
-            [attr.aria-pressed]="autoFollow()"
-            [title]="autoFollow() ? 'Auto-follow on — click to pause' : 'Auto-follow paused — click to resume'"
-            (click)="autoFollow() ? pauseFollow() : returnToCurrentWord()"
-          >
-            <span class="material-symbols-outlined">
-              {{ autoFollow() ? 'my_location' : 'location_disabled' }}
-            </span>
-            {{ autoFollow() ? 'Following' : 'Paused' }}
-          </button>
-          <button class="clean-all-btn" (click)="restoreAll()" title="Restore all removed words">
-            <span class="material-symbols-outlined">delete_sweep</span>
-            Clean All
+          <button class="hdr-btn" [class.active]="autoFollow()" [attr.aria-pressed]="autoFollow()"
+            [title]="autoFollow() ? 'Auto-follow on' : 'Auto-follow paused'"
+            (click)="autoFollow() ? pauseFollow() : returnToCurrentWord()">
+            <span class="material-symbols-outlined">{{ autoFollow() ? 'my_location' : 'location_disabled' }}</span>
           </button>
         </div>
       </div>
-      <div class="search-wrap">
-        <span class="material-symbols-outlined search-icon">search</span>
-        <input
-          type="text"
-          class="search-input"
-          placeholder="Search transcript..."
-          [value]="searchQuery()"
-          (input)="searchQuery.set($any($event.target).value)"
-        />
+
+      <!-- Row 2: search + silence interval + Smart Cut dropdown -->
+      <div class="header-row2">
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input
+            type="text"
+            class="search-input"
+            placeholder="Search transcript..."
+            [value]="searchQuery()"
+            (input)="searchQuery.set($any($event.target).value)"
+          />
+        </div>
+        <div class="silence-interval-wrap">
+          <span class="material-symbols-outlined si-icon">timer</span>
+          <input type="number" class="si-input" min="0.1" max="5" step="0.1"
+            [value]="silenceIntervalSec()"
+            (change)="silenceIntervalSec.set(+$any($event.target).value)"
+            title="Min silence interval (sec)"
+          />
+          <span class="si-unit">s</span>
+        </div>
+        <!-- Smart Cut dropdown -->
+        <div class="smart-cut-wrap">
+          <button class="smart-cut-trigger" (click)="smartCutOpen.set(!smartCutOpen())" [class.open]="smartCutOpen()" title="Smart Cut">
+            <span class="material-symbols-outlined">content_cut</span>
+            Smart Cut
+            <span class="material-symbols-outlined sc-caret">expand_more</span>
+          </button>
+          @if (smartCutOpen()) {
+            <div class="smart-cut-dropdown" role="dialog" aria-label="Smart Cut options">
+              <div class="sc-section-title">Filler Words — EN</div>
+              <div class="sc-chips">
+                @for (fw of FILLER_WORDS_EN; track fw) {
+                  <button class="sc-chip" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
+                }
+              </div>
+              <div class="sc-section-title sc-section-he">Filler Words — עב</div>
+              <div class="sc-chips">
+                @for (fw of FILLER_WORDS_HE; track fw) {
+                  <button class="sc-chip sc-chip-he" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
+                }
+              </div>
+              <div class="sc-toggles">
+                <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())" title="Highlight fillers">
+                  <span class="material-symbols-outlined">visibility</span>
+                  Fillers
+                </button>
+                <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())" title="Highlight silence-adjacent words">
+                  <span class="material-symbols-outlined">hourglass_empty</span>
+                  Silence
+                </button>
+              </div>
+              <button class="sc-apply-btn" (click)="applySmartCut()">Apply Smart Cut</button>
+            </div>
+          }
+        </div>
       </div>
     </div>
 
@@ -269,6 +335,8 @@ interface TrackItem {
                     [class.highlighted]="fi.word.id === highlightedWordId()"
                     [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     [class.search-match]="searchMatchIds().has(fi.word.id)"
+                    [class.filler-hl]="isFillerWord(fi.word)"
+                    [class.silence-hl]="isSilenceAdjacent(fi.word, seg)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)"
                     [title]="'Double-click to remove'"
@@ -298,28 +366,38 @@ interface TrackItem {
       }
     </div>
 
-    <!-- Floating Action Footer -->
-    <div class="action-footer">
-      <div class="action-left">
-        <button class="action-icon" (click)="removeSelected()" [disabled]="!selectedCount()" title="Cut selected words">
+    <!-- Status Bar (replaces action footer) -->
+    <div class="status-bar">
+      @if (selectedCount()) {
+        <span class="status-chip">
+          <span class="material-symbols-outlined">select_all</span>
+          {{ selectedCount() }} selected
+        </span>
+      }
+      @if (removedCount()) {
+        <span class="status-chip status-removed">
           <span class="material-symbols-outlined">content_cut</span>
-        </button>
-        <button class="action-icon" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" title="Toggle jump-cut preview">
+          {{ removedCount() }} removed
+        </span>
+      }
+      @if (jumpCutMode()) {
+        <span class="status-chip status-mode">
           <span class="material-symbols-outlined">auto_awesome</span>
-        </button>
-        <button class="action-icon" (click)="restoreSelected()" [disabled]="!selectedCount()" title="Restore selected words">
-          <span class="material-symbols-outlined">settings_backup_restore</span>
-        </button>
-      </div>
-      <div class="action-meta">
-        @if (selectedCount()) {
-          <span class="meta-chip">{{ selectedCount() }} selected</span>
-        }
-        @if (removedCount()) {
-          <span class="meta-chip removed">{{ removedCount() }} removed</span>
-        }
-      </div>
-      <button class="smart-cut-btn" (click)="removeSelected()" [disabled]="!selectedCount()">Smart Cut</button>
+          Jump Cut
+        </span>
+      }
+      @if (highlightFillers()) {
+        <span class="status-chip status-filler">
+          <span class="material-symbols-outlined">visibility</span>
+          Fillers
+        </span>
+      }
+      @if (highlightSilence()) {
+        <span class="status-chip status-silence">
+          <span class="material-symbols-outlined">hourglass_empty</span>
+          Silence
+        </span>
+      }
     </div>
 
   </section>
@@ -339,6 +417,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Palette (exposed for template) ──────────────────── */
   readonly SEGMENT_PALETTE = SEGMENT_PALETTE;
+  readonly FILLER_WORDS_EN = FILLER_WORDS_EN;
+  readonly FILLER_WORDS_HE = FILLER_WORDS_HE;
 
   /* ── Signals (media delegated from service) ──────────── */
   readonly playing;
@@ -358,6 +438,28 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly transcriptViewportHeight = signal(0);
   readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
   private readonly editVersion = signal(0);
+
+  /* ── Smart-Cut Signals ────────────────────────────────── */
+  /** Minimum silence gap (seconds) for smart-cut detection */
+  readonly silenceIntervalSec = signal(0.3);
+  /** Show filler-word highlight overlays (orange underline) */
+  readonly highlightFillers = signal(false);
+  /** Show silence-gap highlight overlays (blue underline) */
+  readonly highlightSilence = signal(false);
+  /** Whether Smart Cut dropdown is open */
+  readonly smartCutOpen = signal(false);
+  /** Filler words selected for cutting */
+  readonly selectedFillers = signal<Set<string>>(new Set());
+
+  /* ── Undo / Redo availability ─────────────────────────── */
+  readonly canUndo = computed(() => {
+    this.editVersion(); // track version changes
+    return this.editHistory.canUndo;
+  });
+  readonly canRedo = computed(() => {
+    this.editVersion();
+    return this.editHistory.canRedo;
+  });
 
   /* ── Computed: Media ─────────────────────────────────── */
   readonly progress = computed(() =>
@@ -751,11 +853,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   restoreAll(): void {
-    const updates = this.clip().segments
+    const removed = this.clip().segments
       .flatMap(s => s.words)
-      .filter(w => w.isRemoved)
-      .map(w => ({ id: w.id, isRemoved: false }));
-    this.applyWordUpdates(updates, true);
+      .filter(w => w.isRemoved);
+    if (removed.length > 10 && !confirm(`Restore all ${removed.length} removed words?`)) return;
+    this.applyWordUpdates(removed.map(w => ({ id: w.id, isRemoved: false })), true);
   }
 
   onTranscriptScroll(): void {
@@ -791,12 +893,58 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   /* ── Private ─────────────────────────────────────────── */
-  private undo(): void {
+  undo(): void {
     this.editHistory.undo(updates => this.applyWordUpdates(updates, false));
   }
 
-  private redo(): void {
+  redo(): void {
     this.editHistory.redo(updates => this.applyWordUpdates(updates, false));
+  }
+
+  toggleFiller(word: string): void {
+    this.selectedFillers.update(set => {
+      const next = new Set(set);
+      next.has(word) ? next.delete(word) : next.add(word);
+      return next;
+    });
+  }
+
+  applySmartCut(): void {
+    const fillers = this.selectedFillers();
+    const interval = this.silenceIntervalSec();
+    const updates: Array<{ id: string; isRemoved: boolean }> = [];
+    for (const seg of this.clip().segments) {
+      for (let i = 0; i < seg.words.length; i++) {
+        const w = seg.words[i];
+        if (w.isRemoved) continue;
+        // Filler-word cut
+        if (fillers.size && fillers.has(w.text.toLowerCase())) {
+          updates.push({ id: w.id, isRemoved: true });
+          continue;
+        }
+        // Silence-adjacent cut: remove word if a long silence starts right after it
+        if (i < seg.words.length - 1) {
+          const gap = seg.words[i + 1].startTime - w.endTime;
+          if (gap >= interval) {
+            updates.push({ id: w.id, isRemoved: true });
+          }
+        }
+      }
+    }
+    this.applyWordUpdates(updates, true);
+    this.smartCutOpen.set(false);
+  }
+
+  isFillerWord(word: Word): boolean {
+    if (!this.highlightFillers()) return false;
+    return this.selectedFillers().has(word.text.toLowerCase());
+  }
+
+  isSilenceAdjacent(word: Word, seg: Segment): boolean {
+    if (!this.highlightSilence()) return false;
+    const idx = seg.words.indexOf(word);
+    if (idx < 0 || idx >= seg.words.length - 1) return false;
+    return (seg.words[idx + 1].startTime - word.endTime) >= this.silenceIntervalSec();
   }
 
   private applyWordUpdates(updates: Array<{ id: string; isRemoved: boolean }>, recordHistory: boolean): void {

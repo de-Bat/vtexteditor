@@ -41,7 +41,7 @@ mediaRoutes.post('/', upload.single('media'), async (req: Request, res: Response
   const mediaId = path.basename(req.file.filename, path.extname(req.file.filename));
   const filePath = req.file.path;
   const hash = req.body?.hash as string | undefined;
-  if (hash) registerHash(hash, filePath);
+  if (hash && /^[0-9a-f]{64}$/i.test(hash)) registerHash(hash, filePath);
   const ext = path.extname(req.file.filename);
   const mediaType = ['.mp4', '.webm', '.mkv'].includes(ext) ? 'video' : 'audio';
 
@@ -72,6 +72,11 @@ mediaRoutes.post('/from-cache', async (req: Request, res: Response) => {
     return;
   }
 
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'Cached file no longer exists on disk' });
+    return;
+  }
+
   const ext = path.extname(filePath);
   const mediaType = ['.mp4', '.webm', '.mkv'].includes(ext) ? 'video' : 'audio';
   const mediaId = path.basename(filePath, ext);
@@ -94,7 +99,7 @@ mediaRoutes.get('/check/:hash', (req: Request, res: Response) => {
   const hash = String(req.params['hash']);
   const filePath = lookupHash(hash);
   if (filePath) {
-    res.json({ exists: true, filePath });
+    res.json({ exists: true });
   } else {
     res.json({ exists: false });
   }

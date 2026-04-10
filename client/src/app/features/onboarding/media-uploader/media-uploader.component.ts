@@ -1,4 +1,4 @@
-import { Component, output, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
@@ -12,8 +12,8 @@ interface UploadResult {
 
 @Component({
   selector: 'app-media-uploader',
-  standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
       class="drop-zone"
@@ -84,7 +84,8 @@ export class MediaUploaderComponent {
   readonly error = signal('');
   readonly statusLabel = signal('Uploading');
 
-  constructor(private api: ApiService, private fileHashService: FileHashService) {}
+  private readonly api = inject(ApiService);
+  private readonly fileHashService = inject(FileHashService);
 
   onDragOver(e: DragEvent): void {
     e.preventDefault();

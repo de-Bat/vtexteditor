@@ -6,6 +6,7 @@ import { config } from '../config';
 import { getUploadPath, fileExists } from '../utils/file.util';
 import { getMediaInfo } from '../utils/ffmpeg.util';
 import { projectService } from '../services/project.service';
+import { lookupHash, registerHash } from '../services/file-hash-cache';
 import fs from 'fs';
 
 const storage = multer.diskStorage({
@@ -39,6 +40,8 @@ mediaRoutes.post('/', upload.single('media'), async (req: Request, res: Response
   }
   const mediaId = path.basename(req.file.filename, path.extname(req.file.filename));
   const filePath = req.file.path;
+  const hash = req.body?.hash as string | undefined;
+  if (hash) registerHash(hash, filePath);
   const ext = path.extname(req.file.filename);
   const mediaType = ['.mp4', '.webm', '.mkv'].includes(ext) ? 'video' : 'audio';
 
@@ -53,6 +56,48 @@ mediaRoutes.post('/', upload.single('media'), async (req: Request, res: Response
   });
 
   res.status(201).json({ mediaId, project });
+});
+
+/** POST /api/media/from-cache — create project from an already-uploaded file */
+mediaRoutes.post('/from-cache', async (req: Request, res: Response) => {
+  const { hash, originalName } = req.body as { hash: string; originalName: string };
+  if (!hash || !originalName) {
+    res.status(400).json({ error: 'hash and originalName are required' });
+    return;
+  }
+
+  const filePath = lookupHash(hash);
+  if (!filePath) {
+    res.status(404).json({ error: 'File not in cache' });
+    return;
+  }
+
+  const ext = path.extname(filePath);
+  const mediaType = ['.mp4', '.webm', '.mkv'].includes(ext) ? 'video' : 'audio';
+  const mediaId = path.basename(filePath, ext);
+
+  let mediaInfo = null;
+  try { mediaInfo = await getMediaInfo(filePath); } catch { /* best effort */ }
+
+  const project = projectService.create({
+    name: path.basename(originalName, path.extname(originalName)),
+    mediaPath: filePath,
+    mediaType,
+    mediaInfo,
+  });
+
+  res.status(201).json({ mediaId, project });
+});
+
+/** GET /api/media/check/:hash — check if a file hash is already in cache */
+mediaRoutes.get('/check/:hash', (req: Request, res: Response) => {
+  const hash = String(req.params['hash']);
+  const filePath = lookupHash(hash);
+  if (filePath) {
+    res.json({ exists: true, filePath });
+  } else {
+    res.json({ exists: false });
+  }
 });
 
 /** GET /api/media/:id/info — get media metadata */

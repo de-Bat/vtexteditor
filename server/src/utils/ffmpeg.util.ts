@@ -2,6 +2,16 @@ import os from 'os';
 import path from 'path';
 import ffmpeg, { FfprobeData } from 'fluent-ffmpeg';
 import { MediaInfo } from '../models/project.model';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+
+/** One fixed-duration chunk produced by splitAudioTrack. */
+export interface AudioChunk {
+  path: string;         // absolute path to the WAV chunk file
+  startOffset: number;  // seconds from the start of the original file
+  index: number;        // zero-based chunk index
+  isOriginal: boolean;  // true when no split occurred — file must NOT be deleted by cleanup
+}
 
 /** Extract media metadata using ffprobe */
 export function getMediaInfo(filePath: string): Promise<MediaInfo> {
@@ -59,4 +69,49 @@ export function extractAudioTrack(inputPath: string, outputPath: string): Promis
  */
 export function makeTempAudioPath(baseName: string): string {
   return path.join(os.tmpdir(), `vts-audio-${baseName}.wav`);
+}
+
+/**
+ * Split an audio file into fixed-duration WAV chunks using ffmpeg segment muxer.
+ * Output files land in os.tmpdir() with a unique prefix.
+ * Returns chunks sorted by index with pre-computed startOffset values.
+ *
+ * If the file is shorter than chunkDurationSecs, ffmpeg still runs but produces
+ * a single chunk (index 0). The caller is responsible for deleting chunk files
+ * that have isOriginal === false.
+ */
+export function splitAudioTrack(
+  inputPath: string,
+  chunkDurationSecs: number,
+): Promise<AudioChunk[]> {
+  const prefix = `vts-chunk-${uuidv4()}`;
+  const outputPattern = path.join(os.tmpdir(), `${prefix}-%03d.wav`);
+
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .outputOptions([
+        '-f', 'segment',
+        '-segment_time', String(chunkDurationSecs),
+        '-c', 'copy',
+      ])
+      .output(outputPattern)
+      .on('error', (err: Error) => reject(new Error(`Audio split failed: ${err.message}`)))
+      .on('end', () => {
+        const files = fs
+          .readdirSync(os.tmpdir())
+          .filter((f) => f.startsWith(prefix))
+          .sort()
+          .map((f) => path.join(os.tmpdir(), f));
+
+        const chunks: AudioChunk[] = files.map((filePath, index) => ({
+          path: filePath,
+          startOffset: index * chunkDurationSecs,
+          index,
+          isOriginal: false,
+        }));
+
+        resolve(chunks);
+      })
+      .run();
+  });
 }

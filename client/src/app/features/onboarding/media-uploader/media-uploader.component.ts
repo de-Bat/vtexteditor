@@ -1,6 +1,8 @@
 import { Component, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
+import { FileHashService } from '../../../core/services/file-hash.service';
 import { Project } from '../../../core/models/project.model';
 
 interface UploadResult {
@@ -24,7 +26,7 @@ interface UploadResult {
       @if (uploading()) {
         <div class="upload-progress">
           <div class="spinner"></div>
-          <span>Uploading {{ fileName() }}…</span>
+          <span>{{ statusLabel() }} {{ fileName() }}…</span>
         </div>
       } @else {
         <div class="drop-hint">
@@ -80,8 +82,9 @@ export class MediaUploaderComponent {
   readonly uploading = signal(false);
   readonly fileName = signal('');
   readonly error = signal('');
+  readonly statusLabel = signal('Uploading');
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private fileHashService: FileHashService) {}
 
   onDragOver(e: DragEvent): void {
     e.preventDefault();
@@ -100,13 +103,43 @@ export class MediaUploaderComponent {
     if (file) this.upload(file);
   }
 
-  private upload(file: File): void {
+  private async upload(file: File): Promise<void> {
     this.error.set('');
     this.uploading.set(true);
     this.fileName.set(file.name);
+    this.statusLabel.set('Checking');
 
+    let hash: string | null = null;
+    try {
+      hash = await this.fileHashService.computeHash(file);
+      const check = await firstValueFrom(this.fileHashService.checkCache(hash));
+      if (check.exists) {
+        // Cache hit — create project from cached file without uploading
+        this.api.post<UploadResult>('/media/from-cache', { hash, originalName: file.name })
+          .subscribe({
+            next: (result) => {
+              this.uploading.set(false);
+              this.uploaded.emit(result);
+            },
+            error: () => {
+              // Cache cleared between check and commit (server restart) — fall back to upload
+              this.doUpload(file, hash);
+            },
+          });
+        return;
+      }
+    } catch {
+      // Hash computation or check failed — proceed with normal upload
+    }
+
+    this.doUpload(file, hash);
+  }
+
+  private doUpload(file: File, hash: string | null): void {
+    this.statusLabel.set('Uploading');
     const fd = new FormData();
     fd.append('media', file);
+    if (hash) fd.append('hash', hash);
 
     this.api.uploadFile<UploadResult>('/media', fd).subscribe({
       next: (result) => {
@@ -116,7 +149,7 @@ export class MediaUploaderComponent {
       error: (err: Error) => {
         this.uploading.set(false);
         this.error.set(err.message);
-      }
+      },
     });
   }
 }

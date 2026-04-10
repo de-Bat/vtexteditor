@@ -8,6 +8,7 @@ import { Segment } from '../../models/segment.model';
 import { Word } from '../../models/word.model';
 import { v4 as uuidv4 } from 'uuid';
 import { extractAudioTrack, makeTempAudioPath } from '../../utils/ffmpeg.util';
+import { chunkAndTranscribe, RawSegment } from '../../utils/chunked-transcription.util';
 import { settingsService } from '../../services/settings.service';
 
 interface GroqConfig {
@@ -17,6 +18,8 @@ interface GroqConfig {
   clipName?: string;
   segmentBySpeech?: boolean;
   showSilenceMarkers?: boolean;
+  chunkDurationSecs?: number;
+  maxConcurrent?: number;
 }
 
 interface GroqWord {
@@ -79,6 +82,18 @@ export const groqWhisperPlugin: IPlugin = {
           title: 'Clip Name',
           default: 'Groq Transcription',
         },
+        chunkDurationSecs: {
+          type: 'number',
+          title: 'Chunk Duration (seconds)',
+          description: 'Audio is split into chunks of this length and transcribed in parallel. Reduce for faster results on long recordings.',
+          default: 300,
+        },
+        maxConcurrent: {
+          type: 'number',
+          title: 'Max Parallel Chunks',
+          description: 'Maximum number of simultaneous Groq API calls. Lower this if you hit rate limits.',
+          default: 3,
+        },
       },
       required: [],
   },
@@ -103,55 +118,38 @@ export const groqWhisperPlugin: IPlugin = {
       tempCreated = true;
     }
 
-    let transcription;
-    try {
-      const fileStream = fs.createReadStream(audioPath) as unknown as File;
-
-      // Groq transcription with word-level timestamps
-      transcription = await groq.audio.transcriptions.create({
-      file: fileStream,
-      model: (cfg.model ?? 'whisper-large-v3-turbo') as 'whisper-large-v3' | 'whisper-large-v3-turbo' | 'distil-whisper-large-v3-en',
-      response_format: 'verbose_json',
+    // Local function: transcribe one WAV chunk via Groq
+    const transcribeChunk = async (chunkPath: string): Promise<RawSegment[]> => {
+      const fileStream = fs.createReadStream(chunkPath) as unknown as File;
+      const transcription = await groq.audio.transcriptions.create({
+        file: fileStream,
+        model: (cfg.model ?? 'whisper-large-v3-turbo') as 'whisper-large-v3' | 'whisper-large-v3-turbo' | 'distil-whisper-large-v3-en',
+        response_format: 'verbose_json',
         timestamp_granularities: ['word', 'segment'],
         ...(cfg.language ? { language: cfg.language } : {}),
       });
+      const raw = transcription as unknown as { segments?: GroqSegment[] };
+      return (raw.segments ?? []).map((seg) => ({
+        start: seg.start,
+        end: seg.end,
+        text: seg.text.trim(),
+        words: seg.words?.map((w) => ({ word: w.word, start: w.start, end: w.end })),
+      }));
+    };
+
+    const chunkDurationSecs = typeof cfg.chunkDurationSecs === 'number' ? cfg.chunkDurationSecs : 300;
+    const maxConcurrent = typeof cfg.maxConcurrent === 'number' ? cfg.maxConcurrent : 3;
+
+    let rawSegments: RawSegment[];
+    try {
+      rawSegments = await chunkAndTranscribe(
+        audioPath,
+        transcribeChunk,
+        { chunkDurationSecs, maxConcurrent },
+        ctx.mediaInfo?.duration,
+      );
     } finally {
       if (tempCreated && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
-    }
-
-    const raw = transcription as unknown as { segments?: GroqSegment[]; text?: string };
-    const clipId = uuidv4();
-    const clipName = cfg.clipName ?? 'Groq Transcription';
-    const segments: Segment[] = [];
-
-    if (raw.segments?.length) {
-      for (const seg of raw.segments) {
-        const segId = uuidv4();
-        let words: Word[];
-
-        if (seg.words?.length) {
-          words = seg.words.map((w) => ({
-            id: uuidv4(),
-            segmentId: segId,
-            text: w.word.trim(),
-            startTime: w.start,
-            endTime: w.end,
-            isRemoved: false,
-          }));
-        } else {
-          words = estimateWords(segId, seg.text.trim(), seg.start, seg.end);
-        }
-
-        segments.push({
-          id: segId,
-          clipId,
-          startTime: seg.start,
-          endTime: seg.end,
-          text: seg.text.trim(),
-          words,
-          tags: [],
-        });
-      }
     }
 
     // Coerce boolean settings; settingsService.get() returns strings.
@@ -162,6 +160,36 @@ export const groqWhisperPlugin: IPlugin = {
 
     const segmentBySpeech = coerceBool(cfg.segmentBySpeech, true);
     const showSilenceMarkers = coerceBool(cfg.showSilenceMarkers, false);
+
+    const clipId = uuidv4();
+    const clipName = cfg.clipName ?? 'Groq Transcription';
+
+    // Build Segment objects from raw segments
+    const segments: Segment[] = rawSegments.map((raw) => {
+      const segId = uuidv4();
+      let words: Word[];
+      if (raw.words?.length) {
+        words = raw.words.map((w) => ({
+          id: uuidv4(),
+          segmentId: segId,
+          text: w.word.trim(),
+          startTime: w.start,
+          endTime: w.end,
+          isRemoved: false,
+        }));
+      } else {
+        words = estimateWords(segId, raw.text, raw.start, raw.end);
+      }
+      return {
+        id: segId,
+        clipId,
+        startTime: raw.start,
+        endTime: raw.end,
+        text: raw.text,
+        words,
+        tags: [],
+      };
+    });
 
     // When segmentBySpeech is off, merge all segments into a single segment.
     const finalSegments = segmentBySpeech ? segments : mergeSegments(clipId, segments);

@@ -10,13 +10,33 @@ interface PromptConfig {
 
 /**
  * Builds the LLM prompt from source clips.
- * Segments are listed chronologically as [SEGMENT_ID] text.
+ *
+ * Segments are listed as short sequential IDs (S001, S002, …) instead of raw
+ * UUIDs. UUIDs are 36 characters long and error-prone for LLMs to reproduce
+ * verbatim; short IDs eliminate that class of hallucination entirely.
+ *
+ * Returns the prompt string AND a map from short ID → real segment UUID so
+ * the caller can reverse-map the LLM response back to real IDs.
  */
-export function buildPrompt(clips: Clip[], config: PromptConfig): string {
-  const lines = clips
+export function buildPrompt(
+  clips: Clip[],
+  config: PromptConfig,
+): { prompt: string; shortIdMap: Map<string, string> } {
+  const allSegments = clips
     .flatMap(c => c.segments)
-    .sort((a, b) => a.startTime - b.startTime)
-    .map(s => `[${s.id}] ${s.text}`)
+    .sort((a, b) => a.startTime - b.startTime);
+
+  // Build short-ID ↔ real-UUID mapping
+  const shortIdMap = new Map<string, string>(); // shortId → realId
+  const toShort = new Map<string, string>();     // realId  → shortId
+  allSegments.forEach((seg, i) => {
+    const shortId = `S${String(i + 1).padStart(3, '0')}`;
+    shortIdMap.set(shortId, seg.id);
+    toShort.set(seg.id, shortId);
+  });
+
+  const lines = allSegments
+    .map(s => `[${toShort.get(s.id)}] ${s.text}`)
     .join('\n');
 
   const seedLine = config.seedCategories
@@ -27,9 +47,9 @@ export function buildPrompt(clips: Clip[], config: PromptConfig): string {
     ? `\nRespond with event titles in: ${config.language}\n`
     : '';
 
-  return `You are helping reconstruct a life story from an interview transcript.
+  const prompt = `You are helping reconstruct a life story from an interview transcript.
 
-Below is the transcript, one segment per line, formatted as [SEGMENT_ID] text:
+Below is the transcript, one segment per line, formatted as [ID] text:
 
 ${lines}
 ${seedLine}${langLine}
@@ -41,18 +61,22 @@ Omit segments that do not fit any chapter.
 
 Return ONLY a JSON array — no explanation, no markdown fences:
 [
-  { "title": "Event name", "segments": ["segment-id-1", "segment-id-2"] },
+  { "title": "Event name", "segments": ["S001", "S002"] },
   ...
 ]`;
+
+  return { prompt, shortIdMap };
 }
 
 /**
  * Parses the LLM response text into a list of events with validated segment IDs.
- * Strips markdown fences, validates segment IDs against the known set.
+ * Strips markdown fences, converts short IDs back to real UUIDs via shortIdMap,
+ * and validates the result against the known segment-ID set.
  */
 export function parseEvents(
   responseText: string,
   validSegmentIds: Set<string>,
+  shortIdMap?: Map<string, string>,
 ): Array<{ title: string; segments: string[] }> {
   const cleaned = responseText.replace(/```(?:json)?|```/g, '').trim();
   const raw = JSON.parse(cleaned) as unknown;
@@ -68,9 +92,12 @@ export function parseEvents(
     )
     .map(e => ({
       title: e.title,
-      segments: (e.segments as unknown[]).filter(
-        (id): id is string => typeof id === 'string' && validSegmentIds.has(id),
-      ),
+      segments: (e.segments as unknown[])
+        .filter((id): id is string => typeof id === 'string')
+        // Resolve short IDs (S001 …) back to real UUIDs when map is provided.
+        // Falls back to the raw ID so callers that pass real UUIDs still work.
+        .map(id => shortIdMap?.get(id) ?? id)
+        .filter(id => validSegmentIds.has(id)),
     }))
     .filter(e => e.segments.length > 0);
 }

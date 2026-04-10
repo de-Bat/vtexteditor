@@ -77,14 +77,14 @@ export const reconstruct2storyPlugin: IPlugin = {
     const prefix = cfg.storyClipPrefix ?? 'Story';
     const timeoutMs = (cfg.timeoutSecs ?? 300) * 1000;
 
-    const prompt = buildPrompt(ctx.clips, {
+    const totalSegments = ctx.clips.reduce((n, c) => n + c.segments.length, 0);
+    console.log(`[reconstruct2story] clips=${ctx.clips.length}  segments=${totalSegments}  maxEvents=${maxEvents}  model=${cfg.model ?? 'gpt-4.1'}`);
+
+    const { prompt, shortIdMap } = buildPrompt(ctx.clips, {
       maxEvents,
       seedCategories: cfg.seedCategories,
       language: cfg.language,
     });
-
-    const totalSegments = ctx.clips.reduce((n, c) => n + c.segments.length, 0);
-    console.log(`[reconstruct2story] clips=${ctx.clips.length}  segments=${totalSegments}  maxEvents=${maxEvents}  model=${cfg.model ?? 'gpt-4.1'}`);
 
     const responseText = await callCopilotStudio(prompt, cfg.model, timeoutMs);
 
@@ -92,7 +92,7 @@ export const reconstruct2storyPlugin: IPlugin = {
       ctx.clips.flatMap(c => c.segments.map(s => s.id)),
     );
 
-    const parsedEvents = parseEvents(responseText, validSegmentIds);
+    const parsedEvents = parseEvents(responseText, validSegmentIds, shortIdMap);
 
     const events: StoryEvent[] = parsedEvents.map(e => ({
       id: uuidv4(),

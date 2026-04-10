@@ -111,26 +111,36 @@ export class MediaUploaderComponent {
 
     let hash: string | null = null;
     try {
+      console.log(`[media-uploader] computing hash for ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)…`);
       hash = await this.fileHashService.computeHash(file);
-      const check = await firstValueFrom(this.fileHashService.checkCache(hash));
-      if (check.exists) {
-        console.log('[media-uploader] cache HIT — skipping upload for', file.name);
-        // Cache hit — create project from cached file without uploading
-        this.api.post<UploadResult>('/media/from-cache', { hash, originalName: file.name })
-          .subscribe({
-            next: (result) => {
-              this.uploading.set(false);
-              this.uploaded.emit(result);
-            },
-            error: () => {
-              // Cache cleared between check and commit (server restart) — fall back to upload
-              this.doUpload(file, hash);
-            },
-          });
-        return;
+      console.log(`[media-uploader] hash=${hash.slice(0, 12)}… — checking server cache`);
+    } catch (err) {
+      console.warn('[media-uploader] hash computation failed — uploading without dedup:', err);
+    }
+
+    if (hash) {
+      try {
+        const check = await firstValueFrom(this.fileHashService.checkCache(hash));
+        if (check.exists) {
+          console.log('[media-uploader] cache HIT — skipping upload for', file.name);
+          // Cache hit — create project from cached file without uploading
+          this.api.post<UploadResult>('/media/from-cache', { hash, originalName: file.name })
+            .subscribe({
+              next: (result) => {
+                this.uploading.set(false);
+                this.uploaded.emit(result);
+              },
+              error: () => {
+                // Cache cleared between check and commit (server restart) — fall back to upload
+                this.doUpload(file, hash);
+              },
+            });
+          return;
+        }
+        console.log('[media-uploader] cache MISS — proceeding with upload');
+      } catch (err) {
+        console.warn('[media-uploader] cache check failed — uploading anyway:', err);
       }
-    } catch {
-      // Hash computation or check failed — proceed with normal upload
     }
 
     this.doUpload(file, hash);

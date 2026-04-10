@@ -1,5 +1,4 @@
 import { Component, ChangeDetectionStrategy, inject, output, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { FileHashService } from '../../../core/services/file-hash.service';
@@ -12,7 +11,7 @@ interface UploadResult {
 
 @Component({
   selector: 'app-media-uploader',
-  imports: [CommonModule],
+  imports: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div

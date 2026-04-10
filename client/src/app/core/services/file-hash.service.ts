@@ -4,7 +4,6 @@ import { ApiService } from './api.service';
 
 export interface CacheCheckResult {
   exists: boolean;
-  filePath?: string;
 }
 
 @Injectable({ providedIn: 'root' })

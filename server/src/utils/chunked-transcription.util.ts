@@ -37,27 +37,37 @@ export async function chunkAndTranscribe(
   fileDurationSecs?: number,
 ): Promise<RawSegment[]> {
   const { chunkDurationSecs, maxConcurrent } = opts;
+  const tag = '[chunked-transcription]';
 
   // Skip splitting if the file fits in a single chunk
   let chunks: AudioChunk[];
   if (fileDurationSecs !== undefined && fileDurationSecs <= chunkDurationSecs) {
+    console.log(`${tag} file fits in one chunk (${fileDurationSecs?.toFixed(1)}s <= ${chunkDurationSecs}s) — skipping split`);
     chunks = [{ path: audioPath, startOffset: 0, index: 0, isOriginal: true }];
   } else {
+    console.log(`${tag} splitting audio into ${chunkDurationSecs}s chunks (maxConcurrent=${maxConcurrent})…`);
     chunks = await splitAudioTrack(audioPath, chunkDurationSecs);
+    console.log(`${tag} split into ${chunks.length} chunk(s)`);
   }
 
   const limit = pLimit(maxConcurrent);
+  let completed = 0;
 
   try {
     const chunkResults = await Promise.all(
       chunks.map((chunk) =>
         limit(async () => {
+          console.log(`${tag} chunk ${chunk.index + 1}/${chunks.length} starting (offset=${chunk.startOffset}s)`);
           const segments = await transcribeFn(chunk.path);
+          completed++;
+          console.log(`${tag} chunk ${chunk.index + 1}/${chunks.length} done — ${segments.length} segment(s)  [${completed}/${chunks.length} complete]`);
           return adjustTimestamps(segments, chunk.startOffset);
         }),
       ),
     );
-    return chunkResults.flat();
+    const merged = chunkResults.flat();
+    console.log(`${tag} all chunks done — ${merged.length} total segment(s)`);
+    return merged;
   } finally {
     // Delete temp chunk files — never delete the original audio
     for (const chunk of chunks) {

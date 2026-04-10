@@ -114,6 +114,7 @@ export class MediaUploaderComponent {
       hash = await this.fileHashService.computeHash(file);
       const check = await firstValueFrom(this.fileHashService.checkCache(hash));
       if (check.exists) {
+        console.log('[media-uploader] cache HIT — skipping upload for', file.name);
         // Cache hit — create project from cached file without uploading
         this.api.post<UploadResult>('/media/from-cache', { hash, originalName: file.name })
           .subscribe({

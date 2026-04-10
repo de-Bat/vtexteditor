@@ -8,11 +8,12 @@ import { callCopilotStudio } from './copilot.client';
 import { projectService } from '../../services/project.service';
 
 interface Reconstruct2StoryConfig {
-  copilotEndpoint: string;
+  model?: string;
   seedCategories?: string;
   language?: string;
   maxEvents?: number;
   storyClipPrefix?: string;
+  timeoutSecs?: number;
 }
 
 export const reconstruct2storyPlugin: IPlugin = {
@@ -25,11 +26,11 @@ export const reconstruct2storyPlugin: IPlugin = {
   configSchema: {
     type: 'object',
     properties: {
-      copilotEndpoint: {
+      model: {
         type: 'string',
-        title: 'Copilot Studio Direct Line Endpoint',
-        description:
-          "Base URL of your Copilot Studio bot's Direct Line endpoint, e.g. https://directline.botframework.com/v3/directline",
+        title: 'Copilot Model',
+        description: 'GitHub Copilot model to use, e.g. "gpt-4.1" or "claude-sonnet-4".',
+        default: 'gpt-4.1',
       },
       seedCategories: {
         type: 'string',
@@ -55,16 +56,18 @@ export const reconstruct2storyPlugin: IPlugin = {
         description: 'Prefix for generated clip names, e.g. "Story" → "Story: Family"',
         default: 'Story',
       },
+      timeoutSecs: {
+        type: 'number',
+        title: 'LLM Timeout (seconds)',
+        description: 'How long to wait for the Copilot response. Increase for very long transcripts.',
+        default: 300,
+      },
     },
-    required: ['copilotEndpoint'],
+    required: [],
   },
 
   async execute(ctx: PipelineContext): Promise<PipelineContext> {
     const cfg = (ctx.metadata['reconstruct2story'] ?? {}) as Reconstruct2StoryConfig;
-
-    if (!cfg.copilotEndpoint) {
-      throw new Error('reconstruct2story: copilotEndpoint is required in plugin config.');
-    }
 
     if (ctx.clips.length === 0) {
       throw new Error('reconstruct2story: no clips found. Run a transcription plugin first.');
@@ -72,6 +75,7 @@ export const reconstruct2storyPlugin: IPlugin = {
 
     const maxEvents = cfg.maxEvents ?? 10;
     const prefix = cfg.storyClipPrefix ?? 'Story';
+    const timeoutMs = (cfg.timeoutSecs ?? 300) * 1000;
 
     const prompt = buildPrompt(ctx.clips, {
       maxEvents,
@@ -79,7 +83,10 @@ export const reconstruct2storyPlugin: IPlugin = {
       language: cfg.language,
     });
 
-    const responseText = await callCopilotStudio(cfg.copilotEndpoint, prompt);
+    const totalSegments = ctx.clips.reduce((n, c) => n + c.segments.length, 0);
+    console.log(`[reconstruct2story] clips=${ctx.clips.length}  segments=${totalSegments}  maxEvents=${maxEvents}  model=${cfg.model ?? 'gpt-4.1'}`);
+
+    const responseText = await callCopilotStudio(prompt, cfg.model, timeoutMs);
 
     const validSegmentIds = new Set(
       ctx.clips.flatMap(c => c.segments.map(s => s.id)),

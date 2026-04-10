@@ -8,6 +8,7 @@ import { Segment } from '../../models/segment.model';
 import { Word } from '../../models/word.model';
 import { v4 as uuidv4 } from 'uuid';
 import { extractAudioTrack, makeTempAudioPath } from '../../utils/ffmpeg.util';
+import { chunkAndTranscribe, RawSegment } from '../../utils/chunked-transcription.util';
 import { settingsService } from '../../services/settings.service';
 
 interface WhisperConfig {
@@ -18,6 +19,8 @@ interface WhisperConfig {
   segmentBySpeech?: boolean;
   showSilenceMarkers?: boolean;
   clipName?: string;
+  chunkDurationSecs?: number;
+  maxConcurrent?: number;
 }
 
 interface WhisperWord {
@@ -97,6 +100,18 @@ export const whisperPlugin: IPlugin = {
           title: 'Clip Name',
           default: 'Whisper Transcription',
         },
+        chunkDurationSecs: {
+          type: 'number',
+          title: 'Chunk Duration (seconds)',
+          description: 'Audio is split into chunks of this length and transcribed in parallel. Reduce for faster results on long recordings.',
+          default: 300,
+        },
+        maxConcurrent: {
+          type: 'number',
+          title: 'Max Parallel Chunks',
+          description: 'Maximum number of simultaneous API calls. Lower this if you hit rate limits.',
+          default: 3,
+        },
       },
       required: [],
   },
@@ -148,18 +163,14 @@ export const whisperPlugin: IPlugin = {
     }
 
     const fileStat = fs.statSync(audioPath);
-    console.log(`${tag} sending file: ${path.basename(audioPath)}  size: ${(fileStat.size / 1024).toFixed(1)} KB`);
+    console.log(`${tag} audio file: ${path.basename(audioPath)}  size: ${(fileStat.size / 1024).toFixed(1)} KB`);
 
-    let response: WhisperResponse;
-    let usedGranularities = false;
-    try {
-      const fileStream = fs.createReadStream(audioPath);
-      const ext = path.extname(audioPath).slice(1) || 'wav';
-      void ext; // used implicitly by the stream
-
-      // First attempt: verbose_json with word+segment granularities (full timestamps)
-      console.log(`${tag} POST /audio/transcriptions  response_format=verbose_json  timestamp_granularities=[word,segment]`);
+    // Local function: transcribe one chunk via the OpenAI-compatible API.
+    // Tries with timestamp_granularities first; retries without if server rejects it.
+    const transcribeChunk = async (chunkPath: string): Promise<RawSegment[]> => {
+      let response: WhisperResponse;
       try {
+        const fileStream = fs.createReadStream(chunkPath);
         response = await (client.audio.transcriptions.create as Function)({
           file: fileStream,
           model,
@@ -168,15 +179,12 @@ export const whisperPlugin: IPlugin = {
           temperature: 0,
           ...(language ? { language } : {}),
         }) as WhisperResponse;
-        usedGranularities = true;
       } catch (firstErr: unknown) {
         const status = (firstErr as { status?: number }).status;
         console.warn(`${tag} first attempt failed (status=${status}) — retrying without timestamp_granularities`);
         // 404/400/422 → server exists but doesn't support timestamp_granularities.
-        // Retry without that parameter (segments only, words estimated later).
         if (status === 404 || status === 400 || status === 422) {
-          const retryStream = fs.createReadStream(audioPath);
-          console.log(`${tag} POST /audio/transcriptions  response_format=verbose_json  (no granularities)`);
+          const retryStream = fs.createReadStream(chunkPath);
           response = await (client.audio.transcriptions.create as Function)({
             file: retryStream,
             model,
@@ -188,6 +196,25 @@ export const whisperPlugin: IPlugin = {
           throw firstErr;
         }
       }
+      return (response.segments ?? []).map((seg) => ({
+        start: seg.start,
+        end: seg.end,
+        text: seg.text.trim(),
+        words: seg.words?.map((w) => ({ word: w.word, start: w.start, end: w.end })),
+      }));
+    };
+
+    const chunkDurationSecs = typeof cfg.chunkDurationSecs === 'number' ? cfg.chunkDurationSecs : 300;
+    const maxConcurrent = typeof cfg.maxConcurrent === 'number' ? cfg.maxConcurrent : 3;
+
+    let rawSegments: RawSegment[];
+    try {
+      rawSegments = await chunkAndTranscribe(
+        audioPath,
+        transcribeChunk,
+        { chunkDurationSecs, maxConcurrent },
+        ctx.mediaInfo?.duration,
+      );
     } finally {
       if (tempCreated && fs.existsSync(audioPath)) {
         fs.unlinkSync(audioPath);
@@ -195,57 +222,44 @@ export const whisperPlugin: IPlugin = {
       }
     }
 
-    const segCount = response.segments?.length ?? 0;
-    const wordCount = response.segments?.reduce((n, s) => n + (s.words?.length ?? 0), 0) ?? 0;
-    const hasWordTimings = usedGranularities && wordCount > 0;
-    console.log(
-      `${tag} response received — segments: ${segCount}  words: ${wordCount}  ` +
-      `word-timestamps: ${hasWordTimings ? 'yes' : 'no (estimated)'}  ` +
-      `duration: ${response.duration != null ? response.duration.toFixed(1) + 's' : 'n/a'}`,
-    );
-
-    // Build Clip from Whisper response
-    const clipId = uuidv4();
-    const clipName = cfg.clipName ?? 'Whisper Transcription';
-    const segments: Segment[] = [];
-
-    if (!response.segments?.length && !response.text) {
+    if (!rawSegments.length) {
       throw new Error(
-        `${tag} Transcription response contained no segments and no text. ` +
-        'Verify that the faster-whisper server is reachable and the model name is correct.',
+        `${tag} Transcription returned no segments. ` +
+        'Verify that the server is reachable and the model name is correct.',
       );
     }
 
-    if (response.segments?.length) {
-      for (const seg of response.segments) {
-        const segId = uuidv4();
-        let words: Word[];
+    const wordCount = rawSegments.reduce((n, s) => n + (s.words?.length ?? 0), 0);
+    console.log(`${tag} transcription complete — segments: ${rawSegments.length}  words: ${wordCount}`);
 
-        if (seg.words?.length) {
-          words = seg.words.map((w) => ({
-            id: uuidv4(),
-            segmentId: segId,
-            text: w.word.trim(),
-            startTime: w.start,
-            endTime: w.end,
-            isRemoved: false,
-          }));
-        } else {
-          // Estimate from segment text
-          words = estimateWords(segId, seg.text.trim(), seg.start, seg.end);
-        }
-
-        segments.push({
-          id: segId,
-          clipId,
-          startTime: seg.start,
-          endTime: seg.end,
-          text: seg.text.trim(),
-          words,
-          tags: [],
-        });
+    // Build Clip from raw segments
+    const clipId = uuidv4();
+    const clipName = cfg.clipName ?? 'Whisper Transcription';
+    const segments: Segment[] = rawSegments.map((raw) => {
+      const segId = uuidv4();
+      let words: Word[];
+      if (raw.words?.length) {
+        words = raw.words.map((w) => ({
+          id: uuidv4(),
+          segmentId: segId,
+          text: w.word.trim(),
+          startTime: w.start,
+          endTime: w.end,
+          isRemoved: false,
+        }));
+      } else {
+        words = estimateWords(segId, raw.text, raw.start, raw.end);
       }
-    }
+      return {
+        id: segId,
+        clipId,
+        startTime: raw.start,
+        endTime: raw.end,
+        text: raw.text,
+        words,
+        tags: [],
+      };
+    });
 
     // Coerce boolean settings; settingsService.get() returns strings.
     const coerceBool = (v: unknown, fallback: boolean) =>

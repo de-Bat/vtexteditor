@@ -31,7 +31,15 @@ exportRoutes.get('/:id/status', (req: Request, res: Response) => {
     res.status(404).json({ error: 'Export job not found' });
     return;
   }
-  res.json({ id: job.id, status: job.status, format: job.format, error: job.error ?? null });
+  res.json({ 
+    id: job.id, 
+    status: job.status, 
+    format: job.format, 
+    progress: job.status === 'done' ? 100 : (job.elapsedTime && job.estimatedTotalTime ? Math.round((job.elapsedTime / job.estimatedTotalTime) * 100) : 0),
+    elapsedTime: job.elapsedTime,
+    estimatedTotalTime: job.estimatedTotalTime,
+    error: job.error ?? null 
+  });
 });
 
 /** GET /api/export/:id/download — stream the output file */

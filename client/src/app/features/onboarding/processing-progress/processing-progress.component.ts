@@ -42,12 +42,29 @@ export type StepStatus = 'done' | 'running' | 'pending';
               </div>
               
               @if (getStepStatus(step.pluginId, i) === 'running') {
-                <div class="progress-container">
-                  <div class="bar">
-                    <div class="fill" [style.width.%]="progress()"></div>
+                  <div class="progress-details">
+                    <div class="bar-row">
+                      <div class="bar">
+                        <div class="fill" [style.width.%]="progress()"></div>
+                      </div>
+                      <span class="percent">{{ progress() }}%</span>
+                    </div>
+                    @if (elapsedTime() > 0) {
+                      <div class="time-stats">
+                        <span class="time-item">
+                          <span class="label">Elapsed:</span>
+                          <span class="value">{{ formatTime(elapsedTime()) }}</span>
+                        </span>
+                        @if (remainingTime() > 0) {
+                          <span class="time-divider"></span>
+                          <span class="time-item">
+                            <span class="label">Remaining:</span>
+                            <span class="value">~{{ formatTime(remainingTime()) }}</span>
+                          </span>
+                        }
+                      </div>
+                    }
                   </div>
-                  <span class="percent">{{ progress() }}%</span>
-                </div>
                 <p class="msg">{{ message() }}</p>
               }
             </div>
@@ -128,10 +145,25 @@ export type StepStatus = 'done' | 'running' | 'pending';
     
     @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     
-    .progress-container { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.4rem; }
+    .progress-details { margin-top: 0.6rem; }
+    .bar-row { display: flex; align-items: center; gap: 0.75rem; }
     .bar { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
     .fill { height: 100%; background: var(--color-accent); transition: width 0.3s ease; }
     .percent { font-size: 0.75rem; font-weight: 800; color: var(--color-accent); width: 35px; text-align: right; }
+    
+    .time-stats {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.4rem;
+      font-size: 0.65rem;
+      color: var(--color-muted);
+      font-weight: 600;
+    }
+    .time-item { display: flex; gap: 0.25rem; }
+    .time-item .label { opacity: 0.7; font-weight: 500; }
+    .time-item .value { color: var(--color-text); }
+    .time-divider { width: 1px; height: 10px; background: var(--color-border); opacity: 0.3; }
     
     .msg {
       font-size: 0.75rem; color: var(--color-muted); margin: 0.3rem 0 0;
@@ -235,4 +267,28 @@ export class ProcessingProgressComponent {
     const ev = this.event();
     return (ev?.data?.['message'] as string) ?? (ev?.data?.['error'] as string) ?? '';
   });
+
+  readonly elapsedTime = computed(() => {
+    const ev = this.event();
+    return (ev?.data?.['elapsedTime'] as number) ?? 0;
+  });
+
+  readonly estimatedTotalTime = computed(() => {
+    const ev = this.event();
+    return (ev?.data?.['estimatedTotalTime'] as number) ?? 0;
+  });
+
+  readonly remainingTime = computed(() => {
+    const est = this.estimatedTotalTime();
+    const elapsed = this.elapsedTime();
+    if (est <= 0 || elapsed <= 0) return 0;
+    return Math.max(0, est - elapsed);
+  });
+
+  formatTime(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
 }

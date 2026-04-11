@@ -449,6 +449,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly transcriptViewportHeight = signal(0);
   readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
   private readonly editVersion = signal(0);
+  private lastActiveSegmentIdx = -1;
+  private lastHighlightedWordId: string | null = null;
+  private lastActiveSilenceId: string | null = null;
 
   /* ── Smart-Cut Signals ────────────────────────────────── */
   /** Minimum silence gap (seconds) for smart-cut detection */
@@ -1062,14 +1065,31 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   private applyJumpCut(currentTime: number): void {
-    for (const seg of this.clip().segments) {
+    const segments = this.clip().segments;
+    // Optimize: start searching from the last known active segment
+    let startIdx = Math.max(0, this.lastActiveSegmentIdx);
+    
+    // If the time is before our cached segment, reset search
+    if (startIdx < segments.length && currentTime < segments[startIdx].startTime) {
+      startIdx = 0;
+    }
+
+    const EPSILON = 0.08; // Buffer to prevent seeking loops
+
+    for (let i = startIdx; i < segments.length; i++) {
+      const seg = segments[i];
+      // If we've passed the current time by a significant margin, stop searching
+      if (seg.startTime > currentTime + 1) break; 
+
       for (const word of seg.words) {
-        if (word.isRemoved && currentTime >= word.startTime && currentTime < word.endTime) {
+        if (word.isRemoved && currentTime >= word.startTime - EPSILON && currentTime < word.endTime - EPSILON) {
           const next = this.findNextActiveWordStart(word.endTime);
           if (next !== null) {
-            this.mediaPlayer.seek(next);
+            // Only seek if the jump is significant (> epsilon) to avoid micro-jitter loops
+            if (Math.abs(next - currentTime) > EPSILON) {
+              this.mediaPlayer.seek(next);
+            }
           } else {
-            // Check if there is another segment after this one
             this.enforceSegmentBounds(currentTime);
           }
           return;
@@ -1082,23 +1102,40 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     const segments = this.clip().segments;
     if (!segments.length) return;
 
-    const currentIdx = segments.findIndex(s => t >= s.startTime && t < s.endTime);
+    const EPSILON = 0.08;
+    
+    // Check if we are still in the last active segment (common case)
+    if (this.lastActiveSegmentIdx >= 0 && this.lastActiveSegmentIdx < segments.length) {
+      const s = segments[this.lastActiveSegmentIdx];
+      if (t >= s.startTime - EPSILON && t < s.endTime - EPSILON) {
+        return;
+      }
+    }
+
+    const currentIdx = segments.findIndex(s => t >= s.startTime - EPSILON && t < s.endTime - EPSILON);
     if (currentIdx === -1) {
       // Past last segment?
       const lastSeg = segments[segments.length - 1];
-      if (t >= lastSeg.endTime) {
-        this.mediaPlayer.pause();
-        this.mediaPlayer.seek(lastSeg.endTime);
+      if (t >= lastSeg.endTime - EPSILON) {
+        // Only pause/seek if we are actually past the end (prevent loops at the very edge)
+        if (this.playing()) {
+          this.mediaPlayer.pause();
+          this.mediaPlayer.seek(lastSeg.endTime);
+        }
         return;
       }
       // Jump to next segment
-      const nextSeg = segments.find(s => s.startTime > t);
+      const nextSeg = segments.find(s => s.startTime > t + EPSILON);
       if (nextSeg) {
         this.mediaPlayer.seek(nextSeg.startTime);
       } else {
         // Before first segment
-        this.mediaPlayer.seek(segments[0].startTime);
+        if (t < segments[0].startTime - EPSILON) {
+          this.mediaPlayer.seek(segments[0].startTime);
+        }
       }
+    } else {
+      this.lastActiveSegmentIdx = currentIdx;
     }
   }
 
@@ -1137,6 +1174,22 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   private scrollToCurrentWord(): void {
     if (!this.autoFollow()) return;
     if (!this.transcriptElRef) return;
+
+    const highlightedId = this.highlightedWordId();
+    const silence = this.activeSilence();
+    
+    // Optimization: Skip layout reading if the focus target hasn't changed
+    if (highlightedId === this.lastHighlightedWordId && silence?.id === this.lastActiveSilenceId) {
+      // If we are virtualizing, we still need to check if the active segment is in view periodically,
+      // but let's do it less frequently or only when the segment changes.
+      if (!this.shouldVirtualize()) return;
+      const idx = this.findActiveSegmentIndex();
+      if (idx === this.lastActiveSegmentIdx) return;
+    }
+
+    this.lastHighlightedWordId = highlightedId;
+    this.lastActiveSilenceId = silence?.id ?? null;
+
     const container = this.transcriptElRef.nativeElement;
     this.measureTranscriptViewport();
 
@@ -1144,10 +1197,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     setTimeout(() => { this.suppressScrollDetection = false; }, 600);
 
     // If playback is in a silence gap, scroll to the silence chip
-    const silence = this.activeSilence();
     if (silence) {
-      const silenceEl = container.querySelector(`.inline-silence[id="${silence.id}"]`) as HTMLElement | null
-        || Array.from(container.querySelectorAll('.inline-silence')).find((el: any) => el.title === silence.id) as HTMLElement | null;
+      const silenceEl = container.querySelector(`.inline-silence[id="${silence.id}"]`) as HTMLElement | null;
       if (silenceEl) {
         const cRect = container.getBoundingClientRect();
         const eRect = silenceEl.getBoundingClientRect();
@@ -1168,11 +1219,13 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       }
       return;
     }
+
     if (!this.shouldVirtualize()) return;
     const idx = this.findActiveSegmentIndex();
     if (idx < 0) return;
     const item = this.segmentViewItems()[idx];
     if (!item) return;
+
     const viewTop = container.scrollTop;
     const viewBottom = viewTop + container.clientHeight;
     if (item.top < viewTop || item.bottom > viewBottom) {

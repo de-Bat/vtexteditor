@@ -19,6 +19,9 @@ export interface ExportJob {
   outputPath?: string;
   error?: string;
   createdAt: string;
+  startTime?: number;
+  elapsedTime?: number;
+  estimatedTotalTime?: number;
 }
 
 class ExportService {
@@ -37,7 +40,13 @@ class ExportService {
   /** Start an export job asynchronously. Returns jobId immediately. */
   start(projectId: string, format: ExportFormat): string {
     const id = uuidv4();
-    const job: ExportJob = { id, projectId, format, status: 'pending', createdAt: new Date().toISOString() };
+    const job: ExportJob = { 
+      id, 
+      projectId, 
+      format, 
+      status: 'pending', 
+      createdAt: new Date().toISOString()
+    };
     this.jobs.set(id, job);
     setImmediate(() => this.run(id));
     return id;
@@ -46,6 +55,7 @@ class ExportService {
   private async run(jobId: string): Promise<void> {
     const job = this.jobs.get(jobId)!;
     job.status = 'running';
+    job.startTime = Date.now();
 
     try {
       const project = projectService.get(job.projectId);
@@ -141,9 +151,24 @@ class ExportService {
         .outputOptions(['-map [vout]', '-map [aout]', '-c:v libx264', '-c:a aac', '-movflags +faststart'])
         .output(outPath)
         .on('progress', (p) => {
-          if (p.percent && p.percent - lastProgress >= 5) {
+          if (p.percent && p.percent - lastProgress >= 1) {
             lastProgress = p.percent;
-            sseService.broadcast({ type: 'export:progress', data: { jobId: job.id, progress: Math.round(p.percent) } });
+            const now = Date.now();
+            const elapsed = now - (job.startTime || now);
+            const total = Math.round(elapsed / (p.percent / 100));
+
+            job.elapsedTime = elapsed;
+            job.estimatedTotalTime = total;
+
+            sseService.broadcast({ 
+              type: 'export:progress', 
+              data: { 
+                jobId: job.id, 
+                progress: Math.round(p.percent),
+                elapsedTime: elapsed,
+                estimatedTotalTime: total
+              } 
+            });
           }
         })
         .on('end', () => {

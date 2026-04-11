@@ -54,6 +54,7 @@ class PipelineService {
       reportProgress: () => {},
     };
 
+    const startTime = Date.now();
     for (let i = 0; i < sortedSteps.length; i++) {
       const step = sortedSteps[i];
       const plugin = pluginRegistry.getById(step.pluginId);
@@ -70,6 +71,13 @@ class PipelineService {
         const stepProgress = ((subProgress ?? 0) / 100) * (1 / totalSteps);
         const totalProgress = Math.round((baseProgress + stepProgress) * 100);
 
+        const now = Date.now();
+        const elapsed = now - startTime;
+        let estimatedTotal = 0;
+        if (totalProgress > 0) {
+          estimatedTotal = Math.round(elapsed / (totalProgress / 100));
+        }
+
         sseService.broadcast({
           type: 'pipeline:progress',
           data: {
@@ -80,6 +88,8 @@ class PipelineService {
             pluginName: pluginObj?.name ?? 'Unknown',
             progress: totalProgress,
             message,
+            elapsedTime: elapsed,
+            estimatedTotalTime: estimatedTotal
           },
         });
       };

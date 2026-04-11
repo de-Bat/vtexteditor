@@ -1,4 +1,4 @@
-import { Component, input, output, signal } from '@angular/core';
+import { Component, computed, input, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { SseService } from '../../../core/services/sse.service';
@@ -85,7 +85,17 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
             <div class="ep-progress-bar">
               <div class="ep-progress-fill" [style.width.%]="progress()"></div>
             </div>
-            <div class="ep-progress-label">{{ progress() }}%</div>
+            <div class="ep-progress-label">
+              <span class="ep-progress-percent">{{ progress() }}%</span>
+              @if (elapsedTime() > 0) {
+                <span class="ep-progress-time">
+                  {{ formatTime(elapsedTime()) }} 
+                  @if (remainingTime() > 0) {
+                    <span class="time-sep">/</span> ~{{ formatTime(remainingTime()) }} left
+                  }
+                </span>
+              }
+            </div>
           }
         </div>
       }
@@ -332,11 +342,17 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       transition: width .4s ease;
     }
     .ep-progress-label {
-      font-size: .72rem;
+      font-size: .68rem;
       color: var(--color-muted);
       margin-top: .3rem;
-      text-align: right;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 500;
     }
+    .ep-progress-percent { font-weight: 700; color: var(--color-accent); }
+    .ep-progress-time { opacity: 0.8; font-family: 'JetBrains Mono', monospace; }
+    .time-sep { margin: 0 2px; opacity: 0.4; }
 
     /* ── Download / error ── */
     .btn-download {
@@ -384,6 +400,8 @@ export class ExportPanelComponent {
   readonly selectedFormat = signal<ExportFormat>('video');
   readonly status = signal<ExportStatus>('idle');
   readonly progress = signal(0);
+  readonly elapsedTime = signal(0);
+  readonly estimatedTotalTime = signal(0);
   readonly errorMsg = signal('');
   readonly downloadUrl = signal('');
 
@@ -433,9 +451,11 @@ export class ExportPanelComponent {
 
   private startPolling(): void {
     this.pollTimer = setInterval(() => {
-      this.api.get<{ status: string; progress?: number; error?: string }>(`/export/${this.jobId}/status`).subscribe({
+      this.api.get<{ status: string; progress?: number; error?: string; elapsedTime?: number; estimatedTotalTime?: number }>(`/export/${this.jobId}/status`).subscribe({
         next: (s) => {
           if (s.progress != null) this.progress.set(s.progress);
+          if (s.elapsedTime != null) this.elapsedTime.set(s.elapsedTime);
+          if (s.estimatedTotalTime != null) this.estimatedTotalTime.set(s.estimatedTotalTime);
           if (s.status === 'done') {
             this.clearPolling();
             this.progress.set(100);
@@ -454,6 +474,20 @@ export class ExportPanelComponent {
 
   private clearPolling(): void {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+  }
+
+  readonly remainingTime = computed(() => {
+    const est = this.estimatedTotalTime();
+    const elapsed = this.elapsedTime();
+    if (est <= 0 || elapsed <= 0) return 0;
+    return Math.max(0, est - elapsed);
+  });
+
+  formatTime(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
 }
 

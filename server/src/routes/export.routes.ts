@@ -9,7 +9,7 @@ const ALLOWED_FORMATS: ExportFormat[] = ['video', 'text-plain', 'text-srt'];
 
 /** POST /api/export — start export job */
 exportRoutes.post('/', (req: Request, res: Response) => {
-  const { projectId, format } = req.body as { projectId?: string; format?: string };
+  const { projectId, format, clipIds } = req.body as { projectId?: string; format?: string; clipIds?: string[] };
 
   if (!projectId) {
     res.status(400).json({ error: 'projectId is required' });
@@ -20,7 +20,7 @@ exportRoutes.post('/', (req: Request, res: Response) => {
     return;
   }
 
-  const jobId = exportService.start(projectId, format as ExportFormat);
+  const jobId = exportService.start(projectId, format as ExportFormat, clipIds);
   res.status(202).json({ jobId });
 });
 

@@ -17,11 +17,10 @@ export interface ExportJob {
   format: ExportFormat;
   status: 'pending' | 'running' | 'done' | 'error';
   outputPath?: string;
-  error?: string;
-  createdAt: string;
-  startTime?: number;
   elapsedTime?: number;
   estimatedTotalTime?: number;
+  clipIds?: string[];
+  error?: string;
 }
 
 class ExportService {
@@ -38,12 +37,13 @@ class ExportService {
   }
 
   /** Start an export job asynchronously. Returns jobId immediately. */
-  start(projectId: string, format: ExportFormat): string {
+  start(projectId: string, format: ExportFormat, clipIds?: string[]): string {
     const id = uuidv4();
     const job: ExportJob = { 
       id, 
       projectId, 
       format, 
+      clipIds,
       status: 'pending', 
       createdAt: new Date().toISOString()
     };
@@ -61,7 +61,12 @@ class ExportService {
       const project = projectService.get(job.projectId);
       if (!project) throw new Error(`Project ${job.projectId} not found`);
 
-      const clips = clipService.getAll(job.projectId);
+      let clips = clipService.getAll(job.projectId);
+      if (job.clipIds && job.clipIds.length > 0) {
+        clips = clips.filter((c) => job.clipIds!.includes(c.id));
+        if (clips.length === 0) throw new Error('None of the selected clips were found');
+      }
+
       const allWords: Word[] = clips.flatMap((c) => c.segments.flatMap((s) => s.words));
       const activeWords = allWords.filter((w) => !w.isRemoved);
 

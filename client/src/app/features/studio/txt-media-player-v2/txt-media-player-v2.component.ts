@@ -336,7 +336,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
       </div>
 
     <!-- Scrollable Transcript -->
-    <div class="transcript-body" #transcriptEl (scroll)="onTranscriptScroll()">
+    <div class="transcript-body" #transcriptEl (scroll)="onTranscriptScroll()" (click)="clearSelection($event)">
       <!-- Scrollbar playback indicator -->
       <div class="scroll-indicator" [style.top.%]="scrollIndicatorPercent()"></div>
       @if (shouldVirtualize()) {
@@ -388,9 +388,14 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                   </span>
                 } @else if (fi.word.isRemoved) {
                   <span class="filler-badge"
+                    [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)">
-                    <span class="filler-text">{{ fi.word.text }}</span>
+                    <span class="filler-text" contenteditable="plaintext-only" spellcheck="false"
+                      (blur)="onWordEdit(fi.word, $event)"
+                      (keydown.enter)="$event.preventDefault(); onWordEdit(fi.word, $event)"
+                      (click)="$event.stopPropagation()"
+                    >{{ fi.word.text }}</span>
                     <button class="filler-x" (click)="toggleRemove(fi.word); $event.stopPropagation()">
                       <span class="material-symbols-outlined">close</span>
                     </button>
@@ -403,6 +408,10 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.filler-hl]="isFillerWord(fi.word)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)"
+                    contenteditable="plaintext-only"
+                    spellcheck="false"
+                    (blur)="onWordEdit(fi.word, $event)"
+                    (keydown.enter)="$event.preventDefault(); onWordEdit(fi.word, $event)"
                     [title]="'Double-click to remove'"
                   >{{ fi.word.text }}</span>
                 }
@@ -922,6 +931,19 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.selectedWordIds.set(range);
       return;
     }
+
+    if (event.ctrlKey || event.metaKey) {
+      this.selectionAnchorWordId.set(word.id);
+      const currentSet = new Set(this.selectedWordIds());
+      if (currentSet.has(word.id)) {
+        currentSet.delete(word.id);
+      } else {
+        currentSet.add(word.id);
+      }
+      this.selectedWordIds.set(Array.from(currentSet));
+      return;
+    }
+
     this.selectionAnchorWordId.set(word.id);
     this.selectedWordIds.set([word.id]);
     if (!word.isRemoved) this.mediaPlayer.seek(word.startTime);

@@ -480,6 +480,18 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (event.ctrlKey || event.metaKey) {
+      this.selectionAnchorWordId.set(word.id);
+      const currentSet = new Set(this.selectedWordIds());
+      if (currentSet.has(word.id)) {
+        currentSet.delete(word.id);
+      } else {
+        currentSet.add(word.id);
+      }
+      this.selectedWordIds.set(Array.from(currentSet));
+      return;
+    }
+
     this.selectionAnchorWordId.set(word.id);
     this.selectedWordIds.set([word.id]);
     this.seekToWord(word);

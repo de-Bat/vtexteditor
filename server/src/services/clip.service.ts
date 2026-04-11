@@ -16,7 +16,7 @@ class ClipService {
     return this.getAll().find((c) => c.id === id);
   }
 
-  updateWordStates(clipId: string, wordUpdates: Array<{ id: string; isRemoved: boolean }>): Clip | null {
+  updateWordStates(clipId: string, wordUpdates: Array<{ id: string; isRemoved?: boolean; text?: string }>): Clip | null {
     const project = projectService.getCurrent();
     if (!project) return null;
 
@@ -28,7 +28,13 @@ class ClipService {
       ...seg,
       words: seg.words.map((w) => {
         const update = wordUpdates.find((u) => u.id === w.id);
-        return update ? { ...w, isRemoved: update.isRemoved } : w;
+        if (update) {
+          const nextWord = { ...w };
+          if (update.isRemoved !== undefined) nextWord.isRemoved = update.isRemoved;
+          if (update.text !== undefined) nextWord.text = update.text;
+          return nextWord;
+        }
+        return w;
       }),
     }));
     const updatedClip = { ...clip, segments: updatedSegments };

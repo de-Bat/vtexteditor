@@ -82,10 +82,10 @@ clipRoutes.get('/:id/stream', (req: Request, res: Response) => {
 /** PUT /api/clips/:id/words — update word removal states */
 clipRoutes.put('/:id/words', (req: Request, res: Response) => {
   // Client sends { updates: [...] }; accept both that shape and a bare array.
-  const body = req.body as { updates?: Array<{ id: string; isRemoved: boolean }> } | Array<{ id: string; isRemoved: boolean }>;
+  const body = req.body as { updates?: Array<{ id: string; isRemoved?: boolean; text?: string }> } | Array<{ id: string; isRemoved?: boolean; text?: string }>;
   const updates = Array.isArray(body) ? body : body.updates;
   if (!Array.isArray(updates)) {
-    res.status(400).json({ error: 'Body must be an array or { updates: [...] } of { id, isRemoved }' });
+    res.status(400).json({ error: 'Body must be an array or { updates: [...] } of { id, isRemoved, text }' });
     return;
   }
   const updated = clipService.updateWordStates(String(req.params.id), updates);

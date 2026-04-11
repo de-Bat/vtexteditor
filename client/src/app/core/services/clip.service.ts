@@ -18,7 +18,7 @@ export class ClipService {
     return this.api.get<Clip>(`/clips/${id}`);
   }
 
-  updateWordStates(clipId: string, states: { id: string; isRemoved: boolean }[]): Observable<Clip> {
+  updateWordStates(clipId: string, states: { id: string; isRemoved?: boolean; text?: string }[]): Observable<Clip> {
     return this.api.put<Clip>(`/clips/${clipId}/words`, { updates: states }).pipe(
       tap((updated) => {
         this.clips.update((list) => list.map((c) => (c.id === clipId ? updated : c)));

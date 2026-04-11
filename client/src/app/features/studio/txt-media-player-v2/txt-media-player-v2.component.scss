@@ -1026,10 +1026,16 @@ audio {
 .word {
   padding: 2px 4px;
   color: rgba(246, 243, 245, 0.8);
-  cursor: pointer;
+  cursor: text;
   transition: color 200ms;
-  user-select: none;
+  user-select: text;
   font-size: 0.9rem;
+
+  &:focus {
+    outline: none;
+    background: rgba(44, 44, 47, 0.4);
+    border-radius: 2px;
+  }
 
   &:hover {
     color: var(--primary);
@@ -1048,6 +1054,12 @@ audio {
     border-radius: 2px;
   }
 
+  &[contenteditable="plaintext-only"] {
+    &:focus {
+       background: rgba(186, 158, 255, 0.15);
+       box-shadow: 0 0 0 2px var(--primary);
+    }
+  }
   &.search-match {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dim) 100%);
     -webkit-background-clip: text;
@@ -1087,6 +1099,13 @@ audio {
   font-size: 12px;
   text-decoration: underline dotted;
   text-underline-offset: 4px;
+  cursor: text;
+  user-select: text;
+
+  &:focus {
+    outline: none;
+    background: rgba(255, 110, 132, 0.05);
+  }
 }
 
 .filler-x {
@@ -1217,6 +1236,16 @@ audio {
     background: rgba(144, 147, 255, 0.1);
   }
 
+  &.status-follow {
+    color: #64ffda;
+    background: rgba(100, 255, 218, 0.1);
+  }
+
+  &.status-edit {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    animation: pulse-edit 2s infinite;
+  }
   &.status-filler {
     color: #f59e0b;
     background: rgba(245, 158, 11, 0.1);
@@ -1226,6 +1255,12 @@ audio {
     color: var(--secondary);
     background: rgba(144, 147, 255, 0.1);
   }
+}
+
+@keyframes pulse-edit {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
 
 /* ═══════ Responsive ══════════════════════════════════ */

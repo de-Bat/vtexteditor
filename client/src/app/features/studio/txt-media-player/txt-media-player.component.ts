@@ -95,7 +95,7 @@ interface SegmentViewportItem {
         </button>
       </div>
 
-      <div class="transcript" #transcriptEl (scroll)="onTranscriptScroll()">
+      <div class="transcript" #transcriptEl (scroll)="onTranscriptScroll()" (click)="clearSelection($event)">
         @if (shouldVirtualizeTranscript()) {
           <div class="virtual-spacer" [style.height.px]="virtualPaddingTop()"></div>
         }
@@ -112,6 +112,10 @@ interface SegmentViewportItem {
                   [class.jump-cut-hidden]="jumpCutMode() && word.isRemoved"
                   (click)="onWordClick(word, $event)"
                   (dblclick)="toggleRemove(word)"
+                  [attr.contenteditable]="editMode() ? 'plaintext-only' : 'false'"
+                  spellcheck="false"
+                  (blur)="onWordEdit(word, $event)"
+                  (keydown.enter)="$event.preventDefault(); onWordEdit(word, $event)"
                   [title]="word.isRemoved ? 'Double-click to restore' : 'Double-click to mark removed'"
                 >{{ word.text }}</span>
               }
@@ -131,11 +135,29 @@ interface SegmentViewportItem {
       />
 
       <div class="action-bar">
-        <button class="btn-secondary" (click)="removeSelected()" [disabled]="!selectedCount()">Remove Selected</button>
-        <button class="btn-secondary" (click)="restoreSelected()" [disabled]="!selectedCount()">Restore Selected</button>
+        <div class="footer-status">
+          <span class="status-chip chip-follow" [class.active]="autoFollow()" (click)="autoFollow.set(!autoFollow())" 
+            [title]="autoFollow() ? 'Auto-follow active' : 'Auto-follow paused'">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+              <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+            </svg>
+          </span>
+          @if (editMode()) {
+            <span class="status-chip chip-edit" title="Edit mode active">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+              </svg>
+            </span>
+          }
+        </div>
+        <button class="btn-edit" [class.active]="editMode()" (click)="editMode.set(!editMode())" title="Toggle Edit Mode">
+          {{ editMode() ? 'Exit Edit' : 'Edit Transcript' }}
+        </button>
+        <button class="btn-secondary" (click)="removeSelected()" [disabled]="!selectedCount() || editMode()">Remove Selected</button>
+        <button class="btn-secondary" (click)="restoreSelected()" [disabled]="!selectedCount() || editMode()">Restore Selected</button>
         <span class="selected-count">{{ selectedCount() }} selected</span>
         <span class="removed-count">{{ removedCount() }} words removed</span>
-        <button class="btn-secondary" (click)="restoreAll()">Restore All</button>
+        <button class="btn-secondary" (click)="restoreAll()" [disabled]="editMode()">Restore All</button>
       </div>
     </div>
   `,
@@ -247,13 +269,18 @@ interface SegmentViewportItem {
       line-height: 1.8;
     }
     .word {
-      cursor: pointer;
+      cursor: text;
       padding: .1rem .2rem;
       border-radius: 3px;
       font-size: .9rem;
       transition: background .1s;
-      user-select: none;
+      user-select: text;
 
+      &:focus {
+        outline: none;
+        background: var(--color-surface-alt);
+      }
+      
       &:hover { background: var(--color-surface-alt); }
       &.highlighted {
         background: var(--color-accent);
@@ -282,6 +309,65 @@ interface SegmentViewportItem {
       background: var(--color-surface);
       flex-shrink: 0;
       font-size: .8rem;
+    }
+
+    .footer-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-right: auto;
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--color-border);
+      color: var(--color-muted);
+      cursor: default;
+      transition: all 0.2s;
+      
+      &.chip-follow {
+        cursor: pointer;
+        &:hover { background: var(--color-muted); color: #fff; }
+        &.active { background: var(--color-accent); color: #fff; }
+      }
+      
+      &.chip-edit {
+        background: #f59e0b;
+        color: #fff;
+        animation: pulse 2s infinite;
+      }
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+
+    .btn-edit {
+      padding: .3rem .7rem;
+      border: 1px solid var(--color-accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--color-accent);
+      font-size: .8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      
+      &.active {
+        background: var(--color-accent);
+        color: #fff;
+      }
+      
+      &:hover {
+        background: var(--color-accent);
+        color: #fff;
+      }
     }
     .removed-count { color: var(--color-muted); }
     .selected-count { color: var(--color-muted); }
@@ -313,6 +399,8 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   readonly playbackRate;
   readonly volume;
   readonly jumpCutMode = signal(false);
+  readonly editMode = signal(false);
+  readonly autoFollow = signal(true);
   readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
   readonly selectedWordIds = signal<string[]>([]);
   readonly selectionAnchorWordId = signal<string | null>(null);
@@ -396,7 +484,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     return Math.max(0, this.transcriptTotalHeight() - lastBottom);
   });
 
-  private pendingWordUpdates = new Map<string, boolean>();
+  private pendingWordUpdates = new Map<string, { isRemoved?: boolean; text?: string }>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly handleTranscriptResize = () => this.measureTranscriptViewport();
   private readonly handleKeydown: (event: KeyboardEvent) => void;
@@ -474,6 +562,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   }
 
   onWordClick(word: Word, event: MouseEvent): void {
+    if (this.editMode()) return;
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
       this.selectedWordIds.set(range);
@@ -523,6 +612,25 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  clearSelection(event: MouseEvent): void {
+    if (this.editMode()) return;
+    const target = event.target as HTMLElement;
+    if (target.classList.contains('transcript') || 
+        target.classList.contains('segment') || 
+        target.classList.contains('seg-words')) {
+      this.selectedWordIds.set([]);
+      this.selectionAnchorWordId.set(null);
+    }
+  }
+
+  onWordEdit(word: Word, event: Event): void {
+    const target = event.target as HTMLElement;
+    const newText = target.textContent?.trim() || '';
+    if (newText !== word.text) {
+      this.applyWordUpdates([{ id: word.id, text: newText }], false);
+    }
+  }
+
   setPlaybackRate(value: string): void {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) {
@@ -547,6 +655,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   }
 
   toggleRemove(word: Word): void {
+    if (this.editMode()) return;
     this.applyWordUpdates([{ id: word.id, isRemoved: !word.isRemoved }], true);
   }
 
@@ -616,27 +725,46 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     this.editHistory.redo((updates) => this.applyWordUpdates(updates, false));
   }
 
-  private applyWordUpdates(updates: Array<{ id: string; isRemoved: boolean }>, recordHistory: boolean): void {
+  private applyWordUpdates(updates: Array<{ id: string; isRemoved?: boolean; text?: string }>, recordHistory: boolean): void {
     if (!updates.length) return;
 
     const changed: WordEditChange[] = [];
     for (const update of updates) {
       const word = this.findWordById(update.id);
-      if (!word || word.isRemoved === update.isRemoved) continue;
-      changed.push({ id: update.id, previousIsRemoved: word.isRemoved, nextIsRemoved: update.isRemoved });
-      (word as { isRemoved: boolean }).isRemoved = update.isRemoved;
-      this.pendingWordUpdates.set(word.id, update.isRemoved);
+      if (!word) continue;
+
+      const isStateChange = update.isRemoved !== undefined && word.isRemoved !== update.isRemoved;
+      const isTextChange = update.text !== undefined && word.text !== update.text;
+
+      if (!isStateChange && !isTextChange) continue;
+
+      if (isStateChange) {
+        changed.push({ id: update.id, previousIsRemoved: word.isRemoved, nextIsRemoved: update.isRemoved! });
+        (word as { isRemoved: boolean }).isRemoved = update.isRemoved!;
+        
+        const pending = this.pendingWordUpdates.get(word.id) || {};
+        pending.isRemoved = update.isRemoved!;
+        this.pendingWordUpdates.set(word.id, pending);
+      }
+
+      if (isTextChange) {
+        (word as { text: string }).text = update.text!;
+        const pending = this.pendingWordUpdates.get(word.id) || {};
+        pending.text = update.text!;
+        this.pendingWordUpdates.set(word.id, pending);
+      }
     }
 
-    if (!changed.length) return;
-    if (recordHistory) {
+    if (changed.length === 0 && !updates.some(u => u.text !== undefined)) return;
+    
+    if (recordHistory && changed.length) {
       this.editHistory.record(changed);
     }
     this.scheduleSave();
   }
 
   private scrollTranscriptToCurrentWord(): void {
-    if (!this.transcriptElRef) return;
+    if (!this.transcriptElRef || !this.autoFollow()) return;
     const container = this.transcriptElRef.nativeElement;
     this.measureTranscriptViewport();
     const highlighted = container.querySelector('.word.highlighted') as HTMLElement | null;
@@ -685,8 +813,8 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
 
   private flushWordUpdates(): void {
     if (!this.pendingWordUpdates.size) return;
-    const updates = Array.from(this.pendingWordUpdates.entries()).map(([id, isRemoved]) => ({ id, isRemoved }));
+    const updates = Array.from(this.pendingWordUpdates.entries()).map(([id, partial]) => ({ id, ...partial }));
     this.pendingWordUpdates.clear();
-    this.clipService.updateWordStates(this.clip().id, updates).subscribe({ error: console.error });
+    this.clipService.updateWordStates(this.clip().id, updates as any).subscribe({ error: console.error });
   }
 }

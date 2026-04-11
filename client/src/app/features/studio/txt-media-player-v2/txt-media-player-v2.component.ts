@@ -201,7 +201,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
           <!-- Edit group -->
           <div class="hdr-group" role="group" aria-label="Edit history">
-            <button class="hdr-btn" (click)="restoreAll()" title="Restore all removed words">
+            <button class="hdr-btn" (click)="restoreAll()" [disabled]="editMode()" title="Restore all removed words">
               <span class="material-symbols-outlined">settings_backup_restore</span>
             </button>
             <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Ctrl+Z)">
@@ -209,6 +209,10 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             </button>
             <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Ctrl+Shift+Z)">
               <span class="material-symbols-outlined">redo</span>
+            </button>
+            <button class="hdr-btn" [class.active]="editMode()" (click)="editMode.set(!editMode())" 
+              [title]="editMode() ? 'Exit edit mode' : 'Edit transcript text'">
+              <span class="material-symbols-outlined">{{ editMode() ? 'ink_highlighter' : 'edit_note' }}</span>
             </button>
           </div>
 
@@ -261,13 +265,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           <ng-template #actionTools>
             <!-- Selection group -->
             <div class="hdr-group flex-wrap" role="group" aria-label="Selection actions">
-              <button class="hdr-btn" (click)="removeSelected()" [disabled]="!selectedCount()" title="Cut selected">
+              <button class="hdr-btn" (click)="removeSelected()" [disabled]="!selectedCount() || editMode()" title="Cut selected">
                 <span class="material-symbols-outlined">content_cut</span>
               </button>
-              <button class="hdr-btn" (click)="restoreSelected()" [disabled]="!selectedCount()" title="Restore selected">
+              <button class="hdr-btn" (click)="restoreSelected()" [disabled]="!selectedCount() || editMode()" title="Restore selected">
                 <span class="material-symbols-outlined">healing</span>
               </button>
-              <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" title="Jump-cut preview">
+              <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" [disabled]="editMode()" title="Jump-cut preview">
                 <span class="material-symbols-outlined">auto_awesome</span>
               </button>
             </div>
@@ -275,7 +279,8 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             <!-- Smart Tools -->
             <div class="hdr-group hdr-divider flex-wrap">
               <div class="silence-control-wrap">
-                <button class="hdr-btn" (click)="silenceControlOpen.set(!silenceControlOpen())" [class.active]="silenceControlOpen()" title="Silence Interval">
+                <button class="hdr-btn" (click)="silenceControlOpen.set(!silenceControlOpen())" 
+                  [disabled]="editMode()" [class.active]="silenceControlOpen()" title="Silence Interval">
                   <span class="material-symbols-outlined">timer</span>
                 </button>
                 @if (silenceControlOpen()) {
@@ -391,7 +396,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)">
-                    <span class="filler-text" contenteditable="plaintext-only" spellcheck="false"
+                    <span class="filler-text" [attr.contenteditable]="editMode() ? 'plaintext-only' : 'false'" spellcheck="false"
                       (blur)="onWordEdit(fi.word, $event)"
                       (keydown.enter)="$event.preventDefault(); onWordEdit(fi.word, $event)"
                       (click)="$event.stopPropagation()"
@@ -408,7 +413,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.filler-hl]="isFillerWord(fi.word)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)"
-                    contenteditable="plaintext-only"
+                    [attr.contenteditable]="editMode() ? 'plaintext-only' : 'false'"
                     spellcheck="false"
                     (blur)="onWordEdit(fi.word, $event)"
                     (keydown.enter)="$event.preventDefault(); onWordEdit(fi.word, $event)"
@@ -458,14 +463,19 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           <span class="material-symbols-outlined">auto_awesome</span>
         </span>
       }
-      @if (highlightFillers()) {
-        <span class="status-chip status-filler" title="Highlighting Fillers">
-          <span class="material-symbols-outlined">visibility</span>
-        </span>
-      }
       @if (highlightSilence()) {
         <span class="status-chip status-silence" title="Highlighting Silence">
           <span class="material-symbols-outlined">hourglass_empty</span>
+        </span>
+      }
+      @if (autoFollow()) {
+        <span class="status-chip status-follow" title="Auto-Follow Active">
+          <span class="material-symbols-outlined">my_location</span>
+        </span>
+      }
+      @if (editMode()) {
+        <span class="status-chip status-edit" title="Edit mode active">
+          <span class="material-symbols-outlined">edit_note</span>
         </span>
       }
     </div>
@@ -505,6 +515,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly searchQuery = signal('');
   readonly searchExpanded = signal(false);
   readonly moreMenuOpen = signal(false);
+  readonly editMode = signal(false);
   readonly silenceControlOpen = signal(false);
   readonly selectedWordIds = signal<string[]>([]);
   readonly selectionAnchorWordId = signal<string | null>(null);
@@ -809,7 +820,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Private State ───────────────────────────────────── */
   private suppressScrollDetection = false;
-  private pendingWordUpdates = new Map<string, boolean>();
+  private pendingWordUpdates = new Map<string, { isRemoved?: boolean; text?: string }>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly handleResize = () => this.measureTranscriptViewport();
   private readonly handleKeydown: (event: KeyboardEvent) => void;
@@ -897,6 +908,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onTimelineClick(event: MouseEvent): void {
+    if (this.editMode()) return;
     const el = event.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
@@ -926,6 +938,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onWordClick(word: Word, event: MouseEvent): void {
+    if (this.editMode()) return;
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
       this.selectedWordIds.set(range);
@@ -1014,6 +1027,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   toggleRemove(word: Word): void {
+    if (this.editMode()) return;
     this.applyWordUpdates([{ id: word.id, isRemoved: !word.isRemoved }], true);
   }
 
@@ -1045,6 +1059,26 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (!this.transcriptViewportHeight()) this.measureTranscriptViewport();
     if (!this.suppressScrollDetection) {
       this.autoFollow.set(false);
+    }
+  }
+
+  clearSelection(event: MouseEvent): void {
+    if (this.editMode()) return;
+    const target = event.target as HTMLElement;
+    // If click is directly on body or scrollable wrapper (not on a word/button)
+    if (target.classList.contains('transcript-body') || 
+        target.classList.contains('word-flow') || 
+        target.classList.contains('seg-content')) {
+      this.selectedWordIds.set([]);
+      this.selectionAnchorWordId.set(null);
+    }
+  }
+
+  onWordEdit(word: Word, event: Event): void {
+    const target = event.target as HTMLElement;
+    const newText = target.textContent?.trim() || '';
+    if (newText !== word.text) {
+      this.applyWordUpdates([{ id: word.id, text: newText }], false);
     }
   }
 
@@ -1124,18 +1158,42 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     return this.selectedFillers().has(word.text.toLowerCase());
   }
 
-  private applyWordUpdates(updates: Array<{ id: string; isRemoved: boolean }>, recordHistory: boolean): void {
+  private applyWordUpdates(updates: Array<{ id: string; isRemoved?: boolean; text?: string }>, recordHistory: boolean): void {
     if (!updates.length) return;
     const changed: WordEditChange[] = [];
     for (const update of updates) {
       const word = this.findWordById(update.id);
-      if (!word || word.isRemoved === update.isRemoved) continue;
-      changed.push({ id: update.id, previousIsRemoved: word.isRemoved, nextIsRemoved: update.isRemoved });
-      (word as { isRemoved: boolean }).isRemoved = update.isRemoved;
-      this.pendingWordUpdates.set(word.id, update.isRemoved);
+      if (!word) continue;
+
+      const isStateChange = update.isRemoved !== undefined && word.isRemoved !== update.isRemoved;
+      const isTextChange = update.text !== undefined && word.text !== update.text;
+
+      if (!isStateChange && !isTextChange) continue;
+
+      if (isStateChange) {
+        changed.push({ id: update.id, previousIsRemoved: word.isRemoved, nextIsRemoved: update.isRemoved! });
+        (word as { isRemoved: boolean }).isRemoved = update.isRemoved!;
+        
+        const pending = this.pendingWordUpdates.get(word.id) || {};
+        pending.isRemoved = update.isRemoved!;
+        this.pendingWordUpdates.set(word.id, pending);
+      }
+
+      if (isTextChange) {
+        (word as { text: string }).text = update.text!;
+        
+        const pending = this.pendingWordUpdates.get(word.id) || {};
+        pending.text = update.text!;
+        this.pendingWordUpdates.set(word.id, pending);
+      }
     }
-    if (!changed.length) return;
-    if (recordHistory) this.editHistory.record(changed);
+    if (changed.length === 0 && updates.some(u => u.text !== undefined)) {
+        // Text changes are not recorded in editHistory for now but still need version bump and save
+    } else if (changed.length === 0) {
+        return;
+    }
+    
+    if (recordHistory && changed.length) this.editHistory.record(changed);
     this.editVersion.update(v => v + 1);
     this.scheduleSave();
   }
@@ -1325,9 +1383,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   private flushWordUpdates(): void {
     if (!this.pendingWordUpdates.size) return;
-    const updates = Array.from(this.pendingWordUpdates.entries()).map(([id, isRemoved]) => ({ id, isRemoved }));
+    const updates = Array.from(this.pendingWordUpdates.entries()).map(([id, partial]) => ({ id, ...partial }));
     this.pendingWordUpdates.clear();
-    this.clipService.updateWordStates(this.clip().id, updates).subscribe({ error: console.error });
+    this.clipService.updateWordStates(this.clip().id, updates as any).subscribe({ error: console.error });
   }
 }
 

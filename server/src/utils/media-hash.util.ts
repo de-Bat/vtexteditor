@@ -22,9 +22,12 @@ export async function computeMediaHash(filePath: string): Promise<string> {
   const head = Buffer.alloc(SAMPLE);
   const tail = Buffer.alloc(SAMPLE);
   const fd = fs.openSync(filePath, 'r');
-  fs.readSync(fd, head, 0, SAMPLE, 0);
-  fs.readSync(fd, tail, 0, SAMPLE, size - SAMPLE);
-  fs.closeSync(fd);
+  try {
+    fs.readSync(fd, head, 0, SAMPLE, 0);
+    fs.readSync(fd, tail, 0, SAMPLE, size - SAMPLE);
+  } finally {
+    fs.closeSync(fd);
+  }
 
   // 8-byte little-endian file size — prevents collision between files with
   // identical head/tail bytes but different total lengths.

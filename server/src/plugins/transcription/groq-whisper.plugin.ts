@@ -111,7 +111,7 @@ export const groqWhisperPlugin: IPlugin = {
     const tag = '[groq-whisper]';
     const reuseIfCached = cfg.reuseIfCached !== false; // default true
     const model = cfg.model ?? 'whisper-large-v3-turbo';
-    const language = cfg.language ?? '';
+    const language = (cfg.language ?? '').trim();
     const cacheKey = `groq-whisper:${ctx.mediaHash}:${model}:${language}`;
 
     if (reuseIfCached && ctx.cache.has(cacheKey)) {
@@ -173,6 +173,10 @@ export const groqWhisperPlugin: IPlugin = {
       );
     } finally {
       if (tempCreated && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+    }
+
+    if (!rawSegments.length) {
+      throw new Error(`${tag} Transcription returned no segments. Verify the Groq API key and model name.`);
     }
 
     console.log(`${tag} cache WRITE  key=${cacheKey.slice(0, 48)}…  segments: ${rawSegments.length}`);

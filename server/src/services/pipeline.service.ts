@@ -4,6 +4,10 @@ import { MediaInfo } from '../models/project.model';
 import { pluginRegistry } from '../plugins/plugin-registry';
 import { projectService } from './project.service';
 import { sseService } from './sse.service';
+import { pipelineCacheService } from './pipeline-cache.service';
+import { computeMediaHash } from '../utils/media-hash.util';
+
+const TAG = '[pipeline]';
 
 interface PipelineStartParams {
   projectId: string;
@@ -20,7 +24,7 @@ class PipelineService {
 
     // Run the pipeline asynchronously
     setImmediate(() => this.run(jobId, params).catch((err) => {
-      console.error('[Pipeline] Unhandled error:', err);
+      console.error(`${TAG} Unhandled error:`, err);
       sseService.broadcast({
         type: 'pipeline:error',
         data: { jobId, error: String(err) },
@@ -34,12 +38,18 @@ class PipelineService {
     const sortedSteps = [...params.steps].sort((a, b) => a.order - b.order);
     const totalSteps = sortedSteps.length;
 
+    console.log(`${TAG} computing media hash for ${params.mediaPath}`);
+    const mediaHash = await computeMediaHash(params.mediaPath);
+    console.log(`${TAG} mediaHash: ${mediaHash.slice(0, 12)}…  path: ${params.mediaPath}`);
+
     let ctx: PipelineContext = {
       projectId: params.projectId,
       mediaPath: params.mediaPath,
       mediaInfo: params.mediaInfo,
+      mediaHash,
       clips: [],
       metadata: params.metadata,
+      cache: pipelineCacheService,
     };
 
     for (let i = 0; i < sortedSteps.length; i++) {

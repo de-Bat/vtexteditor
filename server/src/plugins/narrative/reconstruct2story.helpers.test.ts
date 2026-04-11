@@ -152,26 +152,26 @@ describe('buildPrompt', () => {
       { id: 'seg-1', text: 'My mother came from a village.' },
       { id: 'seg-2', text: 'We had five siblings.' },
     ]);
-    const prompt = buildPrompt([clip], { maxEvents: 10 });
-    expect(prompt).toContain('[seg-1] My mother came from a village.');
-    expect(prompt).toContain('[seg-2] We had five siblings.');
+    const { prompt } = buildPrompt([clip], { maxEvents: 10 });
+    expect(prompt).toContain('[S001] My mother came from a village.');
+    expect(prompt).toContain('[S002] We had five siblings.');
   });
 
   it('includes seed categories when provided', () => {
     const clip = makeClip([{ id: 'seg-1', text: 'Hello.' }]);
-    const prompt = buildPrompt([clip], { maxEvents: 5, seedCategories: 'family, school' });
+    const { prompt } = buildPrompt([clip], { maxEvents: 5, seedCategories: 'family, school' });
     expect(prompt).toContain('family, school');
   });
 
   it('includes maxEvents cap in the prompt', () => {
     const clip = makeClip([{ id: 'seg-1', text: 'Hello.' }]);
-    const prompt = buildPrompt([clip], { maxEvents: 7 });
+    const { prompt } = buildPrompt([clip], { maxEvents: 7 });
     expect(prompt).toContain('7');
   });
 
   it('instructs the LLM to return only JSON', () => {
     const clip = makeClip([{ id: 'seg-1', text: 'Hello.' }]);
-    const prompt = buildPrompt([clip], { maxEvents: 10 });
+    const { prompt } = buildPrompt([clip], { maxEvents: 10 });
     expect(prompt).toContain('Return ONLY a JSON array');
   });
 });

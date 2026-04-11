@@ -12,105 +12,186 @@ export type PipelineConfig = PipelineStep[];
   imports: [CommonModule, PluginOptionsComponent],
   template: `
     <div class="pipeline-config">
-      <h3>Pipeline Configuration</h3>
+      <div class="pipeline-header">
+        <h3>Pipeline Workflow</h3>
+        <p class="subtitle">Chain processing units to extract and refine transcription</p>
+      </div>
 
       <div class="available-plugins">
-        <h4>Available Plugins</h4>
+        <span class="section-label">Inventory</span>
         <div class="plugin-chips">
           @for (plugin of availablePlugins(); track plugin.id) {
             <button class="chip" (click)="addPlugin(plugin)">
-              + {{ plugin.name }}
+              <span class="plus">+</span> {{ plugin.name }}
             </button>
           }
         </div>
       </div>
 
-      @if (steps().length) {
-        <div class="pipeline-steps">
-          <h4>Pipeline Steps</h4>
+      <div class="flow-container">
+        <span class="section-label">Active Chain</span>
+        <div class="flow-list">
           @for (step of steps(); track step.pluginId; let i = $index) {
-            <div class="step-card">
-              <div class="step-header">
-                <span class="step-num">{{ i + 1 }}</span>
-                <span class="step-name">{{ getPlugin(step.pluginId)?.name ?? step.pluginId }}</span>
-                <div class="step-actions">
-                  <button (click)="moveUp(i)" [disabled]="i === 0">↑</button>
-                  <button (click)="moveDown(i)" [disabled]="i === steps().length - 1">↓</button>
-                  <button class="remove" (click)="removeStep(i)">✕</button>
+            <div class="flow-node">
+              <div class="node-track">
+                <div class="node-dot">
+                  <span class="num">{{ i + 1 }}</span>
                 </div>
+                @if (i < steps().length - 1) {
+                  <div class="node-line"></div>
+                }
               </div>
-              @if (getPlugin(step.pluginId); as plugin) {
-                <app-plugin-options
-                  [plugin]="plugin"
-                  [stepIndex]="i"
-                  (configChanged)="onConfigChanged($event)"
-                />
-              }
+              
+              <div class="node-content">
+                <div class="node-header">
+                  <span class="node-name">{{ getPlugin(step.pluginId)?.name ?? step.pluginId }}</span>
+                  <div class="node-actions">
+                    <button class="btn-sm" (click)="moveUp(i)" [disabled]="i === 0" title="Move Up">↑</button>
+                    <button class="btn-sm" (click)="moveDown(i)" [disabled]="i === steps().length - 1" title="Move Down">↓</button>
+                    <button class="btn-sm remove" (click)="removeStep(i)" title="Remove">✕</button>
+                  </div>
+                </div>
+                
+                @if (getPlugin(step.pluginId); as plugin) {
+                  <app-plugin-options
+                    [plugin]="plugin"
+                    [stepIndex]="i"
+                    (configChanged)="onConfigChanged($event)"
+                  />
+                }
+              </div>
+            </div>
+          }
+          @if (steps().length === 0) {
+            <div class="empty-state">
+              <div class="empty-icon">⬡</div>
+              <p>Add plugins from the inventory above to start building your pipeline.</p>
             </div>
           }
         </div>
-      } @else {
-        <p class="empty-hint">Add at least one plugin to extract transcription from your media.</p>
-      }
+      </div>
     </div>
   `,
   styles: [`
-    .pipeline-config { display: flex; flex-direction: column; gap: 1.25rem; }
-    h3 { margin: 0; font-size: 1.1rem; }
-    h4 { margin: 0 0 .6rem; font-size: .875rem; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .05em; }
-    .plugin-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
-    .chip {
-      padding: .3rem .75rem;
-      border: 1px solid var(--color-accent);
-      border-radius: 999px;
-      background: transparent;
-      color: var(--color-accent);
-      cursor: pointer;
-      font-size: .8rem;
-      transition: background .15s;
-      &:hover { background: var(--color-accent-subtle); }
-    }
-    .pipeline-steps { display: flex; flex-direction: column; gap: .75rem; }
-    .step-card {
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .step-header {
-      display: flex;
-      align-items: center;
-      gap: .6rem;
-      padding: .5rem .75rem;
-      background: var(--color-surface-alt);
-      border-bottom: 1px solid var(--color-border);
-    }
-    .step-num {
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      background: var(--color-accent);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: .75rem;
+    .pipeline-config { display: flex; flex-direction: column; gap: 1.5rem; }
+    .pipeline-header { margin-bottom: 0.5rem; }
+    h3 { margin: 0; font-size: 1.1rem; color: var(--color-text); font-weight: 700; }
+    .subtitle { margin: 0.2rem 0 0; font-size: 0.8rem; color: var(--color-muted); }
+    
+    .section-label {
+      display: block;
+      font-size: 0.65rem;
       font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .plugin-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .chip {
+      padding: 0.35rem 0.8rem;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      background: var(--color-surface-alt);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s;
+      &:hover {
+        border-color: var(--color-accent);
+        color: var(--color-accent);
+        background: var(--color-accent-subtle);
+      }
+      .plus { font-size: 1.1rem; line-height: 1; opacity: 0.7; }
+    }
+
+    .flow-container { background: rgba(0,0,0,0.1); padding: 1rem; border-radius: 12px; border: 1px solid var(--color-border); }
+    .flow-list { display: flex; flex-direction: column; }
+    
+    .flow-node {
+      display: flex;
+      gap: 1.25rem;
+      min-height: 60px;
+    }
+    
+    .node-track {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 24px;
       flex-shrink: 0;
     }
-    .step-name { flex: 1; font-size: .875rem; font-weight: 500; }
-    .step-actions { display: flex; gap: .25rem; }
-    .step-actions button {
-      border: none;
-      background: none;
-      cursor: pointer;
-      padding: .2rem .4rem;
-      border-radius: 4px;
-      color: var(--color-text-secondary);
-      &:hover { background: var(--color-border); }
-      &:disabled { opacity: .3; cursor: default; }
-      &.remove:hover { background: var(--color-error-subtle); color: var(--color-error); }
+    
+    .node-dot {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--color-bg);
+      border: 2px solid var(--color-border);
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      z-index: 1;
+      .num { font-size: 0.7rem; font-weight: 800; color: var(--color-muted); }
     }
-    app-plugin-options { display: block; padding: 0 .75rem; }
-    .empty-hint { font-size: .875rem; color: var(--color-muted); margin: 0; }
+    
+    .flow-node:hover .node-dot { border-color: var(--color-accent); .num { color: var(--color-accent); } }
+    
+    .node-line {
+      width: 2px;
+      flex: 1;
+      background: var(--color-border);
+      margin: 4px 0;
+    }
+    
+    .node-content {
+      flex: 1;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+      transition: border-color 0.2s;
+      &:hover { border-color: rgba(255,255,255,0.15); }
+    }
+    
+    .node-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0.75rem;
+      background: rgba(255,255,255,0.03);
+    }
+    
+    .node-name { font-size: 0.85rem; font-weight: 600; color: var(--color-text); }
+    
+    .node-actions { display: flex; gap: 0.2rem; }
+    .btn-sm {
+      background: transparent;
+      border: none;
+      color: var(--color-muted);
+      cursor: pointer;
+      width: 24px; height: 24px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      &:hover:not(:disabled) { background: rgba(255,255,255,0.1); color: var(--color-text); }
+      &:disabled { opacity: 0.2; cursor: default; }
+      &.remove:hover { color: var(--color-error); background: var(--color-error-subtle); }
+    }
+    
+    .empty-state {
+      padding: 2.5rem;
+      text-align: center;
+      color: var(--color-muted);
+      border: 2px dashed var(--color-border);
+      border-radius: 12px;
+    }
+    .empty-icon { font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.3; }
+    .empty-hint { font-size: 0.85rem; margin: 0; }
   `]
 })
 export class PipelineConfiguratorComponent implements OnInit {

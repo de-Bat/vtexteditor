@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(curl -sS -m 5 http://localhost:10300/v1/models)",
-      "Bash(echo \"---HTTP:$?\")"
+      "Bash(echo \"---HTTP:$?\")",
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "mcp__plugin_context7-plugin_context7__resolve-library-id"
     ]
   }
 }

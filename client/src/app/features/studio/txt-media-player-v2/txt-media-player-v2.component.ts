@@ -106,7 +106,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 </span>
               </button>
               <div class="overlay-time">
-                <span class="timecode-lg">{{ formatTimeLong(currentTime()) }} / {{ formatTimeLong(duration()) }}</span>
+                <span class="timecode-lg">{{ formatTimeLong(displayCurrentTime()) }} / {{ formatTimeLong(displayDuration()) }}</span>
                 <span class="scene-label">{{ activeSegmentLabel() }}</span>
               </div>
             </div>
@@ -473,9 +473,28 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   });
 
   /* ── Computed: Media ─────────────────────────────────── */
-  readonly progress = computed(() =>
-    this.duration() > 0 ? (this.currentTime() / this.duration()) * 100 : 0
-  );
+  readonly progress = computed(() => {
+    const dur = this.displayDuration();
+    return dur > 0 ? (this.displayCurrentTime() / dur) * 100 : 0;
+  });
+
+  readonly displayCurrentTime = computed(() => {
+    const realT = this.currentTime();
+    const segments = this.clip().segments;
+    let virtualT = 0;
+    for (const seg of segments) {
+      if (realT >= seg.startTime && realT < seg.endTime) {
+        return virtualT + (realT - seg.startTime);
+      }
+      if (realT < seg.startTime) return virtualT;
+      virtualT += (seg.endTime - seg.startTime);
+    }
+    return virtualT;
+  });
+
+  readonly displayDuration = computed(() => {
+    return this.clip().segments.reduce((acc, seg) => acc + (seg.endTime - seg.startTime), 0);
+  });
 
   readonly mediaUrl = computed(() => `/api/clips/${this.clip().id}/stream`);
 
@@ -615,26 +634,18 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /* ── Computed: Timeline Track Items ──────────────────── */
   readonly trackItems = computed<TrackItem[]>(() => {
     const segments = this.clip().segments;
-    const dur = this.duration();
+    const dur = this.displayDuration();
     if (!segments.length || dur <= 0) return [];
-    const items: TrackItem[] = [];
-    for (let i = 0; i < segments.length; i++) {
-      const ci = this.segColorIndex(segments[i], i);
-      if (i > 0) {
-        const gap = segments[i].startTime - segments[i - 1].endTime;
-        if (gap > 0.1) {
-          items.push({ kind: 'gap', widthPercent: (gap / dur) * 100, colorIndex: ci });
-        }
-      }
-      const segDur = segments[i].endTime - segments[i].startTime;
-      items.push({ kind: 'segment', widthPercent: Math.max(0.3, (segDur / dur) * 100), colorIndex: ci });
-    }
-    return items;
+    return segments.map((seg, i) => ({
+      kind: 'segment',
+      widthPercent: ((seg.endTime - seg.startTime) / dur) * 100,
+      colorIndex: this.segColorIndex(seg, i)
+    }));
   });
 
   /* ── Computed: Timeline Ruler Marks ──────────────────── */
   readonly rulerMarks = computed<Array<{ percent: number; label: string }>>(() => {
-    const dur = this.duration();
+    const dur = this.displayDuration();
     if (dur <= 0) return [];
     // Adaptive interval: aim for 8–15 marks
     let interval: number;
@@ -741,7 +752,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   private readonly playbackWatch = effect(() => {
     const t = this.currentTime();
-    if (this.jumpCutMode() && this.playing()) this.applyJumpCut(t);
+    if (this.playing()) {
+      this.enforceSegmentBounds(t);
+      if (this.jumpCutMode()) this.applyJumpCut(t);
+    }
     this.scrollToCurrentWord();
   });
 
@@ -820,7 +834,25 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     const el = event.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    this.mediaPlayer.seek(ratio * this.duration());
+    const virtualTime = ratio * this.displayDuration();
+    this.seekToVirtualTime(virtualTime);
+  }
+
+  private seekToVirtualTime(vTime: number): void {
+    const segments = this.clip().segments;
+    let currentV = 0;
+    for (const seg of segments) {
+      const segDur = seg.endTime - seg.startTime;
+      if (vTime >= currentV && vTime <= currentV + segDur) {
+        const offset = vTime - currentV;
+        this.mediaPlayer.seek(seg.startTime + offset);
+        return;
+      }
+      currentV += segDur;
+    }
+    if (segments.length) {
+      this.mediaPlayer.seek(segments[segments.length - 1].endTime);
+    }
   }
 
   seekToTime(time: number): void {
@@ -1037,10 +1069,35 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
           if (next !== null) {
             this.mediaPlayer.seek(next);
           } else {
-            this.mediaPlayer.pause();
+            // Check if there is another segment after this one
+            this.enforceSegmentBounds(currentTime);
           }
           return;
         }
+      }
+    }
+  }
+
+  private enforceSegmentBounds(t: number): void {
+    const segments = this.clip().segments;
+    if (!segments.length) return;
+
+    const currentIdx = segments.findIndex(s => t >= s.startTime && t < s.endTime);
+    if (currentIdx === -1) {
+      // Past last segment?
+      const lastSeg = segments[segments.length - 1];
+      if (t >= lastSeg.endTime) {
+        this.mediaPlayer.pause();
+        this.mediaPlayer.seek(lastSeg.endTime);
+        return;
+      }
+      // Jump to next segment
+      const nextSeg = segments.find(s => s.startTime > t);
+      if (nextSeg) {
+        this.mediaPlayer.seek(nextSeg.startTime);
+      } else {
+        // Before first segment
+        this.mediaPlayer.seek(segments[0].startTime);
       }
     }
   }

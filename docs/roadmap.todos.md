@@ -3,13 +3,13 @@
 ## Implement Now
 
 ### Header & Footer Revamp (Phase 1)
-- [ ] Redesign transcript header as compact two-row toolbar (all actions icon-only with tooltips)
+- [x] Redesign transcript header as compact two-row toolbar (all actions icon-only with tooltips)
 - [ ] Row 1: title + edit group (Restore All, Undo, Redo) + selection group (Cut, Restore, Jump-cut) + auto-follow + export btn
 - [ ] Row 2: search input + silence interval + Smart Cut dropdown trigger
 - [ ] Add canUndo/canRedo getters to EditHistoryService; expose undo/redo as public
 - [ ] Restore All with confirm dialog (>10 removed)
-- [ ] Auto-follow: icon-only toggle (my_location / location_disabled), return button
-- [ ] Replace action footer with status-only bar (selected count, removed count, active modes)
+- [x] Auto-follow: icon-only toggle (my_location / location_disabled), return button
+- [x] Replace action footer with status-only bar (selected count, removed count, active modes)
 
 ### Smart Cut — Highlight & Remove Toggle (Phase 2)
 - [ ] Configurable min silence interval signal (replaces hardcoded thresholds)
@@ -65,4 +65,4 @@
 - [] export - support export by segments, tags
 - [] transcription plugin - add suport for fixing words. let user choose on plugin panel 
 - [] transcription panel (player) - support fix words
-- [] performance - upload file if not in cache, upload file in server side - not through browser,  try transcribe mutiple parts simoulansly
+- [] performance - upload file if not in cache, upload file in server side - not through browser,  try transcribe mutiple parts simoulanslycopl

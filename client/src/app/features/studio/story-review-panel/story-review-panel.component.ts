@@ -76,7 +76,7 @@ interface MutableEvent {
                       [attr.aria-label]="seg.accepted ? 'Reject segment' : 'Accept segment'"
                     >{{ seg.accepted ? '✓' : '✗' }}</button>
                     <span class="segment-text">
-                      {{ (segmentTexts()[seg.segmentId] ?? seg.segmentId) | slice:0:120 }}
+                      {{ (segmentTexts()[seg.clipId + ':' + seg.segmentId] ?? seg.segmentId) | slice:0:120 }}
                     </span>
                   </li>
                 }

@@ -243,7 +243,9 @@ export class StudioComponent implements OnInit {
     const texts: Record<string, string | undefined> = {};
     for (const clip of this.clipService.clips()) {
       for (const seg of clip.segments) {
-        texts[seg.id] = seg.text;
+        // Key by compound "clipId:segId" so segments stay distinguishable
+        // even when multiple clips share the same segment UUID.
+        texts[`${clip.id}:${seg.id}`] = seg.text;
       }
     }
     return texts;

@@ -140,24 +140,33 @@
 
         @if (currentStep() === 'pipeline') {
           <section class="wizard-step">
-            <h2>Set up transcription pipeline</h2>
-            <app-pipeline-configurator #pipelineConfig />
-            <div class="wizard-actions">
-              <button class="btn-secondary" (click)="currentStep.set('upload')">&larr; Back</button>
-              <button class="btn-primary" (click)="runPipeline()">Run Pipeline &rarr;</button>
+            <div class="step-header-with-actions">
+              <h2>Transcription Pipeline</h2>
+              <div class="step-actions-top">
+                <button class="btn-secondary btn-sm-fixed" (click)="currentStep.set('upload')">&larr; Back</button>
+                <button class="btn-primary btn-run" (click)="runPipeline()">
+                  <span class="btn-plus">▶</span> Run Pipeline
+                </button>
+              </div>
             </div>
+            <app-pipeline-configurator #pipelineConfig />
           </section>
         }
 
         @if (currentStep() === 'processing') {
           <section class="wizard-step">
-            <h2>Processing&hellip;</h2>
-            <app-processing-progress [event]="sseService.lastEvent()" />
-            @if (processingDone()) {
-              <div class="wizard-actions">
+            <div class="step-header-with-actions">
+              <h2>Processing Project</h2>
+              @if (processingDone()) {
                 <button class="btn-primary" (click)="goToStudio()">Open Studio &rarr;</button>
-              </div>
-            }
+              }
+            </div>
+            <div class="processing-phase-wrap">
+              <app-processing-progress 
+                [event]="sseService.lastEvent()" 
+                [steps]="pipelineSteps()" 
+              />
+            </div>
           </section>
         }
       </div>

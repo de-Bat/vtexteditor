@@ -10,6 +10,10 @@ export class SseService implements OnDestroy {
   readonly lastEvent = signal<SseEvent | null>(null);
   private es: EventSource | null = null;
 
+  reset(): void {
+    this.lastEvent.set(null);
+  }
+
   connect(): void {
     if (this.es) return;
     this.es = new EventSource('/api/events');

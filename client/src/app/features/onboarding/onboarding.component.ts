@@ -10,6 +10,7 @@ import { SseService } from '../../core/services/sse.service';
 import { PluginService } from '../../core/services/plugin.service';
 import { ProjectService } from '../../core/services/project.service';
 import { ProjectSummary } from '../../core/models/project.model';
+import { PipelineStep } from '../../core/models/plugin.model';
 
 type Step = 'home' | 'upload' | 'pipeline' | 'processing';
 
@@ -30,6 +31,7 @@ export class OnboardingComponent implements OnInit {
   readonly currentStep = signal<Step>('home');
   readonly processingDone = signal(false);
   readonly projects = signal<ProjectSummary[]>([]);
+  readonly pipelineSteps = signal<PipelineStep[]>([]);
   readonly loading = signal(true);
   readonly loadError = signal<string | null>(null);
 
@@ -87,6 +89,8 @@ export class OnboardingComponent implements OnInit {
     const steps = this.pipelineConfig()?.getSteps() ?? [];
     if (!steps.length) return;
 
+    this.pipelineSteps.set(steps);
+    this.sseService.reset();
     this.currentStep.set('processing');
     this.processingDone.set(false);
 

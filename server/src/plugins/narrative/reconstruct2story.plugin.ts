@@ -78,7 +78,16 @@ export const reconstruct2storyPlugin: IPlugin = {
     const timeoutMs = (cfg.timeoutSecs ?? 300) * 1000;
 
     const totalSegments = ctx.clips.reduce((n, c) => n + c.segments.length, 0);
-    console.log(`[reconstruct2story] clips=${ctx.clips.length}  segments=${totalSegments}  maxEvents=${maxEvents}  model=${cfg.model ?? 'gpt-4.1'}`);
+    const uniqueSegmentIds = new Set(ctx.clips.flatMap(c => c.segments.map(s => s.id)));
+    console.log(`[reconstruct2story] clips=${ctx.clips.length}  segments=${totalSegments}  uniqueSegIds=${uniqueSegmentIds.size}  maxEvents=${maxEvents}  model=${cfg.model ?? 'gpt-4.1'}`);
+
+    if (uniqueSegmentIds.size < 2) {
+      throw new Error(
+        `reconstruct2story requires at least 2 distinct transcript segments but found ${uniqueSegmentIds.size}. ` +
+        `The transcript appears to be a single merged block. ` +
+        `Re-run the transcription plugin with "Segment by Speech" enabled, then try again.`,
+      );
+    }
 
     const { prompt, shortIdMap } = buildPrompt(ctx.clips, {
       maxEvents,
@@ -88,18 +97,23 @@ export const reconstruct2storyPlugin: IPlugin = {
 
     const responseText = await callCopilotStudio(prompt, cfg.model, timeoutMs);
 
-    const validSegmentIds = new Set(
-      ctx.clips.flatMap(c => c.segments.map(s => s.id)),
+    // Use compound keys (clipId:segId) so segments are unique even when
+    // multiple clips share the same segment UUID (can happen after a commit).
+    const validSegmentKeys = new Set(
+      ctx.clips.flatMap(c => c.segments.map(s => `${c.id}:${s.id}`)),
     );
 
-    const parsedEvents = parseEvents(responseText, validSegmentIds, shortIdMap);
+    const parsedEvents = parseEvents(responseText, validSegmentKeys, shortIdMap);
 
     const events: StoryEvent[] = parsedEvents.map(e => ({
       id: uuidv4(),
       title: e.title,
-      segments: e.segments.map(segId => {
-        const clip = ctx.clips.find(c => c.segments.some(s => s.id === segId))!;
-        return { segmentId: segId, clipId: clip.id, accepted: true };
+      segments: e.segments.map(compoundKey => {
+        // compoundKey format: "clipId:segId"
+        const colonIdx = compoundKey.indexOf(':');
+        const clipId = compoundKey.slice(0, colonIdx);
+        const segId = compoundKey.slice(colonIdx + 1);
+        return { segmentId: segId, clipId, accepted: true };
       }),
     }));
 

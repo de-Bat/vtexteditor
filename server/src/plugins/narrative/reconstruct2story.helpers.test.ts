@@ -102,7 +102,12 @@ describe('buildCommitClips', () => {
     expect(clips).toHaveLength(1);
     expect(clips[0].name).toBe('Story: Family');
     expect(clips[0].segments).toHaveLength(1);
-    expect(clips[0].segments[0].id).toBe('seg-1');
+    // Fresh UUID is generated for each committed segment to prevent ID
+    // propagation across re-runs (the original ID must NOT be reused).
+    expect(clips[0].segments[0].id).not.toBe('seg-1');
+    expect(clips[0].segments[0].id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
   });
 
   it('drops events with zero accepted segments', () => {

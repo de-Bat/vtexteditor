@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { Clip } from '../../models/clip.model';
 import { Segment } from '../../models/segment.model';
 import { StoryEvent } from './reconstruct2story.types';
@@ -15,8 +16,10 @@ interface PromptConfig {
  * UUIDs. UUIDs are 36 characters long and error-prone for LLMs to reproduce
  * verbatim; short IDs eliminate that class of hallucination entirely.
  *
- * Returns the prompt string AND a map from short ID → real segment UUID so
- * the caller can reverse-map the LLM response back to real IDs.
+ * Returns the prompt string AND a map from short ID → compound key
+ * (`clipId:segmentId`). Using a compound key instead of the raw segment UUID
+ * prevents collisions when multiple clips share the same segment ID (which can
+ * happen after a reconstruct2story commit propagates IDs across clips).
  */
 export function buildPrompt(
   clips: Clip[],
@@ -26,17 +29,19 @@ export function buildPrompt(
     .flatMap(c => c.segments)
     .sort((a, b) => a.startTime - b.startTime);
 
-  // Build short-ID ↔ real-UUID mapping
-  const shortIdMap = new Map<string, string>(); // shortId → realId
-  const toShort = new Map<string, string>();     // realId  → shortId
+  // Build short-ID → compound-key mapping.
+  // Compound key format: `${seg.clipId}:${seg.id}`.
+  // This stays unique even when the same seg.id appears in multiple clips.
+  const shortIdMap = new Map<string, string>(); // shortId → clipId:segId
   allSegments.forEach((seg, i) => {
     const shortId = `S${String(i + 1).padStart(3, '0')}`;
-    shortIdMap.set(shortId, seg.id);
-    toShort.set(seg.id, shortId);
+    shortIdMap.set(shortId, `${seg.clipId}:${seg.id}`);
   });
 
+  // Build prompt lines using the positional short ID directly (not via a
+  // reverse map) so duplicate seg.ids never cause label collisions.
   const lines = allSegments
-    .map(s => `[${toShort.get(s.id)}] ${s.text}`)
+    .map((s, i) => `[S${String(i + 1).padStart(3, '0')}] ${s.text}`)
     .join('\n');
 
   const seedLine = config.seedCategories
@@ -127,7 +132,9 @@ export function buildCommitClips(
       .map(ref => {
         const seg = segmentMap.get(ref.segmentId);
         if (!seg) return null;
-        return { ...seg, clipId: event.id };
+        // Generate a fresh UUID so committed story-clips never inherit
+        // duplicate segment IDs from source clips.
+        return { ...seg, id: uuidv4(), clipId: event.id };
       })
       .filter((s): s is Segment => s !== null);
 

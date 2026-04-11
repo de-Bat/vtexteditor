@@ -73,6 +73,7 @@ export const srtImportPlugin: IPlugin = {
       startTime: clipStart,
       endTime: clipEnd,
       segments,
+      cutRegions: [],
     };
 
     return { ...ctx, clips: [...ctx.clips, clip] };

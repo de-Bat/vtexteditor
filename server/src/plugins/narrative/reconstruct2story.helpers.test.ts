@@ -10,6 +10,7 @@ const makeClip = (segments: { id: string; text: string }[]): Clip => ({
   name: 'Test',
   startTime: 0,
   endTime: 60,
+  cutRegions: [],
   segments: segments.map((s, i) => ({
     id: s.id,
     clipId: 'clip-1',
@@ -79,6 +80,7 @@ describe('buildCommitClips', () => {
       name: 'Transcription',
       startTime: 0,
       endTime: 30,
+      cutRegions: [] as import('../../models/clip.model').CutRegion[],
       segments: [
         makeSegment('seg-1', 'clip-src', 0),
         makeSegment('seg-2', 'clip-src', 10),

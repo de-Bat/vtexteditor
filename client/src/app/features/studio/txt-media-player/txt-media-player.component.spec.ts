@@ -106,6 +106,7 @@ function createClip(): Clip {
     name: 'Clip',
     startTime: 0,
     endTime: 12,
+    cutRegions: [],
     segments: [
       {
         id: 'seg-1',

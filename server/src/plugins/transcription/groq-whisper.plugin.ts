@@ -170,7 +170,6 @@ export const groqWhisperPlugin: IPlugin = {
         transcribeChunk,
         { chunkDurationSecs, maxConcurrent },
         ctx.mediaInfo?.duration,
-        (p) => ctx.reportProgress?.(`Transcribing chunks...`, p),
       );
     } finally {
       if (tempCreated && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
@@ -233,6 +232,7 @@ function buildClip(rawSegments: RawSegment[], cfg: GroqConfig, ctx: PipelineCont
     startTime: finalSegments[0]?.startTime ?? 0,
     endTime: finalSegments[finalSegments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
     segments: finalSegments,
+    cutRegions: [],
     showSilenceMarkers,
   };
 

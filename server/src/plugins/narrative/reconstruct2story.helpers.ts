@@ -149,6 +149,7 @@ export function buildCommitClips(
       startTime: acceptedSegments[0].startTime,
       endTime: acceptedSegments[acceptedSegments.length - 1].endTime,
       segments: acceptedSegments,
+      cutRegions: [],
     });
   }
 

@@ -35,21 +35,12 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
       <header class="studio-header">
         <div class="logo">
           <span class="logo-icon">✦</span>
-          <span class="logo-text">VTextVideo</span>
+          <span class="logo-text">VTextStudio</span>
         </div>
         <button class="sidebar-toggle" (click)="toggleSidebar()" aria-label="Toggle clip sidebar">☰</button>
         <h1 class="project-name">{{ (projectService.project()?.name) ?? 'Untitled Project' }}</h1>
         <nav class="studio-nav">
           <a routerLink="/" class="nav-link">← New Project</a>
-          <button
-            class="export-toggle-btn"
-            [class.active]="showExportPanel()"
-            (click)="showExportPanel.update(v => !v)"
-            title="Toggle Export Panel"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-            <span>Export</span>
-          </button>
         </nav>
       </header>
 
@@ -86,13 +77,8 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
         </section>
 
         @if (projectService.project(); as proj) {
-          <aside class="export-panel-wrapper" [class.open]="showExportPanel()">
-            <app-export-panel 
-              [projectId]="proj.id" 
-              [activeClipId]="activeClip()?.id ?? null"
-              [availableClips]="clipService.clips()"
-              (close)="showExportPanel.set(false)" 
-            />
+          <aside class="export-panel-wrapper">
+            <app-export-panel [projectId]="proj.id" />
           </aside>
         }
 
@@ -142,33 +128,7 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
       line-height: 1;
       padding: .28rem .42rem;
     }
-    .nav-link { color: var(--color-muted); font-size: .8rem; text-decoration: none; padding: .3rem .5rem; &:hover { color: var(--color-text); } }
-    .export-toggle-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: .4rem;
-      background: var(--color-surface-alt);
-      color: var(--color-text-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 6px;
-      padding: .3rem .75rem;
-      font-size: .8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all .2s ease;
-      svg { opacity: .7; }
-      &:hover {
-        background: var(--color-border);
-        color: var(--color-text);
-        svg { opacity: 1; }
-      }
-      &.active {
-        background: var(--color-accent-subtle);
-        color: var(--color-accent);
-        border-color: var(--color-accent);
-        svg { opacity: 1; color: var(--color-accent); }
-      }
-    }
+    .nav-link { color: var(--color-muted); font-size: .8rem; text-decoration: none; &:hover { color: var(--color-accent); } }
     .studio-body {
       display: flex;
       flex: 1;
@@ -213,16 +173,6 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
     .export-panel-wrapper {
       flex-shrink: 0;
       overflow-y: auto;
-      border-left: 1px solid var(--color-border);
-      width: 0;
-      visibility: hidden;
-      opacity: 0;
-      transition: width .3s cubic-bezier(0.4, 0, 0.2, 1), opacity .2s ease, visibility .3s;
-      &.open {
-        width: 250px;
-        visibility: visible;
-        opacity: 1;
-      }
     }
     @media (max-width: 1024px) {
       .sidebar-toggle {
@@ -281,12 +231,14 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
   `]
 })
 export class StudioComponent implements OnInit {
-  readonly activeClip = signal<Clip | null>(null);
+  readonly activeClipId = signal<string | null>(null);
+  readonly activeClip = computed(() =>
+    this.clipService.clips().find((c) => c.id === this.activeClipId()) ?? null
+  );
   readonly isSidebarOpen = signal(false);
   readonly isLoadingClips = signal(true);
   readonly pendingProposal = signal<StoryProposal | null>(null);
   readonly showReviewPanel = signal(false);
-  readonly showExportPanel = signal(false);
 
   private storyApi = inject(StoryApiService);
 
@@ -315,7 +267,7 @@ export class StudioComponent implements OnInit {
     });
     this.clipService.loadAll().subscribe({
       next: (clips) => {
-        if (clips.length) this.activeClip.set(clips[0]);
+        if (clips.length) this.activeClipId.set(clips[0]?.id ?? null);
       },
       complete: () => this.isLoadingClips.set(false),
       error: () => this.isLoadingClips.set(false),
@@ -343,7 +295,7 @@ export class StudioComponent implements OnInit {
         this.showReviewPanel.set(false);
         this.clipService.loadAll().subscribe({
           next: (clips) => {
-            if (clips.length) this.activeClip.set(clips[0]);
+            if (clips.length) this.activeClipId.set(clips[0]?.id ?? null);
           },
         });
       },
@@ -362,7 +314,7 @@ export class StudioComponent implements OnInit {
   }
 
   selectClip(clip: Clip): void {
-    this.activeClip.set(clip);
+    this.activeClipId.set(clip?.id ?? null);
     this.closeSidebar();
   }
 

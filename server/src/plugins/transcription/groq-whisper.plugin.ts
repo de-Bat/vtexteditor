@@ -170,6 +170,7 @@ export const groqWhisperPlugin: IPlugin = {
         transcribeChunk,
         { chunkDurationSecs, maxConcurrent },
         ctx.mediaInfo?.duration,
+        (p) => ctx.reportProgress?.(`Transcribing chunks...`, p),
       );
     } finally {
       if (tempCreated && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);

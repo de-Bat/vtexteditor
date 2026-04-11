@@ -43,7 +43,7 @@ app.use((err: Error & { code?: string }, _req: express.Request, res: express.Res
 });
 
 app.listen(config.port, () => {
-  console.log(`VTextStudio server running on http://localhost:${config.port}`);
+  console.log(`VTextVideo server running on http://localhost:${config.port}`);
 });
 
 export default app;

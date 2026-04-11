@@ -35,7 +35,7 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
       <header class="studio-header">
         <div class="logo">
           <span class="logo-icon">✦</span>
-          <span class="logo-text">VTextStudio</span>
+          <span class="logo-text">VTextVideo</span>
         </div>
         <button class="sidebar-toggle" (click)="toggleSidebar()" aria-label="Toggle clip sidebar">☰</button>
         <h1 class="project-name">{{ (projectService.project()?.name) ?? 'Untitled Project' }}</h1>

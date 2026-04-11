@@ -52,17 +52,19 @@ export function buildPrompt(
     ? `\nRespond with event titles in: ${config.language}\n`
     : '';
 
-  const prompt = `You are helping reconstruct a life story from an interview transcript.
+  const prompt = `You are helping reconstruct a detailed life story from an interview transcript.
 
 Below is the transcript, one segment per line, formatted as [ID] text:
 
 ${lines}
 ${seedLine}${langLine}
-Group these segments into meaningful life events (maximum ${config.maxEvents} events).
-Each event should tell a coherent chapter of the interviewee's life story.
-You may reorder segments within an event to improve narrative flow.
-Each segment may appear in at most one event.
-Omit segments that do not fit any chapter.
+Instructions:
+1. Group these segments into granular narrative events (maximum ${config.maxEvents} events).
+2. Create a coherent storyline by grouping related sentences into the same granular event.
+3. Use highly specific, granular events instead of broad ones. For example, instead of broad chapters like "Childhood", break it down into specific themes or events (e.g., "Family", "Village", "School", "Tradition", "Army", etc.).
+4. You may reorder segments within an event to improve narrative flow if necessary.
+5. Each segment may appear in at most one event.
+6. INCLUDE ALL SEGMENTS. Do not edit the text, omit, or drop any segments. Keep silent sections or tangential moments; place them in the most fitting event to preserve the entire timeline.
 
 Return ONLY a JSON array — no explanation, no markdown fences:
 [

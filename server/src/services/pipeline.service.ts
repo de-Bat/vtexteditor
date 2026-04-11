@@ -50,6 +50,8 @@ class PipelineService {
       clips: [],
       metadata: params.metadata,
       cache: pipelineCacheService,
+      // Initially no progress reporter until we start the loop
+      reportProgress: () => {},
     };
 
     for (let i = 0; i < sortedSteps.length; i++) {
@@ -58,6 +60,29 @@ class PipelineService {
       if (!plugin) {
         throw new Error(`Plugin not found: ${step.pluginId}`);
       }
+
+      // Update the progress reporter for the current step to capture 'i'
+      ctx.reportProgress = (message: string, subProgress?: number) => {
+        const currentStep = i + 1;
+        const pluginObj = pluginRegistry.getById(sortedSteps[i].pluginId);
+        
+        const baseProgress = (i / totalSteps);
+        const stepProgress = ((subProgress ?? 0) / 100) * (1 / totalSteps);
+        const totalProgress = Math.round((baseProgress + stepProgress) * 100);
+
+        sseService.broadcast({
+          type: 'pipeline:progress',
+          data: {
+            jobId,
+            step: currentStep,
+            totalSteps,
+            pluginId: sortedSteps[i].pluginId,
+            pluginName: pluginObj?.name ?? 'Unknown',
+            progress: totalProgress,
+            message,
+          },
+        });
+      };
 
       // Merge step config into metadata under plugin ID key
       ctx = { ...ctx, metadata: { ...ctx.metadata, [step.pluginId]: step.config } };
@@ -70,7 +95,7 @@ class PipelineService {
           totalSteps,
           pluginId: step.pluginId,
           pluginName: plugin.name,
-          percent: Math.round((i / totalSteps) * 100),
+          progress: Math.round((i / totalSteps) * 100),
         },
       });
 
@@ -84,7 +109,7 @@ class PipelineService {
           totalSteps,
           pluginId: step.pluginId,
           pluginName: plugin.name,
-          percent: Math.round(((i + 1) / totalSteps) * 100),
+          progress: Math.round(((i + 1) / totalSteps) * 100),
         },
       });
     }

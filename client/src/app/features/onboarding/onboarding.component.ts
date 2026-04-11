@@ -114,6 +114,10 @@ export class OnboardingComponent implements OnInit {
     this.router.navigate(['/studio']);
   }
 
+  onPipelineBack(): void {
+    this.currentStep.set('pipeline');
+  }
+
   openProject(id: string): void {
     this.projectService.open(id).subscribe({
       next: () => this.router.navigate(['/studio']),

@@ -1,6 +1,8 @@
 import path from 'path';
+import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { Project, ProjectSummary } from '../models/project.model';
+import { config } from '../config';
 import {
   getProjectDir,
   getProjectFilePath,
@@ -114,6 +116,30 @@ class ProjectService {
 
   delete(id: string): boolean {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return false;
+    
+    const project = this.get(id);
+    if (!project) return false;
+
+    // Cleanup media file if not used by other projects
+    const mediaPath = project.mediaPath;
+    if (mediaPath) {
+      const allProjects = this.list();
+      const isUsedElsewhere = allProjects.some(p => p.id !== id && p.mediaPath === mediaPath);
+      
+      if (!isUsedElsewhere) {
+        const absoluteMediaPath = path.resolve(mediaPath);
+        const absoluteUploadsDir = path.resolve(config.storage.uploads);
+        
+        if (absoluteMediaPath.startsWith(absoluteUploadsDir) && fs.existsSync(mediaPath)) {
+          try {
+            fs.unlinkSync(mediaPath);
+          } catch (err) {
+            console.error(`[ProjectService] Failed to delete media file ${mediaPath}:`, err);
+          }
+        }
+      }
+    }
+
     const dir = getProjectDir(id);
     if (!fileExists(dir)) return false;
     removeDir(dir);

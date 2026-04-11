@@ -22,6 +22,7 @@ interface WhisperConfig {
   chunkDurationSecs?: number;
   maxConcurrent?: number;
   reuseIfCached?: boolean;
+  timeout?: number;
 }
 
 interface WhisperWord {
@@ -119,6 +120,12 @@ export const whisperPlugin: IPlugin = {
           description: 'Skip the API call if this media was already transcribed with the same plugin, model, and language.',
           default: true,
         },
+        timeout: {
+          type: 'number',
+          title: 'API Timeout (ms)',
+          description: 'Maximum time to wait for a transcription chunk response. Increase for slow CPU-based servers.',
+          default: 1800000,
+        },
       },
       required: [],
   },
@@ -130,6 +137,7 @@ export const whisperPlugin: IPlugin = {
     const baseURL = cfg.baseURL?.trim() || process.env['WHISPER_BASE_URL'] || settingsService.get('WHISPER_BASE_URL');
     const model = cfg.model?.trim() || settingsService.get('WHISPER_MODEL') || 'whisper-1';
     const language = cfg.language?.trim() || settingsService.get('WHISPER_LANGUAGE') || '';
+    const timeout = cfg.timeout ?? 1800000; // 30 mins default
 
     const reuseIfCached = cfg.reuseIfCached !== false; // default true
     const cacheKey = `whisper-openai:${ctx.mediaHash}:${model}:${language}`;
@@ -161,6 +169,7 @@ export const whisperPlugin: IPlugin = {
     const clientOpts: ConstructorParameters<typeof OpenAI>[0] = {
       apiKey: apiKey ?? 'self-hosted',
       ...(baseURL ? { baseURL: normalizeBaseURL(baseURL) } : {}),
+      timeout,
     };
     const client = new OpenAI(clientOpts);
 
@@ -212,6 +221,7 @@ export const whisperPlugin: IPlugin = {
             ...(language ? { language } : {}),
           }) as WhisperResponse;
         } else {
+          console.error(`${tag} transcription error (chunk: ${path.basename(chunkPath)}):`, firstErr);
           throw firstErr;
         }
       }
@@ -223,7 +233,7 @@ export const whisperPlugin: IPlugin = {
       }));
     };
 
-    const chunkDurationSecs = typeof cfg.chunkDurationSecs === 'number' ? cfg.chunkDurationSecs : 300;
+    const chunkDurationSecs = typeof cfg.chunkDurationSecs === 'number' ? cfg.chunkDurationSecs : 120;
     const maxConcurrent = typeof cfg.maxConcurrent === 'number' ? cfg.maxConcurrent : 3;
 
     let rawSegments: RawSegment[];
@@ -233,6 +243,7 @@ export const whisperPlugin: IPlugin = {
         transcribeChunk,
         { chunkDurationSecs, maxConcurrent },
         ctx.mediaInfo?.duration,
+        (p) => ctx.reportProgress?.(`Transcribing chunks...`, p),
       );
     } finally {
       if (tempCreated && fs.existsSync(audioPath)) {

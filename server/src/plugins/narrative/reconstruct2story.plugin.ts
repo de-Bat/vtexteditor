@@ -95,7 +95,13 @@ export const reconstruct2storyPlugin: IPlugin = {
       language: cfg.language,
     });
 
-    const responseText = await callCopilotStudio(prompt, cfg.model, timeoutMs);
+    let outputBuffer = '';
+    const responseText = await callCopilotStudio(prompt, cfg.model, timeoutMs, (chunk) => {
+      outputBuffer += chunk;
+      // Heuristic: move from 0 to 95% as we stream, then 100% when done.
+      // Since we don't know total length, we'll just report message for now or a slow crawl.
+      ctx.reportProgress?.(outputBuffer);
+    });
 
     // Use compound keys (clipId:segId) so segments are unique even when
     // multiple clips share the same segment UUID (can happen after a commit).

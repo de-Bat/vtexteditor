@@ -1,4 +1,5 @@
 import { Component, ChangeDetectionStrategy, inject, output, signal } from '@angular/core';
+import { HttpEventType } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { FileHashService } from '../../../core/services/file-hash.service';
@@ -23,9 +24,16 @@ interface UploadResult {
       (click)="fileInput.click()"
     >
       @if (uploading()) {
-        <div class="upload-progress">
-          <div class="spinner"></div>
-          <span>{{ statusLabel() }} {{ fileName() }}…</span>
+        <div class="upload-progress-container">
+          <div class="upload-info">
+            <div class="spinner"></div>
+            <span>{{ statusLabel() }} {{ fileName() }}…</span>
+          </div>
+          @if (uploadProgress() > 0) {
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" [style.width.%]="uploadProgress()"></div>
+            </div>
+          }
         </div>
       } @else {
         <div class="drop-hint">
@@ -71,6 +79,27 @@ interface UploadResult {
       animation: spin .8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .upload-progress-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 400px;
+    }
+    .upload-info { display: flex; align-items: center; gap: 1rem; color: var(--color-text); }
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: var(--color-border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--color-accent);
+      transition: width 0.2s ease-out;
+    }
     .upload-error { color: var(--color-error); margin-top: .5rem; font-size: .875rem; }
   `]
 })
@@ -79,6 +108,7 @@ export class MediaUploaderComponent {
 
   readonly isDragOver = signal(false);
   readonly uploading = signal(false);
+  readonly uploadProgress = signal(0);
   readonly fileName = signal('');
   readonly error = signal('');
   readonly statusLabel = signal('Uploading');
@@ -148,14 +178,21 @@ export class MediaUploaderComponent {
 
   private doUpload(file: File, hash: string | null): void {
     this.statusLabel.set('Uploading');
+    this.uploadProgress.set(0);
     const fd = new FormData();
     fd.append('media', file);
     if (hash) fd.append('hash', hash);
 
     this.api.uploadFile<UploadResult>('/media', fd).subscribe({
-      next: (result) => {
-        this.uploading.set(false);
-        this.uploaded.emit(result);
+      next: (event) => {
+        if (event.type === HttpEventType.UploadProgress) {
+          const percent = Math.round(100 * event.loaded / (event.total ?? event.loaded));
+          this.uploadProgress.set(percent);
+          this.statusLabel.set(`Uploading ${percent}%`);
+        } else if (event.type === HttpEventType.Response) {
+          this.uploading.set(false);
+          if (event.body) this.uploaded.emit(event.body);
+        }
       },
       error: (err: Error) => {
         this.uploading.set(false);

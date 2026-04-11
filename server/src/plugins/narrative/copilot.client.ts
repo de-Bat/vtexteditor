@@ -17,6 +17,7 @@ export async function callCopilotStudio(
   prompt: string,
   model = 'gpt-4.1',
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  onChunk?: (text: string) => void,
 ): Promise<string> {
   console.log(`${TAG} model=${model}  prompt=${prompt.length} chars  timeout=${timeoutMs / 1000}s`);
   const client = new CopilotClient();
@@ -24,6 +25,13 @@ export async function callCopilotStudio(
     console.log(`${TAG} creating session…`);
     const session = await client.createSession({ model, onPermissionRequest: approveAll });
     console.log(`${TAG} session ready — sending prompt`);
+
+    if (onChunk) {
+      session.on('assistant.message_delta', (event) => {
+        onChunk(event.data.deltaContent);
+      });
+    }
+
     const response = await session.sendAndWait({ prompt }, timeoutMs);
     const content = response?.data.content ?? '';
     console.log(`${TAG} response received — ${content.length} chars`);

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpEvent, HttpRequest } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -21,8 +21,12 @@ export class ApiService {
     return this.http.put<T>(`${this.base}${path}`, body).pipe(catchError(this.handleError));
   }
 
-  uploadFile<T>(path: string, formData: FormData): Observable<T> {
-    return this.http.post<T>(`${this.base}${path}`, formData).pipe(catchError(this.handleError));
+  uploadFile<T>(path: string, formData: FormData): Observable<HttpEvent<T>> {
+    const req = new HttpRequest('POST', `${this.base}${path}`, formData, {
+      reportProgress: true,
+      responseType: 'json',
+    });
+    return this.http.request<T>(req).pipe(catchError(this.handleError));
   }
 
   delete<T>(path: string): Observable<T> {

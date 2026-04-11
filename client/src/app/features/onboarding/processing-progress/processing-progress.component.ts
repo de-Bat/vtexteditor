@@ -1,4 +1,4 @@
-import { Component, input, computed } from '@angular/core';
+import { Component, input, computed, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SseEvent } from '../../../core/services/sse.service';
 import { PipelineStep } from '../../../core/models/plugin.model';
@@ -62,6 +62,9 @@ export type StepStatus = 'done' | 'running' | 'pending';
             <strong>Processing Error</strong>
             <p>{{ message() }}</p>
           </div>
+          <button class="btn-retry" (click)="back.emit()">
+            <span>&larr;</span> Go Back
+          </button>
         </div>
       }
 
@@ -130,7 +133,20 @@ export type StepStatus = 'done' | 'running' | 'pending';
     .fill { height: 100%; background: var(--color-accent); transition: width 0.3s ease; }
     .percent { font-size: 0.75rem; font-weight: 800; color: var(--color-accent); width: 35px; text-align: right; }
     
-    .msg { font-size: 0.75rem; color: var(--color-muted); margin: 0.3rem 0 0; }
+    .msg {
+      font-size: 0.75rem; color: var(--color-muted); margin: 0.3rem 0 0;
+      max-height: 120px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 0.5rem;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      
+      &::-webkit-scrollbar { width: 4px; }
+      &::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+    }
     
     .spinner-sm {
       width: 12px; height: 12px; border-radius: 50%;
@@ -152,11 +168,36 @@ export type StepStatus = 'done' | 'running' | 'pending';
     
     .err-content strong, .success-content strong { display: block; font-size: 0.9rem; margin-bottom: 0.1rem; }
     .err-content p, .success-content p { margin: 0; font-size: 0.8rem; opacity: 0.8; }
+    
+    .btn-retry {
+      margin-left: auto;
+      background: var(--color-error);
+      color: white;
+      border: none;
+      padding: 0.5rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+      white-space: nowrap;
+      
+      &:hover {
+        filter: brightness(1.2);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(224, 92, 92, 0.3);
+      }
+      &:active { transform: translateY(0); }
+    }
   `]
 })
 export class ProcessingProgressComponent {
   readonly event = input<SseEvent | null>(null);
   readonly steps = input<PipelineStep[]>([]);
+  @Output() readonly back = new EventEmitter<void>();
 
   readonly status = computed<ProcessingStatus>(() => {
     const ev = this.event();

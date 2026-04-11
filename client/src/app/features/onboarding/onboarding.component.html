@@ -2,7 +2,7 @@
   <header class="page-header">
     <div class="logo">
       <span class="logo-icon">&#10022;</span>
-      <span class="logo-text">VTextStudio</span>
+      <span class="logo-text">VTextVideo</span>
     </div>
     <p class="tagline">Edit your media by editing text</p>
   </header>
@@ -165,6 +165,7 @@
               <app-processing-progress 
                 [event]="sseService.lastEvent()" 
                 [steps]="pipelineSteps()" 
+                (back)="onPipelineBack()"
               />
             </div>
           </section>

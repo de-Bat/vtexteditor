@@ -20,6 +20,7 @@ interface GroqConfig {
   showSilenceMarkers?: boolean;
   chunkDurationSecs?: number;
   maxConcurrent?: number;
+  reuseIfCached?: boolean;
 }
 
 interface GroqWord {
@@ -94,12 +95,34 @@ export const groqWhisperPlugin: IPlugin = {
           description: 'Maximum number of simultaneous Groq API calls. Lower this if you hit rate limits.',
           default: 3,
         },
+        reuseIfCached: {
+          type: 'boolean',
+          title: 'Reuse cached transcription',
+          description: 'Skip the API call if this media was already transcribed with the same plugin, model, and language.',
+          default: true,
+        },
       },
       required: [],
   },
 
   async execute(ctx: PipelineContext): Promise<PipelineContext> {
     const cfg = (ctx.metadata['groq-whisper'] ?? {}) as GroqConfig;
+
+    const tag = '[groq-whisper]';
+    const reuseIfCached = cfg.reuseIfCached !== false; // default true
+    const model = cfg.model ?? 'whisper-large-v3-turbo';
+    const language = cfg.language ?? '';
+    const cacheKey = `groq-whisper:${ctx.mediaHash}:${model}:${language}`;
+
+    if (reuseIfCached && ctx.cache.has(cacheKey)) {
+      console.log(`${tag} cache HIT  key=${cacheKey.slice(0, 48)}… — skipping transcription`);
+      const cached = ctx.cache.get<RawSegment[]>(cacheKey)!;
+      return buildClip(cached, cfg, ctx);
+    }
+    console.log(reuseIfCached
+      ? `${tag} cache MISS  key=${cacheKey.slice(0, 48)}… — transcribing`
+      : `${tag} reuseIfCached=false — transcribing (cache will be updated)`);
+
     const apiKey = cfg.apiKey ?? process.env['GROQ_API_KEY'] ?? settingsService.get('GROQ_API_KEY');
     if (!apiKey) throw new Error('Groq API key required. Set GROQ_API_KEY env var, configure it in App Settings, or provide apiKey in the pipeline config.');
 
@@ -123,10 +146,10 @@ export const groqWhisperPlugin: IPlugin = {
       const fileStream = fs.createReadStream(chunkPath) as unknown as File;
       const transcription = await groq.audio.transcriptions.create({
         file: fileStream,
-        model: (cfg.model ?? 'whisper-large-v3-turbo') as 'whisper-large-v3' | 'whisper-large-v3-turbo' | 'distil-whisper-large-v3-en',
+        model: model as 'whisper-large-v3' | 'whisper-large-v3-turbo' | 'distil-whisper-large-v3-en',
         response_format: 'verbose_json',
         timestamp_granularities: ['word', 'segment'],
-        ...(cfg.language ? { language: cfg.language } : {}),
+        ...(language ? { language } : {}),
       });
       const raw = transcription as unknown as { segments?: GroqSegment[] };
       return (raw.segments ?? []).map((seg) => ({
@@ -152,61 +175,64 @@ export const groqWhisperPlugin: IPlugin = {
       if (tempCreated && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
     }
 
-    // Coerce boolean settings; settingsService.get() returns strings.
-    const coerceBool = (v: unknown, fallback: boolean) =>
-      v === true || String(v).toLowerCase() === 'true' ? true
-        : v === false || String(v).toLowerCase() === 'false' ? false
-        : fallback;
+    console.log(`${tag} cache WRITE  key=${cacheKey.slice(0, 48)}…  segments: ${rawSegments.length}`);
+    ctx.cache.set(cacheKey, rawSegments);
 
-    const segmentBySpeech = coerceBool(cfg.segmentBySpeech, true);
-    const showSilenceMarkers = coerceBool(cfg.showSilenceMarkers, false);
-
-    const clipId = uuidv4();
-    const clipName = cfg.clipName ?? 'Groq Transcription';
-
-    // Build Segment objects from raw segments
-    const segments: Segment[] = rawSegments.map((raw) => {
-      const segId = uuidv4();
-      let words: Word[];
-      if (raw.words?.length) {
-        words = raw.words.map((w) => ({
-          id: uuidv4(),
-          segmentId: segId,
-          text: w.word.trim(),
-          startTime: w.start,
-          endTime: w.end,
-          isRemoved: false,
-        }));
-      } else {
-        words = estimateWords(segId, raw.text, raw.start, raw.end);
-      }
-      return {
-        id: segId,
-        clipId,
-        startTime: raw.start,
-        endTime: raw.end,
-        text: raw.text,
-        words,
-        tags: [],
-      };
-    });
-
-    // When segmentBySpeech is off, merge all segments into a single segment.
-    const finalSegments = segmentBySpeech ? segments : mergeSegments(clipId, segments);
-
-    const clip: Clip = {
-      id: clipId,
-      projectId: ctx.projectId,
-      name: clipName,
-      startTime: finalSegments[0]?.startTime ?? 0,
-      endTime: finalSegments[finalSegments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
-      segments: finalSegments,
-      showSilenceMarkers,
-    };
-
-    return { ...ctx, clips: [...ctx.clips, clip] };
+    return buildClip(rawSegments, cfg, ctx);
   },
 };
+
+function buildClip(rawSegments: RawSegment[], cfg: GroqConfig, ctx: PipelineContext): PipelineContext {
+  const coerceBool = (v: unknown, fallback: boolean) =>
+    v === true || String(v).toLowerCase() === 'true' ? true
+      : v === false || String(v).toLowerCase() === 'false' ? false
+      : fallback;
+
+  const segmentBySpeech = coerceBool(cfg.segmentBySpeech, true);
+  const showSilenceMarkers = coerceBool(cfg.showSilenceMarkers, false);
+  const clipId = uuidv4();
+  const clipName = cfg.clipName ?? 'Groq Transcription';
+
+  const segments: Segment[] = rawSegments.map((raw) => {
+    const segId = uuidv4();
+    let words: Word[];
+    if (raw.words?.length) {
+      words = raw.words.map((w) => ({
+        id: uuidv4(),
+        segmentId: segId,
+        text: w.word.trim(),
+        startTime: w.start,
+        endTime: w.end,
+        isRemoved: false,
+      }));
+    } else {
+      words = estimateWords(segId, raw.text, raw.start, raw.end);
+    }
+    return {
+      id: segId,
+      clipId,
+      startTime: raw.start,
+      endTime: raw.end,
+      text: raw.text,
+      words,
+      tags: [],
+    };
+  });
+
+  const finalSegments = segmentBySpeech ? segments : mergeSegments(clipId, segments);
+
+  const clip: Clip = {
+    id: clipId,
+    projectId: ctx.projectId,
+    name: clipName,
+    startTime: finalSegments[0]?.startTime ?? 0,
+    endTime: finalSegments[finalSegments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
+    segments: finalSegments,
+    showSilenceMarkers,
+  };
+
+  return { ...ctx, clips: [...ctx.clips, clip] };
+}
 
 /** Merge all segments into a single segment with combined words. */
 function mergeSegments(clipId: string, segments: Segment[]): Segment[] {

@@ -134,6 +134,15 @@ export const whisperPlugin: IPlugin = {
     const reuseIfCached = cfg.reuseIfCached !== false; // default true
     const cacheKey = `whisper-openai:${ctx.mediaHash}:${model}:${language}`;
 
+    if (reuseIfCached && ctx.cache.has(cacheKey)) {
+      console.log(`${tag} cache HIT  key=${cacheKey.slice(0, 48)}… — skipping transcription`);
+      const cached = ctx.cache.get<RawSegment[]>(cacheKey)!;
+      return buildClip(cached, cfg, ctx);
+    }
+    console.log(reuseIfCached
+      ? `${tag} cache MISS  key=${cacheKey.slice(0, 48)}… — transcribing`
+      : `${tag} reuseIfCached=false — transcribing (cache will be updated)`);
+
     // Self-hosted servers do not need an API key.
     // Only require one when targeting the official OpenAI endpoint.
     if (!baseURL && !apiKey) {
@@ -154,15 +163,6 @@ export const whisperPlugin: IPlugin = {
       ...(baseURL ? { baseURL: normalizeBaseURL(baseURL) } : {}),
     };
     const client = new OpenAI(clientOpts);
-
-    if (reuseIfCached && ctx.cache.has(cacheKey)) {
-      console.log(`${tag} cache HIT  key=${cacheKey.slice(0, 48)}… — skipping transcription`);
-      const cached = ctx.cache.get<RawSegment[]>(cacheKey)!;
-      return buildClip(cached, cfg, ctx);
-    }
-    console.log(reuseIfCached
-      ? `${tag} cache MISS  key=${cacheKey.slice(0, 48)}… — transcribing`
-      : `${tag} reuseIfCached=false — transcribing (cache will be updated)`);
 
     if (!fs.existsSync(ctx.mediaPath)) throw new Error(`Media file not found: ${ctx.mediaPath}`);
 

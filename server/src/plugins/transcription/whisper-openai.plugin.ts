@@ -21,6 +21,7 @@ interface WhisperConfig {
   clipName?: string;
   chunkDurationSecs?: number;
   maxConcurrent?: number;
+  reuseIfCached?: boolean;
 }
 
 interface WhisperWord {
@@ -112,6 +113,12 @@ export const whisperPlugin: IPlugin = {
           description: 'Maximum number of simultaneous API calls. Lower this if you hit rate limits.',
           default: 3,
         },
+        reuseIfCached: {
+          type: 'boolean',
+          title: 'Reuse cached transcription',
+          description: 'Skip the API call if this media was already transcribed with the same plugin, model, and language.',
+          default: true,
+        },
       },
       required: [],
   },
@@ -123,6 +130,9 @@ export const whisperPlugin: IPlugin = {
     const baseURL = cfg.baseURL?.trim() || process.env['WHISPER_BASE_URL'] || settingsService.get('WHISPER_BASE_URL');
     const model = cfg.model?.trim() || settingsService.get('WHISPER_MODEL') || 'whisper-1';
     const language = cfg.language?.trim() || settingsService.get('WHISPER_LANGUAGE') || '';
+
+    const reuseIfCached = cfg.reuseIfCached !== false; // default true
+    const cacheKey = `whisper-openai:${ctx.mediaHash}:${model}:${language}`;
 
     // Self-hosted servers do not need an API key.
     // Only require one when targeting the official OpenAI endpoint.
@@ -144,6 +154,15 @@ export const whisperPlugin: IPlugin = {
       ...(baseURL ? { baseURL: normalizeBaseURL(baseURL) } : {}),
     };
     const client = new OpenAI(clientOpts);
+
+    if (reuseIfCached && ctx.cache.has(cacheKey)) {
+      console.log(`${tag} cache HIT  key=${cacheKey.slice(0, 48)}… — skipping transcription`);
+      const cached = ctx.cache.get<RawSegment[]>(cacheKey)!;
+      return buildClip(cached, cfg, ctx);
+    }
+    console.log(reuseIfCached
+      ? `${tag} cache MISS  key=${cacheKey.slice(0, 48)}… — transcribing`
+      : `${tag} reuseIfCached=false — transcribing (cache will be updated)`);
 
     if (!fs.existsSync(ctx.mediaPath)) throw new Error(`Media file not found: ${ctx.mediaPath}`);
 
@@ -232,66 +251,69 @@ export const whisperPlugin: IPlugin = {
     const wordCount = rawSegments.reduce((n, s) => n + (s.words?.length ?? 0), 0);
     console.log(`${tag} transcription complete — segments: ${rawSegments.length}  words: ${wordCount}`);
 
-    // Build Clip from raw segments
-    const clipId = uuidv4();
-    const clipName = cfg.clipName ?? 'Whisper Transcription';
-    const segments: Segment[] = rawSegments.map((raw) => {
-      const segId = uuidv4();
-      let words: Word[];
-      if (raw.words?.length) {
-        words = raw.words.map((w) => ({
-          id: uuidv4(),
-          segmentId: segId,
-          text: w.word.trim(),
-          startTime: w.start,
-          endTime: w.end,
-          isRemoved: false,
-        }));
-      } else {
-        words = estimateWords(segId, raw.text, raw.start, raw.end);
-      }
-      return {
-        id: segId,
-        clipId,
-        startTime: raw.start,
-        endTime: raw.end,
-        text: raw.text,
-        words,
-        tags: [],
-      };
-    });
+    console.log(`${tag} cache WRITE  key=${cacheKey.slice(0, 48)}…  segments: ${rawSegments.length}`);
+    ctx.cache.set(cacheKey, rawSegments);
 
-    // Coerce boolean settings; settingsService.get() returns strings.
-    const coerceBool = (v: unknown, fallback: boolean) =>
-      v === true || String(v).toLowerCase() === 'true' ? true
-        : v === false || String(v).toLowerCase() === 'false' ? false
-        : fallback;
-
-    const segmentBySpeech = coerceBool(cfg.segmentBySpeech, true);
-    const showSilenceMarkers = coerceBool(cfg.showSilenceMarkers, false);
-
-    // When segmentBySpeech is off, merge all segments into a single segment.
-    const finalSegments = segmentBySpeech ? segments : mergeSegments(clipId, segments);
-
-    const clip: Clip = {
-      id: clipId,
-      projectId: ctx.projectId,
-      name: clipName,
-      startTime: finalSegments[0]?.startTime ?? 0,
-      endTime: finalSegments[finalSegments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
-      segments: finalSegments,
-      showSilenceMarkers,
-    };
-
-    const totalWords = finalSegments.reduce((n, s) => n + s.words.length, 0);
-    console.log(
-      `${tag} clip built — "${clipName}"  segments: ${finalSegments.length}  words: ${totalWords}` +
-      `  segmentBySpeech: ${segmentBySpeech}  showSilenceMarkers: ${showSilenceMarkers}`,
-    );
-
-    return { ...ctx, clips: [...ctx.clips, clip] };
+    return buildClip(rawSegments, cfg, ctx);
   },
 };
+
+function buildClip(rawSegments: RawSegment[], cfg: WhisperConfig, ctx: PipelineContext): PipelineContext {
+  const clipId = uuidv4();
+  const clipName = cfg.clipName ?? 'Whisper Transcription';
+  const segments: Segment[] = rawSegments.map((raw) => {
+    const segId = uuidv4();
+    let words: Word[];
+    if (raw.words?.length) {
+      words = raw.words.map((w) => ({
+        id: uuidv4(),
+        segmentId: segId,
+        text: w.word.trim(),
+        startTime: w.start,
+        endTime: w.end,
+        isRemoved: false,
+      }));
+    } else {
+      words = estimateWords(segId, raw.text, raw.start, raw.end);
+    }
+    return {
+      id: segId,
+      clipId,
+      startTime: raw.start,
+      endTime: raw.end,
+      text: raw.text,
+      words,
+      tags: [],
+    };
+  });
+
+  const coerceBool = (v: unknown, fallback: boolean) =>
+    v === true || String(v).toLowerCase() === 'true' ? true
+      : v === false || String(v).toLowerCase() === 'false' ? false
+      : fallback;
+
+  const segmentBySpeech = coerceBool(cfg.segmentBySpeech, true);
+  const showSilenceMarkers = coerceBool(cfg.showSilenceMarkers, false);
+  const finalSegments = segmentBySpeech ? segments : mergeSegments(clipId, segments);
+
+  const clip: Clip = {
+    id: clipId,
+    projectId: ctx.projectId,
+    name: clipName,
+    startTime: finalSegments[0]?.startTime ?? 0,
+    endTime: finalSegments[finalSegments.length - 1]?.endTime ?? (ctx.mediaInfo?.duration ?? 0),
+    segments: finalSegments,
+    showSilenceMarkers,
+  };
+
+  const totalWords = finalSegments.reduce((n, s) => n + s.words.length, 0);
+  console.log(
+    `[whisper-openai] clip built — "${clipName}"  segments: ${finalSegments.length}  words: ${totalWords}` +
+    `  segmentBySpeech: ${segmentBySpeech}  showSilenceMarkers: ${showSilenceMarkers}`,
+  );
+
+  return { ...ctx, clips: [...ctx.clips, clip] };
+}
 
 /**
  * Ensure the baseURL always ends with a path so the OpenAI SDK constructs

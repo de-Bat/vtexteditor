@@ -40,9 +40,10 @@ export const reconstruct2storyPlugin: IPlugin = {
       },
       language: {
         type: 'string',
-        title: 'Event Title Language (optional)',
-        description: 'Language for generated event titles, e.g. "Hebrew". Defaults to auto-detect.',
-        default: '',
+        title: 'Title Language',
+        description: 'Language for generated event titles.',
+        default: 'Auto-detect',
+        enum: ['Auto-detect', 'English', 'Hebrew', 'Spanish', 'French', 'German', 'Russian', 'Arabic', 'Portuguese'],
       },
       maxEvents: {
         type: 'number',

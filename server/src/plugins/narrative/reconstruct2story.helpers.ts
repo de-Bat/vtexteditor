@@ -48,9 +48,9 @@ export function buildPrompt(
     ? `\nThe interviewer suggested these possible life chapters: ${config.seedCategories}\n`
     : '';
 
-  const langLine = config.language
+  const langLine = config.language && config.language !== 'Auto-detect'
     ? `\nRespond with event titles in: ${config.language}\n`
-    : '';
+    : `\nRespond with event titles in the same language as the transcription provided above.\n`;
 
   const prompt = `You are helping reconstruct a detailed life story from an interview transcript.
 

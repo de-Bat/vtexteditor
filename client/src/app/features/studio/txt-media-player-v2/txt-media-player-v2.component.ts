@@ -181,106 +181,159 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
   <!-- ═══════════ Right: Transcript Panel ═══════════ -->
   <section class="transcript-section">
 
-    <!-- Header -->
-    <div class="transcript-header">
-      <!-- Row 1: title + edit group + selection group + auto-follow + export -->
-      <div class="header-row1">
-        <div class="hdr-title-group">
-          <h2 class="transcript-title">Transcript</h2>
-          <span class="auto-badge">AUTO-GEN</span>
-        </div>
-        <!-- Edit group -->
-        <div class="hdr-group" role="group" aria-label="Edit history">
-          <button class="hdr-btn" (click)="restoreAll()" title="Restore all removed words">
-            <span class="material-symbols-outlined">settings_backup_restore</span>
-          </button>
-          <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Ctrl+Z)">
-            <span class="material-symbols-outlined">undo</span>
-          </button>
-          <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Ctrl+Shift+Z)">
-            <span class="material-symbols-outlined">redo</span>
-          </button>
-        </div>
-        <!-- Selection group -->
-        <div class="hdr-group hdr-divider" role="group" aria-label="Selection actions">
-          <button class="hdr-btn" (click)="removeSelected()" [disabled]="!selectedCount()" title="Cut selected">
-            <span class="material-symbols-outlined">content_cut</span>
-          </button>
-          <button class="hdr-btn" (click)="restoreSelected()" [disabled]="!selectedCount()" title="Restore selected">
-            <span class="material-symbols-outlined">healing</span>
-          </button>
-          <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" title="Jump-cut preview">
-            <span class="material-symbols-outlined">auto_awesome</span>
-          </button>
-        </div>
-        <!-- Auto-follow -->
-        <div class="hdr-group hdr-divider">
-          <button class="hdr-btn" [class.active]="autoFollow()" [attr.aria-pressed]="autoFollow()"
-            [title]="autoFollow() ? 'Auto-follow on' : 'Auto-follow paused'"
-            (click)="autoFollow() ? pauseFollow() : returnToCurrentWord()">
-            <span class="material-symbols-outlined">{{ autoFollow() ? 'my_location' : 'location_disabled' }}</span>
-          </button>
-        </div>
-      </div>
+    <!-- Vertical Side Label -->
+    <div class="transcript-side-label">
+      <span>TRANSCRIPT</span>
+    </div>
 
-      <!-- Row 2: search + silence interval + Smart Cut dropdown -->
-      <div class="header-row2">
-        <div class="search-wrap">
-          <span class="material-symbols-outlined search-icon">search</span>
-          <input
-            type="text"
-            class="search-input"
-            placeholder="Search transcript..."
-            [value]="searchQuery()"
-            (input)="searchQuery.set($any($event.target).value)"
-          />
+    <div class="transcript-content-wrapper">
+      <!-- Header -->
+      <div class="transcript-header">
+        <!-- Row 1: Global tools -->
+        <div class="header-row1">
+          <div class="hdr-group">
+            <div class="auto-badge-icon" title="Auto-Generated Transcript">
+              <span class="material-symbols-outlined">psychology</span>
+            </div>
+          </div>
+
+          <div class="spacer"></div>
+
+          <!-- Edit group -->
+          <div class="hdr-group" role="group" aria-label="Edit history">
+            <button class="hdr-btn" (click)="restoreAll()" title="Restore all removed words">
+              <span class="material-symbols-outlined">settings_backup_restore</span>
+            </button>
+            <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Ctrl+Z)">
+              <span class="material-symbols-outlined">undo</span>
+            </button>
+            <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Ctrl+Shift+Z)">
+              <span class="material-symbols-outlined">redo</span>
+            </button>
+          </div>
+
+          <!-- Auto-follow -->
+          <div class="hdr-group hdr-divider">
+            <button class="hdr-btn" [class.active]="autoFollow()" [attr.aria-pressed]="autoFollow()"
+              [title]="autoFollow() ? 'Auto-follow on' : 'Auto-follow paused'"
+              (click)="autoFollow() ? pauseFollow() : returnToCurrentWord()">
+              <span class="material-symbols-outlined">{{ autoFollow() ? 'my_location' : 'location_disabled' }}</span>
+            </button>
+          </div>
         </div>
-        <div class="silence-interval-wrap">
-          <span class="material-symbols-outlined si-icon">timer</span>
-          <input type="number" class="si-input" min="0.1" max="5" step="0.1"
-            [value]="silenceIntervalSec()"
-            (change)="silenceIntervalSec.set(+$any($event.target).value)"
-            title="Min silence interval (sec)"
-          />
-          <span class="si-unit">s</span>
-        </div>
-        <!-- Smart Cut dropdown -->
-        <div class="smart-cut-wrap">
-          <button class="smart-cut-trigger" (click)="smartCutOpen.set(!smartCutOpen())" [class.open]="smartCutOpen()" title="Smart Cut">
-            <span class="material-symbols-outlined">content_cut</span>
-            Smart Cut
-            <span class="material-symbols-outlined sc-caret">expand_more</span>
-          </button>
-          @if (smartCutOpen()) {
-            <div class="smart-cut-dropdown" role="dialog" aria-label="Smart Cut options">
-              <div class="sc-section-title">Filler Words — EN</div>
-              <div class="sc-chips">
-                @for (fw of FILLER_WORDS_EN; track fw) {
-                  <button class="sc-chip" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
-                }
-              </div>
-              <div class="sc-section-title sc-section-he">Filler Words — עב</div>
-              <div class="sc-chips">
-                @for (fw of FILLER_WORDS_HE; track fw) {
-                  <button class="sc-chip sc-chip-he" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
-                }
-              </div>
-              <div class="sc-toggles">
-                <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())" title="Highlight fillers">
-                  <span class="material-symbols-outlined">visibility</span>
-                  Fillers
-                </button>
-                <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())" title="Highlight silence-adjacent words">
-                  <span class="material-symbols-outlined">hourglass_empty</span>
-                  Silence
-                </button>
-              </div>
-              <button class="sc-apply-btn" (click)="applySmartCut()">Apply Smart Cut</button>
+
+        <!-- Row 2: Search + Selection + Smart Tools -->
+        <div class="header-row2">
+          <!-- Expandable Search -->
+          <div class="search-wrap" [class.expanded]="searchExpanded()">
+            <button class="hdr-btn search-trigger" (click)="searchExpanded.set(!searchExpanded())" title="Search">
+              <span class="material-symbols-outlined">search</span>
+            </button>
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search transcript..."
+              [value]="searchQuery()"
+              (input)="searchQuery.set($any($event.target).value)"
+            />
+          </div>
+
+          <div class="spacer"></div>
+
+          <!-- Tools -->
+          @if (!searchExpanded()) {
+            <div class="inline-tools">
+              <ng-container *ngTemplateOutlet="actionTools"></ng-container>
+            </div>
+          } @else {
+            <div class="more-menu-wrap">
+              <button class="hdr-btn" (click)="moreMenuOpen.set(!moreMenuOpen())" [class.active]="moreMenuOpen()" title="More Options">
+                <span class="material-symbols-outlined">more_horiz</span>
+              </button>
+              @if (moreMenuOpen()) {
+                <div class="more-menu-dropdown">
+                  <ng-container *ngTemplateOutlet="actionTools"></ng-container>
+                </div>
+              }
             </div>
           }
+
+          <ng-template #actionTools>
+            <!-- Selection group -->
+            <div class="hdr-group flex-wrap" role="group" aria-label="Selection actions">
+              <button class="hdr-btn" (click)="removeSelected()" [disabled]="!selectedCount()" title="Cut selected">
+                <span class="material-symbols-outlined">content_cut</span>
+              </button>
+              <button class="hdr-btn" (click)="restoreSelected()" [disabled]="!selectedCount()" title="Restore selected">
+                <span class="material-symbols-outlined">healing</span>
+              </button>
+              <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" title="Jump-cut preview">
+                <span class="material-symbols-outlined">auto_awesome</span>
+              </button>
+            </div>
+
+            <!-- Smart Tools -->
+            <div class="hdr-group hdr-divider flex-wrap">
+              <div class="silence-control-wrap">
+                <button class="hdr-btn" (click)="silenceControlOpen.set(!silenceControlOpen())" [class.active]="silenceControlOpen()" title="Silence Interval">
+                  <span class="material-symbols-outlined">timer</span>
+                </button>
+                @if (silenceControlOpen()) {
+                  <div class="silence-dropdown popover">
+                    <div class="si-header">
+                      <span class="si-label">Min Gap</span>
+                      <div class="si-value">
+                        <input type="number" class="si-input" min="0.1" max="5" step="0.1"
+                          [value]="silenceIntervalSec()"
+                          (change)="silenceIntervalSec.set(+$any($event.target).value)"
+                        />
+                        <span class="si-unit">s</span>
+                      </div>
+                    </div>
+                    <input type="range" class="si-slider" min="0.1" max="5" step="0.1"
+                      [value]="silenceIntervalSec()"
+                      (input)="silenceIntervalSec.set(+$any($event.target).value)"
+                    />
+                  </div>
+                }
+              </div>
+              
+              <div class="smart-cut-wrap">
+                <button class="hdr-btn" (click)="smartCutOpen.set(!smartCutOpen())" [class.active]="smartCutOpen()" title="Smart Cut Options">
+                  <span class="material-symbols-outlined">auto_fix_high</span>
+                </button>
+                @if (smartCutOpen()) {
+                  <div class="smart-cut-dropdown popover" role="dialog" aria-label="Smart Cut options">
+                    <div class="sc-section-title">Filler Words — EN</div>
+                    <div class="sc-chips">
+                      @for (fw of FILLER_WORDS_EN; track fw) {
+                        <button class="sc-chip" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
+                      }
+                    </div>
+                    <div class="sc-section-title sc-section-he">Filler Words — עב</div>
+                    <div class="sc-chips">
+                      @for (fw of FILLER_WORDS_HE; track fw) {
+                        <button class="sc-chip sc-chip-he" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
+                      }
+                    </div>
+                    <div class="sc-toggles">
+                      <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())" title="Highlight fillers">
+                        <span class="material-symbols-outlined">visibility</span>
+                        Fillers
+                      </button>
+                      <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())" title="Highlight silence-adjacent words">
+                        <span class="material-symbols-outlined">hourglass_empty</span>
+                        Silence
+                      </button>
+                    </div>
+                    <button class="sc-apply-btn" (click)="applySmartCut()">Apply Smart Cut</button>
+                  </div>
+                }
+              </div>
+            </div>
+          </ng-template>
         </div>
       </div>
-    </div>
 
     <!-- Scrollable Transcript -->
     <div class="transcript-body" #transcriptEl (scroll)="onTranscriptScroll()">
@@ -380,37 +433,35 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
     <!-- Status Bar (replaces action footer) -->
     <div class="status-bar">
       @if (selectedCount()) {
-        <span class="status-chip">
+        <span class="status-chip" [title]="selectedCount() + ' selected'">
           <span class="material-symbols-outlined">select_all</span>
-          {{ selectedCount() }} selected
+          <span class="chip-count">{{ selectedCount() }}</span>
         </span>
       }
       @if (removedCount()) {
-        <span class="status-chip status-removed">
+        <span class="status-chip status-removed" [title]="removedCount() + ' removed'">
           <span class="material-symbols-outlined">content_cut</span>
-          {{ removedCount() }} removed
+          <span class="chip-count">{{ removedCount() }}</span>
         </span>
       }
       @if (jumpCutMode()) {
-        <span class="status-chip status-mode">
+        <span class="status-chip status-mode" title="Jump Cut Mode Active">
           <span class="material-symbols-outlined">auto_awesome</span>
-          Jump Cut
         </span>
       }
       @if (highlightFillers()) {
-        <span class="status-chip status-filler">
+        <span class="status-chip status-filler" title="Highlighting Fillers">
           <span class="material-symbols-outlined">visibility</span>
-          Fillers
         </span>
       }
       @if (highlightSilence()) {
-        <span class="status-chip status-silence">
+        <span class="status-chip status-silence" title="Highlighting Silence">
           <span class="material-symbols-outlined">hourglass_empty</span>
-          Silence
         </span>
       }
     </div>
 
+    </div> <!-- end transcript-content-wrapper -->
   </section>
 </div>
   `,
@@ -443,6 +494,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly jumpCutMode = signal(false);
   readonly showOverlay = signal(false);
   readonly searchQuery = signal('');
+  readonly searchExpanded = signal(false);
+  readonly moreMenuOpen = signal(false);
+  readonly silenceControlOpen = signal(false);
   readonly selectedWordIds = signal<string[]>([]);
   readonly selectionAnchorWordId = signal<string | null>(null);
   readonly transcriptScrollTop = signal(0);

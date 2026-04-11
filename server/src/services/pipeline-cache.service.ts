@@ -46,7 +46,8 @@ class PipelineCacheService implements PipelineCache {
 
 export const pipelineCacheService = new PipelineCacheService();
 
-/** Only for use in tests — clears all entries without writing to disk. */
+/** Only for use in tests — clears all entries and flushes to disk. */
 export function clearPipelineCache(): void {
   store.clear();
+  saveToDisk(store);
 }

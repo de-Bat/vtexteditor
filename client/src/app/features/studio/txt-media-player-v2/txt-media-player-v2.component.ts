@@ -56,6 +56,7 @@ type FlowItem =
 
 interface TrackItem {
   kind: 'segment' | 'gap';
+  leftPercent: number;
   widthPercent: number;
   colorIndex: number;
 }
@@ -170,12 +171,15 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           @for (item of trackItems(); track $index) {
             @if (item.kind === 'segment') {
               <div class="track-block"
+                [style.left.%]="item.leftPercent"
                 [style.width.%]="item.widthPercent"
                 [style.background]="SEGMENT_PALETTE[item.colorIndex % SEGMENT_PALETTE.length].track"
                 [style.border-left-color]="SEGMENT_PALETTE[item.colorIndex % SEGMENT_PALETTE.length].border"
               ></div>
             } @else {
-              <div class="track-gap" [style.width.%]="item.widthPercent"></div>
+              <div class="track-gap"
+                [style.left.%]="item.leftPercent"
+                [style.width.%]="item.widthPercent"></div>
             }
           }
           <!-- Cut region overlays -->
@@ -926,46 +930,40 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     
     const items: TrackItem[] = [];
     
-    // Initial gap
-    const firstGap = segments[0].startTime - clipStart;
-    if (firstGap > 0.1) {
-      items.push({ kind: 'gap', widthPercent: (firstGap / dur) * 100, colorIndex: 0 });
-    }
-
     for (let i = 0; i < segments.length; i++) {
       const seg = segments[i];
       const ci = this.segColorIndex(seg, i);
       
       // Gap BEFORE segment (inter-segment gap)
-      if (i > 0) {
+      if (i === 0) {
+        const firstGap = seg.startTime - clipStart;
+        if (firstGap > 0.05) {
+          items.push({
+            kind: 'gap',
+            leftPercent: 0,
+            widthPercent: (firstGap / dur) * 100,
+            colorIndex: 0
+          });
+        }
+      } else {
         const gap = seg.startTime - segments[i - 1].endTime;
-        if (gap > 0.1) {
-          items.push({ kind: 'gap', widthPercent: (gap / dur) * 100, colorIndex: ci });
+        if (gap > 0.05) {
+          items.push({
+            kind: 'gap',
+            leftPercent: ((segments[i - 1].endTime - clipStart) / dur) * 100,
+            widthPercent: (gap / dur) * 100,
+            colorIndex: ci
+          });
         }
       }
 
-      // Render the segment, looking for internal gaps
-      const words = seg.words.filter(w => !w.isRemoved);
-      if (words.length > 1) {
-        let lastEnd = seg.startTime;
-        for (let j = 0; j < words.length; j++) {
-          const word = words[j];
-          // Gap before word (internal gap)
-          const internalGap = word.startTime - lastEnd;
-          if (internalGap > 0.5) {
-            items.push({ kind: 'gap', widthPercent: (internalGap / dur) * 100, colorIndex: ci });
-          }
-          // Segment piece (word duration or up to next gap/end)
-          const pieceEnd = (j < words.length - 1) ? words[j+1].startTime : seg.endTime;
-          const wordPartDur = pieceEnd - word.startTime;
-          items.push({ kind: 'segment', widthPercent: Math.max(0.1, (wordPartDur / dur) * 100), colorIndex: ci });
-          lastEnd = pieceEnd;
-        }
-      } else {
-        // Simple segment (0 or 1 word)
-        const segDur = seg.endTime - seg.startTime;
-        items.push({ kind: 'segment', widthPercent: Math.max(0.3, (segDur / dur) * 100), colorIndex: ci });
-      }
+      // Render the segment based on its verbatim start/end
+      items.push({
+        kind: 'segment',
+        leftPercent: ((seg.startTime - clipStart) / dur) * 100,
+        widthPercent: ((seg.endTime - seg.startTime) / dur) * 100,
+        colorIndex: ci
+      });
     }
     return items;
   });
@@ -1137,9 +1135,27 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   private readonly playbackWatch = effect(() => {
     const t = this.currentTime();
+    const clip = this.clip();
+
+    // Bounds enforcement: if playing and we reach or exceed the clip end, pause.
+    if (this.playing() && t >= clip.endTime) {
+      this.mediaPlayer.pause();
+      this.mediaPlayer.seek(clip.endTime);
+    }
+
     if (this.jumpCutMode() && this.playing()) this.applyJumpCut(t);
     this.scrollToCurrentWord();
   });
+
+  /** Sync player position to clip bounds when the clip object changes. */
+  private readonly clipSyncWatch = effect(() => {
+    const clip = this.clip();
+    const t = this.currentTime();
+    // Use a small 0.1s buffer to avoid aggressive snapping during transients
+    if (t < clip.startTime - 0.1 || t > clip.endTime + 0.1) {
+      this.mediaPlayer.seek(clip.startTime);
+    }
+  }, { allowSignalWrites: true });
 
   /* ── Constructor ─────────────────────────────────────── */
   constructor(

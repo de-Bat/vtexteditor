@@ -83,11 +83,11 @@ ${lines}
 ${seedLine}${langLine}
 Instructions:
 1. Group these segments into granular narrative events (maximum ${config.maxEvents} events).
-2. Create a coherent storyline by grouping related sentences into the same granular event.
-3. Use highly specific, granular events instead of broad ones. For example, instead of broad chapters like "Childhood", break it down into specific themes or events (e.g., "Family", "Village", "School", "Tradition", "Army", etc.).
-4. You may reorder segments within an event to improve narrative flow if necessary.
+2. Proactively search the entire transcript for related information. Collect relevant sentences from different parts of the interview into a single thematic event (e.g., if "Family" is discussed at the start and the end, group them together).
+3. Use highly specific, granular titles. Instead of broad chapters like "Childhood" or "Life Story", break it down into specific themes like "Family", "School", "Village", "Traditions", "Army", "First Job", "Personal Challenges", etc.
+4. Ensure each event sums up into a coherent, first-person story. Reorder segments within an event to ensure the narrative flows naturally, even if they were not spoken in that exact order.
 5. Each segment may appear in at most one event.
-6. INCLUDE ALL SEGMENTS. Do not edit the text, omit, or drop any segments. Keep silent sections or tangential moments; place them in the most fitting event to preserve the entire timeline.
+6. INCLUDE ALL SEGMENTS. Do not edit the text, omit, or drop any segments. Place tangential moments in the most fitting event to preserve the entire timeline.
 
 Return ONLY a JSON array — no explanation, no markdown fences:
 [

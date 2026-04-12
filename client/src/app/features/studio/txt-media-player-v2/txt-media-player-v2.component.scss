@@ -326,7 +326,7 @@ audio {
 .ruler {
   position: relative;
   height: 14px;
-  margin: 0 16px;
+  margin: 0;
   z-index: 5;
   pointer-events: none;
 }
@@ -357,19 +357,22 @@ audio {
   inset: 0;
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  gap: 2px;
+  padding: 0;
 }
 
 .track-block {
-  height: 40px;
-  border-left: 2px solid;
-  border-radius: 2px;
-  min-width: 2px;
+  position: absolute;
+  height: 48px;
+  border-left: 1px solid rgba(255, 255, 255, 0.4);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .track-gap {
-  height: 40px;
+  position: absolute;
+  height: 48px;
+  top: 50%;
+  transform: translateY(-50%);
   background: repeating-linear-gradient(
     45deg,
     rgba(255, 110, 132, 0.1) 0px,
@@ -377,8 +380,7 @@ audio {
     transparent 4px,
     transparent 8px
   );
-  border-left: 2px solid var(--error);
-  min-width: 2px;
+  border-left: 1px solid var(--error);
   opacity: 0.6;
 }
 

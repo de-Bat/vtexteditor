@@ -16,7 +16,10 @@ import { Segment } from '../../../core/models/segment.model';
 import { ClipService } from '../../../core/services/clip.service';
 import { ProjectService } from '../../../core/services/project.service';
 import { MediaPlayerService } from '../txt-media-player/media-player.service';
-import { EditHistoryService, WordEditChange } from '../txt-media-player/edit-history.service';
+import { EditHistoryService } from '../txt-media-player/edit-history.service';
+import { CutRegionService, CutHistoryEntry } from '../txt-media-player/cut-region.service';
+import { EffectPlayerService } from '../txt-media-player/effect-player.service';
+import { CutRegion, EffectType } from '../../../core/models/cut-region.model';
 import { KeyboardShortcutsService } from '../txt-media-player/keyboard-shortcuts.service';
 
 /* ── Palette & Constants ────────────────────────────────────── */
@@ -106,7 +109,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 </span>
               </button>
               <div class="overlay-time">
-                <span class="timecode-lg">{{ formatTimeLong(displayCurrentTime()) }} / {{ formatTimeLong(displayDuration()) }}</span>
+                <span class="timecode-lg">{{ formatTimeLong(currentTime()) }} / {{ formatTimeLong(duration()) }}</span>
                 <span class="scene-label">{{ activeSegmentLabel() }}</span>
               </div>
             </div>
@@ -181,167 +184,109 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
   <!-- ═══════════ Right: Transcript Panel ═══════════ -->
   <section class="transcript-section">
 
-    <!-- Vertical Side Label -->
-    <div class="transcript-side-label">
-      <span>TRANSCRIPT</span>
-    </div>
-
-    <div class="transcript-content-wrapper">
-      <!-- Header -->
-      <div class="transcript-header">
-        <!-- Row 1: Global tools -->
-        <div class="header-row1">
-          <div class="hdr-group">
-            <div class="auto-badge-icon" title="Auto-Generated Transcript">
-              <span class="material-symbols-outlined">psychology</span>
-            </div>
-          </div>
-
-          <div class="spacer"></div>
-
-          <!-- Edit group -->
-          <div class="hdr-group" role="group" aria-label="Edit history">
-            <button class="hdr-btn" (click)="restoreAll()" [disabled]="editMode()" title="Restore all removed words">
-              <span class="material-symbols-outlined">settings_backup_restore</span>
-            </button>
-            <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Ctrl+Z)">
-              <span class="material-symbols-outlined">undo</span>
-            </button>
-            <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Ctrl+Shift+Z)">
-              <span class="material-symbols-outlined">redo</span>
-            </button>
-            <button class="hdr-btn" [class.active]="editMode()" (click)="editMode.set(!editMode())" 
-              [title]="editMode() ? 'Exit edit mode' : 'Edit transcript text'">
-              <span class="material-symbols-outlined">{{ editMode() ? 'ink_highlighter' : 'edit_note' }}</span>
-            </button>
-          </div>
-
-          <!-- Auto-follow -->
-          <div class="hdr-group hdr-divider">
-            <button class="hdr-btn" [class.active]="autoFollow()" [attr.aria-pressed]="autoFollow()"
-              [title]="autoFollow() ? 'Auto-follow on' : 'Auto-follow paused'"
-              (click)="autoFollow() ? pauseFollow() : returnToCurrentWord()">
-              <span class="material-symbols-outlined">{{ autoFollow() ? 'my_location' : 'location_disabled' }}</span>
-            </button>
-          </div>
+    <!-- Header -->
+    <div class="transcript-header">
+      <!-- Row 1: title + edit group + selection group + auto-follow + export -->
+      <div class="header-row1">
+        <div class="hdr-title-group">
+          <h2 class="transcript-title">Transcript</h2>
+          <span class="auto-badge">AUTO-GEN</span>
         </div>
-
-        <!-- Row 2: Search + Selection + Smart Tools -->
-        <div class="header-row2">
-          <!-- Expandable Search -->
-          <div class="search-wrap" [class.expanded]="searchExpanded()">
-            <button class="hdr-btn search-trigger" (click)="searchExpanded.set(!searchExpanded())" title="Search">
-              <span class="material-symbols-outlined">search</span>
-            </button>
-            <input
-              type="text"
-              class="search-input"
-              placeholder="Search transcript..."
-              [value]="searchQuery()"
-              (input)="searchQuery.set($any($event.target).value)"
-            />
-          </div>
-
-          <div class="spacer"></div>
-
-          <!-- Tools -->
-          @if (!searchExpanded()) {
-            <div class="inline-tools">
-              <ng-container *ngTemplateOutlet="actionTools"></ng-container>
-            </div>
-          } @else {
-            <div class="more-menu-wrap">
-              <button class="hdr-btn" (click)="moreMenuOpen.set(!moreMenuOpen())" [class.active]="moreMenuOpen()" title="More Options">
-                <span class="material-symbols-outlined">more_horiz</span>
-              </button>
-              @if (moreMenuOpen()) {
-                <div class="more-menu-dropdown">
-                  <ng-container *ngTemplateOutlet="actionTools"></ng-container>
-                </div>
-              }
-            </div>
-          }
-
-          <ng-template #actionTools>
-            <!-- Selection group -->
-            <div class="hdr-group flex-wrap" role="group" aria-label="Selection actions">
-              <button class="hdr-btn" (click)="removeSelected()" [disabled]="!selectedCount() || editMode()" title="Cut selected">
-                <span class="material-symbols-outlined">content_cut</span>
-              </button>
-              <button class="hdr-btn" (click)="restoreSelected()" [disabled]="!selectedCount() || editMode()" title="Restore selected">
-                <span class="material-symbols-outlined">healing</span>
-              </button>
-              <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" [disabled]="editMode()" title="Jump-cut preview">
-                <span class="material-symbols-outlined">auto_awesome</span>
-              </button>
-            </div>
-
-            <!-- Smart Tools -->
-            <div class="hdr-group hdr-divider flex-wrap">
-              <div class="silence-control-wrap">
-                <button class="hdr-btn" (click)="silenceControlOpen.set(!silenceControlOpen())" 
-                  [disabled]="editMode()" [class.active]="silenceControlOpen()" title="Silence Interval">
-                  <span class="material-symbols-outlined">timer</span>
-                </button>
-                @if (silenceControlOpen()) {
-                  <div class="silence-dropdown popover">
-                    <div class="si-header">
-                      <span class="si-label">Min Gap</span>
-                      <div class="si-value">
-                        <input type="number" class="si-input" min="0.1" max="5" step="0.1"
-                          [value]="silenceIntervalSec()"
-                          (change)="silenceIntervalSec.set(+$any($event.target).value)"
-                        />
-                        <span class="si-unit">s</span>
-                      </div>
-                    </div>
-                    <input type="range" class="si-slider" min="0.1" max="5" step="0.1"
-                      [value]="silenceIntervalSec()"
-                      (input)="silenceIntervalSec.set(+$any($event.target).value)"
-                    />
-                  </div>
-                }
-              </div>
-              
-              <div class="smart-cut-wrap">
-                <button class="hdr-btn" (click)="smartCutOpen.set(!smartCutOpen())" [class.active]="smartCutOpen()" title="Smart Cut Options">
-                  <span class="material-symbols-outlined">auto_fix_high</span>
-                </button>
-                @if (smartCutOpen()) {
-                  <div class="smart-cut-dropdown popover" role="dialog" aria-label="Smart Cut options">
-                    <div class="sc-section-title">Filler Words — EN</div>
-                    <div class="sc-chips">
-                      @for (fw of FILLER_WORDS_EN; track fw) {
-                        <button class="sc-chip" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
-                      }
-                    </div>
-                    <div class="sc-section-title sc-section-he">Filler Words — עב</div>
-                    <div class="sc-chips">
-                      @for (fw of FILLER_WORDS_HE; track fw) {
-                        <button class="sc-chip sc-chip-he" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
-                      }
-                    </div>
-                    <div class="sc-toggles">
-                      <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())" title="Highlight fillers">
-                        <span class="material-symbols-outlined">visibility</span>
-                        Fillers
-                      </button>
-                      <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())" title="Highlight silence-adjacent words">
-                        <span class="material-symbols-outlined">hourglass_empty</span>
-                        Silence
-                      </button>
-                    </div>
-                    <button class="sc-apply-btn" (click)="applySmartCut()">Apply Smart Cut</button>
-                  </div>
-                }
-              </div>
-            </div>
-          </ng-template>
+        <!-- Edit group -->
+        <div class="hdr-group" role="group" aria-label="Edit history">
+          <button class="hdr-btn" (click)="restoreAll()" title="Restore all removed words">
+            <span class="material-symbols-outlined">settings_backup_restore</span>
+          </button>
+          <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Ctrl+Z)">
+            <span class="material-symbols-outlined">undo</span>
+          </button>
+          <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Ctrl+Shift+Z)">
+            <span class="material-symbols-outlined">redo</span>
+          </button>
+        </div>
+        <!-- Selection group -->
+        <div class="hdr-group hdr-divider" role="group" aria-label="Selection actions">
+          <button class="hdr-btn" (click)="removeSelected()" [disabled]="!selectedCount()" title="Cut selected">
+            <span class="material-symbols-outlined">content_cut</span>
+          </button>
+          <button class="hdr-btn" (click)="restoreSelected()" [disabled]="!selectedCount()" title="Restore selected">
+            <span class="material-symbols-outlined">healing</span>
+          </button>
+          <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" title="Jump-cut preview">
+            <span class="material-symbols-outlined">auto_awesome</span>
+          </button>
+        </div>
+        <!-- Auto-follow -->
+        <div class="hdr-group hdr-divider">
+          <button class="hdr-btn" [class.active]="autoFollow()" [attr.aria-pressed]="autoFollow()"
+            [title]="autoFollow() ? 'Auto-follow on' : 'Auto-follow paused'"
+            (click)="autoFollow() ? pauseFollow() : returnToCurrentWord()">
+            <span class="material-symbols-outlined">{{ autoFollow() ? 'my_location' : 'location_disabled' }}</span>
+          </button>
         </div>
       </div>
 
+      <!-- Row 2: search + silence interval + Smart Cut dropdown -->
+      <div class="header-row2">
+        <div class="search-wrap">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input
+            type="text"
+            class="search-input"
+            placeholder="Search transcript..."
+            [value]="searchQuery()"
+            (input)="searchQuery.set($any($event.target).value)"
+          />
+        </div>
+        <div class="silence-interval-wrap">
+          <span class="material-symbols-outlined si-icon">timer</span>
+          <input type="number" class="si-input" min="0.1" max="5" step="0.1"
+            [value]="silenceIntervalSec()"
+            (change)="silenceIntervalSec.set(+$any($event.target).value)"
+            title="Min silence interval (sec)"
+          />
+          <span class="si-unit">s</span>
+        </div>
+        <!-- Smart Cut dropdown -->
+        <div class="smart-cut-wrap">
+          <button class="smart-cut-trigger" (click)="smartCutOpen.set(!smartCutOpen())" [class.open]="smartCutOpen()" title="Smart Cut">
+            <span class="material-symbols-outlined">content_cut</span>
+            Smart Cut
+            <span class="material-symbols-outlined sc-caret">expand_more</span>
+          </button>
+          @if (smartCutOpen()) {
+            <div class="smart-cut-dropdown" role="dialog" aria-label="Smart Cut options">
+              <div class="sc-section-title">Filler Words — EN</div>
+              <div class="sc-chips">
+                @for (fw of FILLER_WORDS_EN; track fw) {
+                  <button class="sc-chip" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
+                }
+              </div>
+              <div class="sc-section-title sc-section-he">Filler Words — עב</div>
+              <div class="sc-chips">
+                @for (fw of FILLER_WORDS_HE; track fw) {
+                  <button class="sc-chip sc-chip-he" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
+                }
+              </div>
+              <div class="sc-toggles">
+                <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())" title="Highlight fillers">
+                  <span class="material-symbols-outlined">visibility</span>
+                  Fillers
+                </button>
+                <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())" title="Highlight silence-adjacent words">
+                  <span class="material-symbols-outlined">hourglass_empty</span>
+                  Silence
+                </button>
+              </div>
+              <button class="sc-apply-btn" (click)="applySmartCut()">Apply Smart Cut</button>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
     <!-- Scrollable Transcript -->
-    <div class="transcript-body" #transcriptEl (scroll)="onTranscriptScroll()" (click)="clearSelection($event)">
+    <div class="transcript-body" #transcriptEl (scroll)="onTranscriptScroll()">
       <!-- Scrollbar playback indicator -->
       <div class="scroll-indicator" [style.top.%]="scrollIndicatorPercent()"></div>
       @if (shouldVirtualize()) {
@@ -393,14 +338,9 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                   </span>
                 } @else if (fi.word.isRemoved) {
                   <span class="filler-badge"
-                    [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)">
-                    <span class="filler-text" [attr.contenteditable]="editMode() ? 'plaintext-only' : 'false'" spellcheck="false"
-                      (blur)="onWordEdit(fi.word, $event)"
-                      (keydown.enter)="$event.preventDefault(); onWordEdit(fi.word, $event)"
-                      (click)="$event.stopPropagation()"
-                    >{{ fi.word.text }}</span>
+                    <span class="filler-text">{{ fi.word.text }}</span>
                     <button class="filler-x" (click)="toggleRemove(fi.word); $event.stopPropagation()">
                       <span class="material-symbols-outlined">close</span>
                     </button>
@@ -413,10 +353,6 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.filler-hl]="isFillerWord(fi.word)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)"
-                    [attr.contenteditable]="editMode() ? 'plaintext-only' : 'false'"
-                    spellcheck="false"
-                    (blur)="onWordEdit(fi.word, $event)"
-                    (keydown.enter)="$event.preventDefault(); onWordEdit(fi.word, $event)"
                     [title]="'Double-click to remove'"
                   >{{ fi.word.text }}</span>
                 }
@@ -447,40 +383,37 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
     <!-- Status Bar (replaces action footer) -->
     <div class="status-bar">
       @if (selectedCount()) {
-        <span class="status-chip" [title]="selectedCount() + ' selected'">
+        <span class="status-chip">
           <span class="material-symbols-outlined">select_all</span>
-          <span class="chip-count">{{ selectedCount() }}</span>
+          {{ selectedCount() }} selected
         </span>
       }
       @if (removedCount()) {
-        <span class="status-chip status-removed" [title]="removedCount() + ' removed'">
+        <span class="status-chip status-removed">
           <span class="material-symbols-outlined">content_cut</span>
-          <span class="chip-count">{{ removedCount() }}</span>
+          {{ removedCount() }} removed
         </span>
       }
       @if (jumpCutMode()) {
-        <span class="status-chip status-mode" title="Jump Cut Mode Active">
+        <span class="status-chip status-mode">
           <span class="material-symbols-outlined">auto_awesome</span>
+          Jump Cut
+        </span>
+      }
+      @if (highlightFillers()) {
+        <span class="status-chip status-filler">
+          <span class="material-symbols-outlined">visibility</span>
+          Fillers
         </span>
       }
       @if (highlightSilence()) {
-        <span class="status-chip status-silence" title="Highlighting Silence">
+        <span class="status-chip status-silence">
           <span class="material-symbols-outlined">hourglass_empty</span>
-        </span>
-      }
-      @if (autoFollow()) {
-        <span class="status-chip status-follow" title="Auto-Follow Active">
-          <span class="material-symbols-outlined">my_location</span>
-        </span>
-      }
-      @if (editMode()) {
-        <span class="status-chip status-edit" title="Edit mode active">
-          <span class="material-symbols-outlined">edit_note</span>
+          Silence
         </span>
       }
     </div>
 
-    </div> <!-- end transcript-content-wrapper -->
   </section>
 </div>
   `,
@@ -510,22 +443,16 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Local Signals ───────────────────────────────────── */
   readonly autoFollow = signal(true);
+  readonly editMode = signal(false);
   readonly jumpCutMode = signal(false);
   readonly showOverlay = signal(false);
   readonly searchQuery = signal('');
-  readonly searchExpanded = signal(false);
-  readonly moreMenuOpen = signal(false);
-  readonly editMode = signal(false);
-  readonly silenceControlOpen = signal(false);
   readonly selectedWordIds = signal<string[]>([]);
   readonly selectionAnchorWordId = signal<string | null>(null);
   readonly transcriptScrollTop = signal(0);
   readonly transcriptViewportHeight = signal(0);
   readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
   private readonly editVersion = signal(0);
-  private lastActiveSegmentIdx = -1;
-  private lastHighlightedWordId: string | null = null;
-  private lastActiveSilenceId: string | null = null;
 
   /* ── Smart-Cut Signals ────────────────────────────────── */
   /** Minimum silence gap (seconds) for smart-cut detection */
@@ -539,6 +466,22 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /** Filler words selected for cutting */
   readonly selectedFillers = signal<Set<string>>(new Set());
 
+  /** Global default effect type — new regions inherit this. */
+  readonly defaultEffectType = signal<EffectType>('hard-cut');
+
+  /** Map wordId → CutRegion for O(1) lookup in template. */
+  readonly wordIdToRegion = computed(() => {
+    this.editVersion(); // reactive dependency
+    const map = new Map<string, CutRegion>();
+    for (const region of this.clip().cutRegions ?? []) {
+      for (const wid of region.wordIds) map.set(wid, region);
+    }
+    return map;
+  });
+
+  /** Pending cut-region save timer (mirrors existing saveTimer pattern). */
+  private cutRegionSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
   /* ── Undo / Redo availability ─────────────────────────── */
   readonly canUndo = computed(() => {
     this.editVersion(); // track version changes
@@ -550,28 +493,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   });
 
   /* ── Computed: Media ─────────────────────────────────── */
-  readonly progress = computed(() => {
-    const dur = this.displayDuration();
-    return dur > 0 ? (this.displayCurrentTime() / dur) * 100 : 0;
-  });
-
-  readonly displayCurrentTime = computed(() => {
-    const realT = this.currentTime();
-    const segments = this.clip().segments;
-    let virtualT = 0;
-    for (const seg of segments) {
-      if (realT >= seg.startTime && realT < seg.endTime) {
-        return virtualT + (realT - seg.startTime);
-      }
-      if (realT < seg.startTime) return virtualT;
-      virtualT += (seg.endTime - seg.startTime);
-    }
-    return virtualT;
-  });
-
-  readonly displayDuration = computed(() => {
-    return this.clip().segments.reduce((acc, seg) => acc + (seg.endTime - seg.startTime), 0);
-  });
+  readonly progress = computed(() =>
+    this.duration() > 0 ? (this.currentTime() / this.duration()) * 100 : 0
+  );
 
   readonly mediaUrl = computed(() => `/api/clips/${this.clip().id}/stream`);
 
@@ -711,18 +635,26 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /* ── Computed: Timeline Track Items ──────────────────── */
   readonly trackItems = computed<TrackItem[]>(() => {
     const segments = this.clip().segments;
-    const dur = this.displayDuration();
+    const dur = this.duration();
     if (!segments.length || dur <= 0) return [];
-    return segments.map((seg, i) => ({
-      kind: 'segment',
-      widthPercent: ((seg.endTime - seg.startTime) / dur) * 100,
-      colorIndex: this.segColorIndex(seg, i)
-    }));
+    const items: TrackItem[] = [];
+    for (let i = 0; i < segments.length; i++) {
+      const ci = this.segColorIndex(segments[i], i);
+      if (i > 0) {
+        const gap = segments[i].startTime - segments[i - 1].endTime;
+        if (gap > 0.1) {
+          items.push({ kind: 'gap', widthPercent: (gap / dur) * 100, colorIndex: ci });
+        }
+      }
+      const segDur = segments[i].endTime - segments[i].startTime;
+      items.push({ kind: 'segment', widthPercent: Math.max(0.3, (segDur / dur) * 100), colorIndex: ci });
+    }
+    return items;
   });
 
   /* ── Computed: Timeline Ruler Marks ──────────────────── */
   readonly rulerMarks = computed<Array<{ percent: number; label: string }>>(() => {
-    const dur = this.displayDuration();
+    const dur = this.duration();
     if (dur <= 0) return [];
     // Adaptive interval: aim for 8–15 marks
     let interval: number;
@@ -820,8 +752,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Private State ───────────────────────────────────── */
   private suppressScrollDetection = false;
-  private pendingWordUpdates = new Map<string, { isRemoved?: boolean; text?: string }>();
-  private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly handleResize = () => this.measureTranscriptViewport();
   private readonly handleKeydown: (event: KeyboardEvent) => void;
   private detachKeyboard: (() => void) | null = null;
@@ -829,10 +759,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   private readonly playbackWatch = effect(() => {
     const t = this.currentTime();
-    if (this.playing()) {
-      this.enforceSegmentBounds(t);
-      if (this.jumpCutMode()) this.applyJumpCut(t);
-    }
+    if (this.jumpCutMode() && this.playing()) this.applyJumpCut(t);
     this.scrollToCurrentWord();
   });
 
@@ -843,6 +770,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     private mediaPlayer: MediaPlayerService,
     private editHistory: EditHistoryService,
     private keyboardShortcuts: KeyboardShortcutsService,
+    private cutRegionService: CutRegionService,
+    readonly effectPlayer: EffectPlayerService,
   ) {
     this.playing = this.mediaPlayer.isPlaying;
     this.currentTime = this.mediaPlayer.currentTime;
@@ -862,6 +791,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     if (this.mediaElRef?.nativeElement) {
       this.mediaPlayer.attachElement(this.mediaElRef.nativeElement);
+      this.effectPlayer.attachElement(this.mediaElRef.nativeElement);
     }
     this.measureTranscriptViewport();
     this.detachKeyboard = this.keyboardShortcuts.bindWindowKeydown(this.handleKeydown);
@@ -869,8 +799,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.flushWordUpdates();
+    this.effectPlayer.resetAll();
+    if (this.cutRegionSaveTimer) clearTimeout(this.cutRegionSaveTimer);
     this.mediaPlayer.detachElement();
     this.playbackWatch.destroy();
     this.detachKeyboard?.();
@@ -880,6 +810,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Public Methods (template) ───────────────────────── */
   togglePlay(): void {
+    this.effectPlayer.resumeAudioContext();
     this.playing() ? this.mediaPlayer.pause() : this.mediaPlayer.play().catch(() => {});
   }
 
@@ -908,29 +839,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onTimelineClick(event: MouseEvent): void {
-    if (this.editMode()) return;
     const el = event.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    const virtualTime = ratio * this.displayDuration();
-    this.seekToVirtualTime(virtualTime);
-  }
-
-  private seekToVirtualTime(vTime: number): void {
-    const segments = this.clip().segments;
-    let currentV = 0;
-    for (const seg of segments) {
-      const segDur = seg.endTime - seg.startTime;
-      if (vTime >= currentV && vTime <= currentV + segDur) {
-        const offset = vTime - currentV;
-        this.mediaPlayer.seek(seg.startTime + offset);
-        return;
-      }
-      currentV += segDur;
-    }
-    if (segments.length) {
-      this.mediaPlayer.seek(segments[segments.length - 1].endTime);
-    }
+    this.mediaPlayer.seek(ratio * this.duration());
   }
 
   seekToTime(time: number): void {
@@ -938,25 +850,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onWordClick(word: Word, event: MouseEvent): void {
-    if (this.editMode()) return;
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
       this.selectedWordIds.set(range);
       return;
     }
-
-    if (event.ctrlKey || event.metaKey) {
-      this.selectionAnchorWordId.set(word.id);
-      const currentSet = new Set(this.selectedWordIds());
-      if (currentSet.has(word.id)) {
-        currentSet.delete(word.id);
-      } else {
-        currentSet.add(word.id);
-      }
-      this.selectedWordIds.set(Array.from(currentSet));
-      return;
-    }
-
     this.selectionAnchorWordId.set(word.id);
     this.selectedWordIds.set([word.id]);
     if (!word.isRemoved) this.mediaPlayer.seek(word.startTime);
@@ -1028,29 +926,34 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   toggleRemove(word: Word): void {
     if (this.editMode()) return;
-    this.applyWordUpdates([{ id: word.id, isRemoved: !word.isRemoved }], true);
+    if (word.isRemoved) {
+      this.applyCutRegionChange(this.cutRegionService.restore(this.clip(), [word.id]));
+    } else {
+      this.applyCutRegionChange(this.cutRegionService.cut(this.clip(), [word.id], this.defaultEffectType()));
+    }
   }
 
   removeSelected(): void {
-    this.applyWordUpdates(
-      this.selectedWordIds().map(id => ({ id, isRemoved: true })),
-      true,
+    if (!this.selectedWordIds().length) return;
+    this.applyCutRegionChange(
+      this.cutRegionService.cut(this.clip(), this.selectedWordIds(), this.defaultEffectType())
     );
+    this.selectedWordIds.set([]);
   }
 
   restoreSelected(): void {
-    this.applyWordUpdates(
-      this.selectedWordIds().map(id => ({ id, isRemoved: false })),
-      true,
+    if (!this.selectedWordIds().length) return;
+    this.applyCutRegionChange(
+      this.cutRegionService.restore(this.clip(), this.selectedWordIds())
     );
+    this.selectedWordIds.set([]);
   }
 
   restoreAll(): void {
-    const removed = this.clip().segments
-      .flatMap(s => s.words)
-      .filter(w => w.isRemoved);
-    if (removed.length > 10 && !confirm(`Restore all ${removed.length} removed words?`)) return;
-    this.applyWordUpdates(removed.map(w => ({ id: w.id, isRemoved: false })), true);
+    const allRemoved = this.clip().segments.flatMap(s => s.words).filter(w => w.isRemoved).map(w => w.id);
+    if (!allRemoved.length) return;
+    if (allRemoved.length > 10 && !confirm(`Restore all ${allRemoved.length} removed words?`)) return;
+    this.applyCutRegionChange(this.cutRegionService.restore(this.clip(), allRemoved));
   }
 
   onTranscriptScroll(): void {
@@ -1059,26 +962,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (!this.transcriptViewportHeight()) this.measureTranscriptViewport();
     if (!this.suppressScrollDetection) {
       this.autoFollow.set(false);
-    }
-  }
-
-  clearSelection(event: MouseEvent): void {
-    if (this.editMode()) return;
-    const target = event.target as HTMLElement;
-    // If click is directly on body or scrollable wrapper (not on a word/button)
-    if (target.classList.contains('transcript-body') || 
-        target.classList.contains('word-flow') || 
-        target.classList.contains('seg-content')) {
-      this.selectedWordIds.set([]);
-      this.selectionAnchorWordId.set(null);
-    }
-  }
-
-  onWordEdit(word: Word, event: Event): void {
-    const target = event.target as HTMLElement;
-    const newText = target.textContent?.trim() || '';
-    if (newText !== word.text) {
-      this.applyWordUpdates([{ id: word.id, text: newText }], false);
     }
   }
 
@@ -1112,11 +995,21 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Private ─────────────────────────────────────────── */
   undo(): void {
-    this.editHistory.undo(updates => this.applyWordUpdates(updates, false));
+    const entry = this.editHistory.undo();
+    if (!entry) return;
+    const newClip = this.cutRegionService.applyUndo(this.clip(), entry);
+    this.clipService.applyLocalUpdate(newClip);
+    this.editVersion.update((v) => v + 1);
+    this.scheduleCutRegionSave();
   }
 
   redo(): void {
-    this.editHistory.redo(updates => this.applyWordUpdates(updates, false));
+    const entry = this.editHistory.redo();
+    if (!entry) return;
+    const newClip = this.cutRegionService.applyRedo(this.clip(), entry);
+    this.clipService.applyLocalUpdate(newClip);
+    this.editVersion.update((v) => v + 1);
+    this.scheduleCutRegionSave();
   }
 
   toggleFiller(word: string): void {
@@ -1130,26 +1023,21 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   applySmartCut(): void {
     const fillers = this.selectedFillers();
     const interval = this.silenceIntervalSec();
-    const updates: Array<{ id: string; isRemoved: boolean }> = [];
+    const wordIds: string[] = [];
     for (const seg of this.clip().segments) {
       for (let i = 0; i < seg.words.length; i++) {
         const w = seg.words[i];
         if (w.isRemoved) continue;
-        // Filler-word cut
-        if (fillers.size && fillers.has(w.text.toLowerCase())) {
-          updates.push({ id: w.id, isRemoved: true });
-          continue;
-        }
-        // Silence-adjacent cut: remove word if a long silence starts right after it
+        if (fillers.size && fillers.has(w.text.toLowerCase())) { wordIds.push(w.id); continue; }
         if (i < seg.words.length - 1) {
           const gap = seg.words[i + 1].startTime - w.endTime;
-          if (gap >= interval) {
-            updates.push({ id: w.id, isRemoved: true });
-          }
+          if (gap >= interval) wordIds.push(w.id);
         }
       }
     }
-    this.applyWordUpdates(updates, true);
+    if (wordIds.length) {
+      this.applyCutRegionChange(this.cutRegionService.cut(this.clip(), wordIds, this.defaultEffectType()));
+    }
     this.smartCutOpen.set(false);
   }
 
@@ -1158,118 +1046,35 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     return this.selectedFillers().has(word.text.toLowerCase());
   }
 
-  private applyWordUpdates(updates: Array<{ id: string; isRemoved?: boolean; text?: string }>, recordHistory: boolean): void {
-    if (!updates.length) return;
-    const changed: WordEditChange[] = [];
-    for (const update of updates) {
-      const word = this.findWordById(update.id);
-      if (!word) continue;
+  private applyCutRegionChange({ clip, entry }: { clip: Clip; entry: CutHistoryEntry }): void {
+    this.clipService.applyLocalUpdate(clip);
+    this.editHistory.record(entry);
+    this.editVersion.update((v) => v + 1);
+    this.scheduleCutRegionSave();
+  }
 
-      const isStateChange = update.isRemoved !== undefined && word.isRemoved !== update.isRemoved;
-      const isTextChange = update.text !== undefined && word.text !== update.text;
-
-      if (!isStateChange && !isTextChange) continue;
-
-      if (isStateChange) {
-        changed.push({ id: update.id, previousIsRemoved: word.isRemoved, nextIsRemoved: update.isRemoved! });
-        (word as { isRemoved: boolean }).isRemoved = update.isRemoved!;
-        
-        const pending = this.pendingWordUpdates.get(word.id) || {};
-        pending.isRemoved = update.isRemoved!;
-        this.pendingWordUpdates.set(word.id, pending);
-      }
-
-      if (isTextChange) {
-        (word as { text: string }).text = update.text!;
-        
-        const pending = this.pendingWordUpdates.get(word.id) || {};
-        pending.text = update.text!;
-        this.pendingWordUpdates.set(word.id, pending);
-      }
-    }
-    if (changed.length === 0 && updates.some(u => u.text !== undefined)) {
-        // Text changes are not recorded in editHistory for now but still need version bump and save
-    } else if (changed.length === 0) {
-        return;
-    }
-    
-    if (recordHistory && changed.length) this.editHistory.record(changed);
-    this.editVersion.update(v => v + 1);
-    this.scheduleSave();
+  private scheduleCutRegionSave(): void {
+    if (this.cutRegionSaveTimer) clearTimeout(this.cutRegionSaveTimer);
+    this.cutRegionSaveTimer = setTimeout(() => {
+      const c = this.clip();
+      this.clipService.updateCutRegions(c.id, c.cutRegions ?? []).subscribe({ error: console.error });
+      this.cutRegionSaveTimer = null;
+    }, 800);
   }
 
   private applyJumpCut(currentTime: number): void {
-    const segments = this.clip().segments;
-    // Optimize: start searching from the last known active segment
-    let startIdx = Math.max(0, this.lastActiveSegmentIdx);
-    
-    // If the time is before our cached segment, reset search
-    if (startIdx < segments.length && currentTime < segments[startIdx].startTime) {
-      startIdx = 0;
-    }
-
-    const EPSILON = 0.08; // Buffer to prevent seeking loops
-
-    for (let i = startIdx; i < segments.length; i++) {
-      const seg = segments[i];
-      // If we've passed the current time by a significant margin, stop searching
-      if (seg.startTime > currentTime + 1) break; 
-
+    for (const seg of this.clip().segments) {
       for (const word of seg.words) {
-        if (word.isRemoved && currentTime >= word.startTime - EPSILON && currentTime < word.endTime - EPSILON) {
+        if (word.isRemoved && currentTime >= word.startTime && currentTime < word.endTime) {
           const next = this.findNextActiveWordStart(word.endTime);
           if (next !== null) {
-            // Only seek if the jump is significant (> epsilon) to avoid micro-jitter loops
-            if (Math.abs(next - currentTime) > EPSILON) {
-              this.mediaPlayer.seek(next);
-            }
+            this.mediaPlayer.seek(next);
           } else {
-            this.enforceSegmentBounds(currentTime);
+            this.mediaPlayer.pause();
           }
           return;
         }
       }
-    }
-  }
-
-  private enforceSegmentBounds(t: number): void {
-    const segments = this.clip().segments;
-    if (!segments.length) return;
-
-    const EPSILON = 0.08;
-    
-    // Check if we are still in the last active segment (common case)
-    if (this.lastActiveSegmentIdx >= 0 && this.lastActiveSegmentIdx < segments.length) {
-      const s = segments[this.lastActiveSegmentIdx];
-      if (t >= s.startTime - EPSILON && t < s.endTime - EPSILON) {
-        return;
-      }
-    }
-
-    const currentIdx = segments.findIndex(s => t >= s.startTime - EPSILON && t < s.endTime - EPSILON);
-    if (currentIdx === -1) {
-      // Past last segment?
-      const lastSeg = segments[segments.length - 1];
-      if (t >= lastSeg.endTime - EPSILON) {
-        // Only pause/seek if we are actually past the end (prevent loops at the very edge)
-        if (this.playing()) {
-          this.mediaPlayer.pause();
-          this.mediaPlayer.seek(lastSeg.endTime);
-        }
-        return;
-      }
-      // Jump to next segment
-      const nextSeg = segments.find(s => s.startTime > t + EPSILON);
-      if (nextSeg) {
-        this.mediaPlayer.seek(nextSeg.startTime);
-      } else {
-        // Before first segment
-        if (t < segments[0].startTime - EPSILON) {
-          this.mediaPlayer.seek(segments[0].startTime);
-        }
-      }
-    } else {
-      this.lastActiveSegmentIdx = currentIdx;
     }
   }
 
@@ -1308,22 +1113,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   private scrollToCurrentWord(): void {
     if (!this.autoFollow()) return;
     if (!this.transcriptElRef) return;
-
-    const highlightedId = this.highlightedWordId();
-    const silence = this.activeSilence();
-    
-    // Optimization: Skip layout reading if the focus target hasn't changed
-    if (highlightedId === this.lastHighlightedWordId && silence?.id === this.lastActiveSilenceId) {
-      // If we are virtualizing, we still need to check if the active segment is in view periodically,
-      // but let's do it less frequently or only when the segment changes.
-      if (!this.shouldVirtualize()) return;
-      const idx = this.findActiveSegmentIndex();
-      if (idx === this.lastActiveSegmentIdx) return;
-    }
-
-    this.lastHighlightedWordId = highlightedId;
-    this.lastActiveSilenceId = silence?.id ?? null;
-
     const container = this.transcriptElRef.nativeElement;
     this.measureTranscriptViewport();
 
@@ -1331,8 +1120,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     setTimeout(() => { this.suppressScrollDetection = false; }, 600);
 
     // If playback is in a silence gap, scroll to the silence chip
+    const silence = this.activeSilence();
     if (silence) {
-      const silenceEl = container.querySelector(`.inline-silence[id="${silence.id}"]`) as HTMLElement | null;
+      const silenceEl = container.querySelector(`.inline-silence[id="${silence.id}"]`) as HTMLElement | null
+        || Array.from(container.querySelectorAll('.inline-silence')).find((el: any) => el.title === silence.id) as HTMLElement | null;
       if (silenceEl) {
         const cRect = container.getBoundingClientRect();
         const eRect = silenceEl.getBoundingClientRect();
@@ -1353,13 +1144,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       }
       return;
     }
-
     if (!this.shouldVirtualize()) return;
     const idx = this.findActiveSegmentIndex();
     if (idx < 0) return;
     const item = this.segmentViewItems()[idx];
     if (!item) return;
-
     const viewTop = container.scrollTop;
     const viewBottom = viewTop + container.clientHeight;
     if (item.top < viewTop || item.bottom > viewBottom) {
@@ -1376,18 +1165,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.transcriptScrollTop.set(el.scrollTop);
   }
 
-  private scheduleSave(): void {
-    if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.flushWordUpdates(), 800);
-  }
-
-  private flushWordUpdates(): void {
-    if (!this.pendingWordUpdates.size) return;
-    const updates = Array.from(this.pendingWordUpdates.entries()).map(([id, partial]) => ({ id, ...partial }));
-    this.pendingWordUpdates.clear();
-    this.clipService.updateWordStates(this.clip().id, updates as any).subscribe({ error: console.error });
-  }
 }
+
 
 function pad(n: number): string {
   return n.toString().padStart(2, '0');

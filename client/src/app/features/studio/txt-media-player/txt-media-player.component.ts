@@ -17,7 +17,7 @@ import { ClipService } from '../../../core/services/clip.service';
 import { ProjectService } from '../../../core/services/project.service';
 import { MediaPlayerService } from './media-player.service';
 import { SegmentTimelineComponent } from './segment-timeline.component';
-import { EditHistoryService, WordEditChange } from './edit-history.service';
+import { EditHistoryService } from './edit-history.service';
 import { KeyboardShortcutsService } from './keyboard-shortcuts.service';
 
 interface SegmentViewportItem {
@@ -718,17 +718,16 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   }
 
   private undo(): void {
-    this.editHistory.undo((updates) => this.applyWordUpdates(updates, false));
+    // V1 undo is a no-op; V2 player handles undo via CutRegionService
   }
 
   private redo(): void {
-    this.editHistory.redo((updates) => this.applyWordUpdates(updates, false));
+    // V1 redo is a no-op; V2 player handles redo via CutRegionService
   }
 
-  private applyWordUpdates(updates: Array<{ id: string; isRemoved?: boolean; text?: string }>, recordHistory: boolean): void {
+  private applyWordUpdates(updates: Array<{ id: string; isRemoved?: boolean; text?: string }>, _recordHistory: boolean): void {
     if (!updates.length) return;
 
-    const changed: WordEditChange[] = [];
     for (const update of updates) {
       const word = this.findWordById(update.id);
       if (!word) continue;
@@ -739,9 +738,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
       if (!isStateChange && !isTextChange) continue;
 
       if (isStateChange) {
-        changed.push({ id: update.id, previousIsRemoved: word.isRemoved, nextIsRemoved: update.isRemoved! });
         (word as { isRemoved: boolean }).isRemoved = update.isRemoved!;
-        
         const pending = this.pendingWordUpdates.get(word.id) || {};
         pending.isRemoved = update.isRemoved!;
         this.pendingWordUpdates.set(word.id, pending);
@@ -755,11 +752,6 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
       }
     }
 
-    if (changed.length === 0 && !updates.some(u => u.text !== undefined)) return;
-    
-    if (recordHistory && changed.length) {
-      this.editHistory.record(changed);
-    }
     this.scheduleSave();
   }
 

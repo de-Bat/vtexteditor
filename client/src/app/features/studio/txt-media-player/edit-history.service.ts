@@ -1,39 +1,31 @@
 import { Injectable } from '@angular/core';
-
-export interface WordEditChange {
-  id: string;
-  previousIsRemoved: boolean;
-  nextIsRemoved: boolean;
-}
+import { CutHistoryEntry } from './cut-region.service';
 
 @Injectable({ providedIn: 'root' })
 export class EditHistoryService {
-  private readonly undoStack: WordEditChange[][] = [];
-  private readonly redoStack: WordEditChange[][] = [];
+  private readonly undoStack: CutHistoryEntry[] = [];
+  private readonly redoStack: CutHistoryEntry[] = [];
 
   get canUndo(): boolean { return this.undoStack.length > 0; }
   get canRedo(): boolean { return this.redoStack.length > 0; }
 
-  record(changes: WordEditChange[]): void {
-    if (!changes.length) return;
-    this.undoStack.push(changes);
+  record(entry: CutHistoryEntry): void {
+    this.undoStack.push(entry);
     this.redoStack.length = 0;
   }
 
-  undo(apply: (updates: Array<{ id: string; isRemoved: boolean }>) => void): boolean {
-    const action = this.undoStack.pop();
-    if (!action) return false;
-    this.redoStack.push(action);
-    apply(action.map((change) => ({ id: change.id, isRemoved: change.previousIsRemoved })));
-    return true;
+  undo(): CutHistoryEntry | null {
+    const entry = this.undoStack.pop();
+    if (!entry) return null;
+    this.redoStack.push(entry);
+    return entry;
   }
 
-  redo(apply: (updates: Array<{ id: string; isRemoved: boolean }>) => void): boolean {
-    const action = this.redoStack.pop();
-    if (!action) return false;
-    this.undoStack.push(action);
-    apply(action.map((change) => ({ id: change.id, isRemoved: change.nextIsRemoved })));
-    return true;
+  redo(): CutHistoryEntry | null {
+    const entry = this.redoStack.pop();
+    if (!entry) return null;
+    this.undoStack.push(entry);
+    return entry;
   }
 
   clear(): void {
@@ -41,3 +33,6 @@ export class EditHistoryService {
     this.redoStack.length = 0;
   }
 }
+
+// Keep old type exported so any remaining references compile
+export type WordEditChange = never;

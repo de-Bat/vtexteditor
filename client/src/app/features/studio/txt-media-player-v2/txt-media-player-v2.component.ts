@@ -113,7 +113,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 </span>
               </button>
               <div class="overlay-time">
-                <span class="timecode-lg">{{ formatTimeLong(currentTime()) }} / {{ formatTimeLong(duration()) }}</span>
+                <span class="timecode-lg">{{ formatTimeLong(relativeTime()) }} / {{ formatTimeLong(clipDuration()) }}</span>
                 <span class="scene-label">{{ activeSegmentLabel() }}</span>
               </div>
             </div>
@@ -157,7 +157,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           </select>
         </div>
       </div>
-      <div class="timeline-track" (click)="onTimelineClick($event)">
+      <div class="timeline-track-container">
         <div class="ruler">
           @for (mark of rulerMarks(); track mark.percent) {
             <span class="ruler-tick" [style.left.%]="mark.percent">
@@ -165,6 +165,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             </span>
           }
         </div>
+        <div class="timeline-track" (click)="onTimelineClick($event)">
         <div class="track-blocks">
           @for (item of trackItems(); track $index) {
             @if (item.kind === 'segment') {
@@ -191,6 +192,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           <div class="playhead-dot"></div>
         </div>
       </div>
+    </div>
     </div>
   </section>
 
@@ -533,7 +535,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
     <div class="status-bar">
       <!-- Generated Status Indicator -->
       <span class="status-chip status-indicator" title="Auto-Generated Transcript">
-        <span class="chip-label">AI Generated</span>
+        <span class="material-symbols-outlined">psychology</span>
       </span>
 
       <!-- Edited Status Indicator -->
@@ -562,7 +564,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
       <button class="status-chip status-interactive" [class.active]="autoFollow()"
         [title]="autoFollow() ? 'Auto-follow active' : 'Auto-follow paused'"
         (click)="autoFollow() ? pauseFollow() : returnToCurrentWord()">
-        <span class="chip-label">{{ autoFollow() ? 'FOLLOW ON' : 'PAUSED' }}</span>
+        <span class="material-symbols-outlined">track_changes</span>
       </button>
 
       @if (jumpCutMode()) {
@@ -668,9 +670,12 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   });
 
   /* ── Computed: Media ─────────────────────────────────── */
-  readonly progress = computed(() =>
-    this.duration() > 0 ? (this.currentTime() / this.duration()) * 100 : 0
-  );
+  readonly clipDuration = computed(() => Math.max(0.1, this.clip().endTime - this.clip().startTime));
+  readonly relativeTime = computed(() => Math.max(0, this.currentTime() - this.clip().startTime));
+
+  readonly progress = computed(() => {
+    return Math.max(0, Math.min(100, (this.relativeTime() / this.clipDuration()) * 100));
+  });
 
   readonly mediaUrl = computed(() => `/api/clips/${this.clip().id}/stream`);
 
@@ -810,9 +815,16 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /* ── Computed: Timeline Track Items ──────────────────── */
   readonly trackItems = computed<TrackItem[]>(() => {
     const segments = this.clip().segments;
-    const dur = this.duration();
+    const clipStart = this.clip().startTime;
+    const dur = this.clipDuration();
     if (!segments.length || dur <= 0) return [];
+    
     const items: TrackItem[] = [];
+    const firstGap = segments[0].startTime - clipStart;
+    if (firstGap > 0.1) {
+      items.push({ kind: 'gap', widthPercent: (firstGap / dur) * 100, colorIndex: 0 });
+    }
+
     for (let i = 0; i < segments.length; i++) {
       const ci = this.segColorIndex(segments[i], i);
       if (i > 0) {
@@ -831,7 +843,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly cutRegionOverlays = computed(() => {
     this.editVersion();
     const clip = this.clip();
-    const dur = this.duration();
+    const dur = this.clipDuration();
+    const clipStart = clip.startTime;
     if (!dur || !clip.cutRegions?.length) return [];
 
     const wordMap = new Map<string, Word>();
@@ -847,7 +860,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         const end = Math.max(...words.map((w) => w.endTime));
         return {
           regionId: region.id,
-          leftPercent: (start / dur) * 100,
+          leftPercent: ((start - clipStart) / dur) * 100,
           widthPercent: ((end - start) / dur) * 100,
           effectType: region.effectType,
         };
@@ -857,14 +870,23 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Computed: Timeline Ruler Marks ──────────────────── */
   readonly rulerMarks = computed<Array<{ percent: number; label: string }>>(() => {
-    const dur = this.duration();
+    const dur = this.clipDuration();
     if (dur <= 0) return [];
-    // Adaptive interval: aim for 8–15 marks
-    let interval: number;
-    if (dur <= 60) interval = 5;
-    else if (dur <= 300) interval = 15;
-    else if (dur <= 1200) interval = 60;
-    else interval = 300;
+    
+    // Proportional interval targeting ~8-12 marks
+    const targetMarks = 10;
+    const rawInterval = dur / targetMarks;
+    
+    // Snap interval to nice clear numbers: 1, 2, 5, 10, 15, 30, 60, 120, etc.
+    const niceSteps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+    let interval = niceSteps[niceSteps.length - 1];
+    for (const step of niceSteps) {
+      if (rawInterval <= step * 1.5) {
+        interval = step;
+        break;
+      }
+    }
+
     const marks: Array<{ percent: number; label: string }> = [];
     for (let t = 0; t <= dur; t += interval) {
       marks.push({ percent: (t / dur) * 100, label: this.formatTimeShort(t) });
@@ -1048,7 +1070,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
     this.effectPlayer.resetAll();
     this.effectInProgress.set(false);
-    this.mediaPlayer.seek(ratio * this.duration());
+    this.mediaPlayer.seek(this.clip().startTime + ratio * this.clipDuration());
   }
 
   seekToTime(time: number): void {

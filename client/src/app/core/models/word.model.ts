@@ -5,4 +5,5 @@ export interface Word {
   startTime: number; // seconds (float)
   endTime: number;
   isRemoved: boolean;
+  isEdited?: boolean;
 }

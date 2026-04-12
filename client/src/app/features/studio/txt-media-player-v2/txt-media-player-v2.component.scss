@@ -370,9 +370,16 @@ audio {
 
 .track-gap {
   height: 40px;
-  background: rgba(167, 1, 56, 0.4);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 110, 132, 0.1) 0px,
+    rgba(255, 110, 132, 0.1) 4px,
+    transparent 4px,
+    transparent 8px
+  );
   border-left: 2px solid var(--error);
   min-width: 2px;
+  opacity: 0.6;
 }
 
 .playhead {
@@ -755,6 +762,33 @@ audio {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.inline-silence {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 8px;
+  margin: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-variant);
+  color: var(--on-surface-variant);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  vertical-align: middle;
+
+  &:hover {
+    background: var(--surface-bright);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(186, 158, 255, 0.15);
+  }
 }
 
 .sc-section-title {
@@ -1718,33 +1752,38 @@ audio {
   bottom: 0;
   pointer-events: none;
   border-radius: 2px;
+  z-index: 5;
 
   // Striped pattern at 40% opacity (hard-cut / default)
   background: repeating-linear-gradient(
     45deg,
-    rgba(255, 110, 132, 0.35) 0px,
-    rgba(255, 110, 132, 0.35) 3px,
-    transparent 3px,
-    transparent 7px
+    rgba(255, 110, 132, 0.25) 0px,
+    rgba(255, 110, 132, 0.25) 4px,
+    transparent 4px,
+    transparent 8px
   );
+  border-left: 1px solid var(--error);
+  border-right: 1px solid var(--error);
 
   &--fade {
     background: repeating-linear-gradient(
       45deg,
-      rgba(186, 158, 255, 0.35) 0px,
-      rgba(186, 158, 255, 0.35) 3px,
-      transparent 3px,
-      transparent 7px
+      rgba(186, 158, 255, 0.25) 0px,
+      rgba(186, 158, 255, 0.25) 4px,
+      transparent 4px,
+      transparent 8px
     );
+    border-color: var(--primary);
   }
 
   &--cross-cut {
     background: repeating-linear-gradient(
       45deg,
-      rgba(255, 113, 106, 0.35) 0px,
-      rgba(255, 113, 106, 0.35) 3px,
-      transparent 3px,
-      transparent 7px
+      rgba(255, 113, 106, 0.25) 0px,
+      rgba(255, 113, 106, 0.25) 4px,
+      transparent 4px,
+      transparent 8px
     );
+    border-color: var(--tertiary);
   }
 }

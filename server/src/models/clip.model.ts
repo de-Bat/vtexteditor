@@ -5,6 +5,8 @@ export type EffectType = 'hard-cut' | 'fade' | 'cross-cut';
 export interface CutRegion {
   id: string;
   wordIds: string[];
+  startTime?: number; // Optional: for gaps without words
+  endTime?: number;   // Optional: for gaps without words
   effectType: EffectType;
   effectTypeOverridden: boolean;
   effectDuration: number;

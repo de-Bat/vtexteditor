@@ -41,7 +41,30 @@ export function buildPrompt(
   // Build prompt lines using the positional short ID directly (not via a
   // reverse map) so duplicate seg.ids never cause label collisions.
   const lines = allSegments
-    .map((s, i) => `[S${String(i + 1).padStart(3, '0')}] ${s.text}`)
+    .map((s, i) => {
+      const shortId = `S${String(i + 1).padStart(3, '0')}`;
+      let text = s.text.trim();
+      
+      // Label completely silent segments
+      if (!text) text = '[Silence]';
+
+      // Detect internal gaps between words (> 2s)
+      const internalGaps: string[] = [];
+      for (let j = 1; j < s.words.length; j++) {
+        const gap = s.words[j].startTime - s.words[j - 1].endTime;
+        if (gap > 2) {
+          internalGaps.push(`(Pause ${gap.toFixed(1)}s)`);
+        }
+      }
+      
+      if (internalGaps.length > 0) {
+        // We just append a note to the LLM; we don't try to interleave it
+        // perfectly to avoid confusing the JSON parser if it looks like multiple segments.
+        text += ` ${internalGaps.join(' ')}`;
+      }
+
+      return `[${shortId}] ${text}`;
+    })
     .join('\n');
 
   const seedLine = config.seedCategories
@@ -128,19 +151,58 @@ export function buildCommitClips(
 
   const result: Clip[] = [];
 
+  // Build a flat, ordered list of all source segments to detect omitted gaps
+  const allSourceSegments = sourceClips
+    .flatMap(c => c.segments)
+    .sort((a, b) => a.startTime - b.startTime);
+  
+  const sourceSegmentIndexMap = new Map<string, number>();
+  allSourceSegments.forEach((s, i) => sourceSegmentIndexMap.set(s.id, i));
+
   for (const event of events) {
-    const acceptedSegments: Segment[] = event.segments
+    const eventSegments = event.segments
       .filter(ref => ref.accepted)
       .map(ref => {
-        const seg = segmentMap.get(ref.segmentId);
-        if (!seg) return null;
-        // Generate a fresh UUID so committed story-clips never inherit
-        // duplicate segment IDs from source clips.
-        return { ...seg, id: uuidv4(), clipId: event.id };
+        const sourceSeg = segmentMap.get(ref.segmentId);
+        if (!sourceSeg) return null;
+        return {
+          sourceId: sourceSeg.id,
+          newSeg: { ...sourceSeg, id: uuidv4(), clipId: event.id },
+        };
       })
-      .filter((s): s is Segment => s !== null);
+      .filter((s): s is { sourceId: string; newSeg: Segment } => s !== null);
 
-    if (acceptedSegments.length === 0) continue;
+    if (eventSegments.length === 0) continue;
+
+    const acceptedSegments = eventSegments.map(e => e.newSeg);
+    const cutRegions: any[] = [];
+
+    // Gap-to-Cut Processing: If segments in the story were separated by omitted
+    // content in the source, we mark the gap as a CUT to ensure it's skipped.
+    for (let i = 0; i < eventSegments.length - 1; i++) {
+      const curSourceId = eventSegments[i].sourceId;
+      const nextSourceId = eventSegments[i + 1].sourceId;
+      const curIdx = sourceSegmentIndexMap.get(curSourceId)!;
+      const nextIdx = sourceSegmentIndexMap.get(nextSourceId)!;
+
+      // If they were not consecutive in the original project, mark as cut.
+      if (nextIdx > curIdx + 1) {
+        const curSeg = acceptedSegments[i];
+        const nextSeg = acceptedSegments[i + 1];
+        if (nextSeg.startTime > curSeg.endTime + 0.05) {
+          cutRegions.push({
+            id: uuidv4(),
+            wordIds: [],
+            startTime: curSeg.endTime,
+            endTime: nextSeg.startTime,
+            effectType: 'hard-cut',
+            effectTypeOverridden: false,
+            effectDuration: 200,
+            durationFixed: false,
+          });
+        }
+      }
+    }
 
     result.push({
       id: event.id,
@@ -149,7 +211,8 @@ export function buildCommitClips(
       startTime: acceptedSegments[0].startTime,
       endTime: acceptedSegments[acceptedSegments.length - 1].endTime,
       segments: acceptedSegments,
-      cutRegions: [],
+      cutRegions,
+      showSilenceMarkers: true,
     });
   }
 

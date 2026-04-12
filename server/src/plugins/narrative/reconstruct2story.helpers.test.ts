@@ -151,6 +151,32 @@ describe('buildCommitClips', () => {
     expect(clips[0].startTime).toBe(0);   // seg-1.startTime
     expect(clips[0].endTime).toBe(25);    // seg-3.endTime (20 + 5)
   });
+
+  it('generates a CutRegion for omitted segments between accepted ones', () => {
+    const events: StoryEvent[] = [
+      {
+        id: 'evt-1',
+        title: 'Gap Test',
+        segments: [
+          { segmentId: 'seg-1', clipId: 'clip-src', accepted: true },
+          // seg-2 is omitted
+          { segmentId: 'seg-3', clipId: 'clip-src', accepted: true },
+        ],
+      },
+    ];
+    const clips = buildCommitClips('proj-1', events, sourceClips, 'Story');
+    expect(clips).toHaveLength(1);
+    expect(clips[0].cutRegions).toHaveLength(1);
+    expect(clips[0].cutRegions[0].startTime).toBe(5);  // end of seg-1
+    expect(clips[0].cutRegions[0].endTime).toBe(20);   // start of seg-3
+    expect(clips[0].cutRegions[0].effectType).toBe('hard-cut');
+  });
+
+  it('sets showSilenceMarkers to true on committed clips', () => {
+    const events: StoryEvent[] = [{ id: 'evt-1', title: 'T', segments: [{ segmentId: 'seg-1', clipId: 'clip-src', accepted: true }] }];
+    const clips = buildCommitClips('proj-1', events, sourceClips, 'Story');
+    expect(clips[0].showSilenceMarkers).toBe(true);
+  });
 });
 
 describe('buildPrompt', () => {
@@ -180,5 +206,21 @@ describe('buildPrompt', () => {
     const clip = makeClip([{ id: 'seg-1', text: 'Hello.' }]);
     const { prompt } = buildPrompt([clip], { maxEvents: 10 });
     expect(prompt).toContain('Return ONLY a JSON array');
+  });
+
+  it('labels empty segments as [Silence]', () => {
+    const clip = makeClip([{ id: 'seg-1', text: '' }]);
+    const { prompt } = buildPrompt([clip], { maxEvents: 5 });
+    expect(prompt).toContain('[S001] [Silence]');
+  });
+
+  it('detects and labels internal pauses between words', () => {
+    const clip = makeClip([{ id: 'seg-1', text: 'Hello world' }]);
+    clip.segments[0].words = [
+      { id: 'w1', startTime: 0, endTime: 1, text: 'Hello' },
+      { id: 'w2', startTime: 5, endTime: 6, text: 'world' }, // 4s gap
+    ];
+    const { prompt } = buildPrompt([clip], { maxEvents: 5 });
+    expect(prompt).toContain('(Pause 4.0s)');
   });
 });

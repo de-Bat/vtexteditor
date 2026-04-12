@@ -906,21 +906,47 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (!segments.length || dur <= 0) return [];
     
     const items: TrackItem[] = [];
+    
+    // Initial gap
     const firstGap = segments[0].startTime - clipStart;
     if (firstGap > 0.1) {
       items.push({ kind: 'gap', widthPercent: (firstGap / dur) * 100, colorIndex: 0 });
     }
 
     for (let i = 0; i < segments.length; i++) {
-      const ci = this.segColorIndex(segments[i], i);
+      const seg = segments[i];
+      const ci = this.segColorIndex(seg, i);
+      
+      // Gap BEFORE segment (inter-segment gap)
       if (i > 0) {
-        const gap = segments[i].startTime - segments[i - 1].endTime;
+        const gap = seg.startTime - segments[i - 1].endTime;
         if (gap > 0.1) {
           items.push({ kind: 'gap', widthPercent: (gap / dur) * 100, colorIndex: ci });
         }
       }
-      const segDur = segments[i].endTime - segments[i].startTime;
-      items.push({ kind: 'segment', widthPercent: Math.max(0.3, (segDur / dur) * 100), colorIndex: ci });
+
+      // Render the segment, looking for internal gaps
+      const words = seg.words.filter(w => !w.isRemoved);
+      if (words.length > 1) {
+        let lastEnd = seg.startTime;
+        for (let j = 0; j < words.length; j++) {
+          const word = words[j];
+          // Gap before word (internal gap)
+          const internalGap = word.startTime - lastEnd;
+          if (internalGap > 0.5) {
+            items.push({ kind: 'gap', widthPercent: (internalGap / dur) * 100, colorIndex: ci });
+          }
+          // Segment piece (word duration or up to next gap/end)
+          const pieceEnd = (j < words.length - 1) ? words[j+1].startTime : seg.endTime;
+          const wordPartDur = pieceEnd - word.startTime;
+          items.push({ kind: 'segment', widthPercent: Math.max(0.1, (wordPartDur / dur) * 100), colorIndex: ci });
+          lastEnd = pieceEnd;
+        }
+      } else {
+        // Simple segment (0 or 1 word)
+        const segDur = seg.endTime - seg.startTime;
+        items.push({ kind: 'segment', widthPercent: Math.max(0.3, (segDur / dur) * 100), colorIndex: ci });
+      }
     }
     return items;
   });
@@ -940,10 +966,21 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
     return clip.cutRegions
       .map((region) => {
-        const words = region.wordIds.map((id) => wordMap.get(id)).filter((w): w is Word => !!w);
-        if (!words.length) return null;
-        const start = Math.min(...words.map((w) => w.startTime));
-        const end = Math.max(...words.map((w) => w.endTime));
+        let start: number;
+        let end: number;
+
+        if (region.startTime !== undefined && region.endTime !== undefined) {
+          // Time-based region (gaps)
+          start = region.startTime;
+          end = region.endTime;
+        } else {
+          // Word-based region
+          const words = region.wordIds.map((id) => wordMap.get(id)).filter((w): w is Word => !!w);
+          if (!words.length) return null;
+          start = Math.min(...words.map((w) => w.startTime));
+          end = Math.max(...words.map((w) => w.endTime));
+        }
+
         return {
           regionId: region.id,
           leftPercent: ((start - clipStart) / dur) * 100,
@@ -995,7 +1032,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   readonly segmentViewItems = computed<SegmentViewItem[]>(() => {
     this.editVersion();
-    const segments = this.clip().segments;
+    const clip = this.clip();
+    const segments = clip.segments;
     let offset = 0;
     return segments.map((segment, index) => {
       const estimatedLines = Math.max(1, Math.ceil(segment.words.length / 10));
@@ -1010,12 +1048,21 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       };
       // Compute silence after this segment
       if (index < segments.length - 1) {
-        const gap = segments[index + 1].startTime - segment.endTime;
+        const nextStart = segments[index + 1].startTime;
+        const gap = nextStart - segment.endTime;
         if (gap >= SILENCE_THRESHOLD_SEC) {
-          item.silenceAfter = {
-            durationText: gap.toFixed(1) + 's',
-            midTime: segment.endTime + gap / 2,
-          };
+          // Check if this gap is explicitly cut (no silence row if it's "ignored")
+          const isCut = clip.cutRegions?.some(r => 
+            r.startTime !== undefined && r.endTime !== undefined &&
+            r.startTime <= segment.endTime + 0.05 && 
+            r.endTime >= nextStart - 0.05
+          );
+          if (!isCut) {
+            item.silenceAfter = {
+              durationText: gap.toFixed(1) + 's',
+              midTime: segment.endTime + gap / 2,
+            };
+          }
         }
       }
       offset += estimatedHeight + (item.silenceAfter ? 40 : 0);
@@ -1604,11 +1651,23 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   private applyJumpCut(currentTime: number): void {
     if (this.effectInProgress()) return;
 
-    const segments = this.clip().segments;
+    const clip = this.clip();
+    const segments = clip.segments;
+    const EPSILON = 0.08;
+
+    // 1. Check time-based cut regions (gaps without words)
+    for (const region of clip.cutRegions || []) {
+      if (region.startTime !== undefined && region.endTime !== undefined) {
+        if (currentTime >= region.startTime - EPSILON && currentTime < region.endTime - EPSILON) {
+          this.performJump(region.endTime, region);
+          return;
+        }
+      }
+    }
+
+    // 2. Check word-based cut regions (as before)
     let startIdx = Math.max(0, this.lastActiveSegmentIdx);
     if (startIdx < segments.length && currentTime < segments[startIdx].startTime) startIdx = 0;
-
-    const EPSILON = 0.08;
 
     for (let i = startIdx; i < segments.length; i++) {
       const seg = segments[i];
@@ -1623,29 +1682,33 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         if (Math.abs(nextStart - currentTime) <= EPSILON) return;
 
         const region = this.wordIdToRegion().get(word.id);
-        const effectType = region?.effectType ?? 'hard-cut';
-        const effectDuration = region?.effectDuration ?? 200;
-        const halfMs = effectDuration / 2;
-
-        if (effectType === 'hard-cut') {
-          this.mediaPlayer.seek(nextStart);
-        } else if (effectType === 'fade') {
-          this.effectInProgress.set(true);
-          this.effectPlayer.startFadeOut(halfMs);
-          setTimeout(() => {
-            this.mediaPlayer.seek(nextStart);
-            this.effectPlayer.startFadeIn(halfMs);
-            setTimeout(() => this.effectInProgress.set(false), halfMs + 50);
-          }, halfMs);
-        } else if (effectType === 'cross-cut') {
-          this.effectInProgress.set(true);
-          this.effectPlayer.triggerCrossCutFlash();
-          this.mediaPlayer.seek(nextStart);
-          this.effectPlayer.startAudioCrossfade(effectDuration);
-          setTimeout(() => this.effectInProgress.set(false), effectDuration + 50);
-        }
+        this.performJump(nextStart, region);
         return;
       }
+    }
+  }
+
+  private performJump(targetTime: number, region?: CutRegion): void {
+    const effectType = region?.effectType ?? 'hard-cut';
+    const effectDuration = region?.effectDuration ?? 200;
+    const halfMs = effectDuration / 2;
+
+    if (effectType === 'hard-cut') {
+      this.mediaPlayer.seek(targetTime);
+    } else if (effectType === 'fade') {
+      this.effectInProgress.set(true);
+      this.effectPlayer.startFadeOut(halfMs);
+      setTimeout(() => {
+        this.mediaPlayer.seek(targetTime);
+        this.effectPlayer.startFadeIn(halfMs);
+        setTimeout(() => this.effectInProgress.set(false), halfMs + 50);
+      }, halfMs);
+    } else if (effectType === 'cross-cut') {
+      this.effectInProgress.set(true);
+      this.effectPlayer.triggerCrossCutFlash();
+      this.mediaPlayer.seek(targetTime);
+      this.effectPlayer.startAudioCrossfade(effectDuration);
+      setTimeout(() => this.effectInProgress.set(false), effectDuration + 50);
     }
   }
 

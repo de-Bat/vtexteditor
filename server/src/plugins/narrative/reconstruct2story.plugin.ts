@@ -139,6 +139,9 @@ export const reconstruct2storyPlugin: IPlugin = {
       metadata: { ...(project.metadata ?? {}), [PROPOSAL_KEY]: proposal },
     });
 
+    const totalProposedSegments = events.reduce((n, e) => n + e.segments.length, 0);
+    console.log(`[reconstruct2story] Proposal complete. Proposed ${events.length} events using ${totalProposedSegments} segments.`);
+
     // Return context unchanged — clips are replaced only after user review
     return ctx;
   },

@@ -76,6 +76,8 @@ export const srtImportPlugin: IPlugin = {
       cutRegions: [],
     };
 
+    console.log(`[srt-import] Clip imported — "${clip.name}" segments: ${segments.length} words: ${allWords.length}`);
+
     return { ...ctx, clips: [...ctx.clips, clip] };
   },
 };

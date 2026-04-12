@@ -241,6 +241,11 @@ function buildClip(rawSegments: RawSegment[], cfg: GroqConfig, ctx: PipelineCont
     showSilenceMarkers,
   };
 
+  const totalWords = finalSegments.reduce((n, s) => n + s.words.length, 0);
+  console.log(
+    `[groq-whisper] clip built — "${clipName}" segments: ${finalSegments.length} words: ${totalWords}`
+  );
+
   return { ...ctx, clips: [...ctx.clips, clip] };
 }
 

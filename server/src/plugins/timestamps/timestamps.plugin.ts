@@ -51,18 +51,22 @@ export const timestampsPlugin: IPlugin = {
       return ctx;
     }
 
-    console.log(`[timestamps] processing ${allSegments.length} segments in batches of ${batchSize}`);
+    const total = allSegments.length;
+    let completed = 0;
+    let totalTimestamps = 0;
+    let segmentsWithTimestamps = 0;
 
-    const processedSegIds = new Set<string>();
-
-    for (let i = 0; i < allSegments.length; i += batchSize) {
+    for (let i = 0; i < total; i += batchSize) {
       const batch = allSegments.slice(i, i + batchSize).filter(s => !processedSegIds.has(s.id));
       if (batch.length === 0) continue;
 
+      const active = batch.length;
+      const pending = total - completed - active;
+
       batch.forEach(s => processedSegIds.add(s.id));
 
-      const progressMsg = `Analyzing timestamps in segments ${i + 1} to ${Math.min(i + batchSize, allSegments.length)}…`;
-      const progressPercent = Math.round((i / allSegments.length) * 100);
+      const progressMsg = `Detecting timestamps (${completed}/[blue:${total}]) — [green:${active}] active, [orange:${pending}] pending…`;
+      const progressPercent = Math.round((completed / total) * 100);
       ctx.reportProgress?.(progressMsg, progressPercent);
       
       const prompt = buildExtractionPrompt(batch);
@@ -70,18 +74,25 @@ export const timestampsPlugin: IPlugin = {
       try {
         const responseText = await callCopilotStudio(prompt, model);
         const results = parseResults(responseText);
-        applyResults(batch, results);
+        const batchResults = applyResults(batch, results);
+        totalTimestamps += batchResults.count;
+        segmentsWithTimestamps += batchResults.segmentsCount;
       } catch (err) {
         console.error(`[timestamps] Error processing batch starting at ${i}:`, err);
       }
+      completed += active;
     }
 
     // After adding timestamps to segments, aggregate for each clip
     ctx.reportProgress?.('Consolidating temporal intervals for clips…', 95);
+    let clipsWithTimestamps = 0;
     for (const clip of allClips) {
-      addIntervalToClip(clip);
+      if (addIntervalToClip(clip)) {
+        clipsWithTimestamps++;
+      }
     }
 
+    console.log(`[timestamps] Complete. Detected ${totalTimestamps} references across ${segmentsWithTimestamps} segments. Updated ${clipsWithTimestamps} clips.`);
     ctx.reportProgress?.('Timestamps processing complete.', 100);
     return ctx;
   },
@@ -129,8 +140,11 @@ export function parseResults(response: string): Record<string, any[]> {
 
 /**
  * Updates segments with DateIntervalMetadata based on LLM results.
+ * Returns counts of timestamps and segments updated.
  */
-export function applyResults(segments: Segment[], results: Record<string, any[]>) {
+export function applyResults(segments: Segment[], results: Record<string, any[]>) : { count: number, segmentsCount: number } {
+  let count = 0;
+  let segmentsCount = 0;
   for (const seg of segments) {
     const rawIntervals = results[seg.id] ?? [];
     if (!Array.isArray(rawIntervals)) continue;
@@ -148,14 +162,18 @@ export function applyResults(segments: Segment[], results: Record<string, any[]>
     if (intervalEntries.length > 0) {
       if (!seg.metadata) seg.metadata = {};
       seg.metadata[PLUGIN_ID] = [...(seg.metadata[PLUGIN_ID] ?? []), ...intervalEntries];
+      count += intervalEntries.length;
+      segmentsCount++;
     }
   }
+  return { count, segmentsCount };
 }
 
 /**
  * Aggregates all temporal intervals in a clip into a single consolidated interval.
+ * Returns true if metadata was added.
  */
-export function addIntervalToClip(clip: Clip) {
+export function addIntervalToClip(clip: Clip): boolean {
   let minYear: number | undefined;
   let maxYear: number | undefined;
   const labels: string[] = [];
@@ -195,5 +213,7 @@ export function addIntervalToClip(clip: Clip) {
 
     if (!clip.metadata) clip.metadata = {};
     clip.metadata[PLUGIN_ID] = [clipInterval];
+    return true;
   }
+  return false;
 }

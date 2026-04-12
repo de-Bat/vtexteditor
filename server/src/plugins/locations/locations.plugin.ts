@@ -66,14 +66,22 @@ export const locationsPlugin: IPlugin = {
     // (though usually they don't in a standard pipeline)
     const processedSegIds = new Set<string>();
 
-    for (let i = 0; i < allSegments.length; i += batchSize) {
+    const total = allSegments.length;
+    let completed = 0;
+    let totalLocations = 0;
+    let segmentsWithLocations = 0;
+
+    for (let i = 0; i < total; i += batchSize) {
       const batch = allSegments.slice(i, i + batchSize).filter(s => !processedSegIds.has(s.id));
       if (batch.length === 0) continue;
 
+      const active = batch.length;
+      const pending = total - completed - active;
+
       batch.forEach(s => processedSegIds.add(s.id));
 
-      const progressMsg = `Analyzing locations in segments ${i + 1} to ${Math.min(i + batchSize, allSegments.length)}…`;
-      const progressPercent = Math.round((i / allSegments.length) * 100);
+      const progressMsg = `Detecting locations (${completed}/[blue:${total}]) — [green:${active}] active, [orange:${pending}] pending…`;
+      const progressPercent = Math.round((completed / total) * 100);
       ctx.reportProgress?.(progressMsg, progressPercent);
       
       const prompt = buildExtractionPrompt(batch);
@@ -81,19 +89,26 @@ export const locationsPlugin: IPlugin = {
       try {
         const responseText = await callCopilotStudio(prompt, model);
         const results = parseResults(responseText);
-        applyResults(batch, results, minConfidence);
+        const batchLocs = applyResults(batch, results, minConfidence);
+        totalLocations += batchLocs.count;
+        segmentsWithLocations += batchLocs.segmentsCount;
       } catch (err) {
         console.error(`[locations] Error processing batch starting at ${i}:`, err);
         // Continue to next batch
       }
+      completed += active;
     }
 
     // After adding locations to segments, add trail to each clip
     ctx.reportProgress?.('Generating travel trails for clips…', 95);
+    let clipsWithTrails = 0;
     for (const clip of allClips) {
-      addTrailToClip(clip);
+      if (addTrailToClip(clip)) {
+        clipsWithTrails++;
+      }
     }
 
+    console.log(`[locations] Complete. Found ${totalLocations} locations across ${segmentsWithLocations} segments. Generated trails for ${clipsWithTrails} clips.`);
     ctx.reportProgress?.('Locations processing complete.', 100);
     return ctx;
   },
@@ -104,12 +119,18 @@ export const locationsPlugin: IPlugin = {
  */
 export function buildExtractionPrompt(segments: Segment[]): string {
   const transcript = segments.map(s => `[${s.id}] ${s.text}`).join('\n');
-  return `Identify geographical locations (cities, countries, landmarks, specific addresses, etc.) mentioned in the following transcript segments.
-For each segment, list every location found. For each location, provide:
+  return `Identify specific geographical locations (cities, countries, specific neighborhoods, landmarks, or precise addresses) mentioned in the following transcript segments.
+
+IMPORTANT RULES:
+1. Do NOT identify general or generic places like "synagogue", "church", "store", "school", "park", "forest", or "house" UNLESS they are part of a specific proper name (e.g. "St. Patrick's Cathedral" is OK, but "the cathedral" is NOT).
+2. Use the context of the conversation to identify the most specific location possible.
+3. For each location, provide approximate lat/lng coordinates.
+
+For each segment, list every specific location found. For each location, provide:
 - name: The name of the place.
 - lat: Approximate latitude.
 - lng: Approximate longitude.
-- confidence: Your confidence score (0.0 to 1.0) that this is a location mention and the coordinates are correct.
+- confidence: Your confidence score (0.0 to 1.0) that this is a specific location mention and the coordinates are correct.
 
 Segments:
 ${transcript}
@@ -140,8 +161,11 @@ export function parseResults(response: string): Record<string, any[]> {
 
 /**
  * Updates segments with GeoMetadata based on LLM results.
+ * Returns counts of locations and segments updated.
  */
-export function applyResults(segments: Segment[], results: Record<string, any[]>, minConfidence: number) {
+export function applyResults(segments: Segment[], results: Record<string, any[]>, minConfidence: number): { count: number, segmentsCount: number } {
+  let count = 0;
+  let segmentsCount = 0;
   for (const seg of segments) {
     const rawLocations = results[seg.id] ?? [];
     if (!Array.isArray(rawLocations)) continue;
@@ -160,16 +184,19 @@ export function applyResults(segments: Segment[], results: Record<string, any[]>
 
     if (geoEntries.length > 0) {
       if (!seg.metadata) seg.metadata = {};
-      // Append if other plugins already added metadata, or replace if we want exclusivity
       seg.metadata[PLUGIN_ID] = [...(seg.metadata[PLUGIN_ID] ?? []), ...geoEntries];
+      count += geoEntries.length;
+      segmentsCount++;
     }
   }
+  return { count, segmentsCount };
 }
 
 /**
  * Consolidates all locations in a clip into a chronological TrailMetadata.
+ * Returns true if a trail was added.
  */
-export function addTrailToClip(clip: Clip) {
+export function addTrailToClip(clip: Clip): boolean {
   const points: TrailPoint[] = [];
   const seenNames = new Set<string>();
 
@@ -177,13 +204,14 @@ export function addTrailToClip(clip: Clip) {
   for (const seg of clip.segments) {
     const locations = (seg.metadata?.[PLUGIN_ID] ?? []) as GeoMetadata[];
     for (const loc of locations) {
-      if (!seenNames.has(loc.placeName || '')) {
+      const name = loc.placeName?.toLowerCase().trim();
+      if (name && !seenNames.has(name)) {
         points.push({
           lat: loc.lat,
           lng: loc.lng,
           name: loc.placeName,
         });
-        if (loc.placeName) seenNames.add(loc.placeName);
+        seenNames.add(name);
       }
     }
   }
@@ -196,5 +224,7 @@ export function addTrailToClip(clip: Clip) {
     };
     if (!clip.metadata) clip.metadata = {};
     clip.metadata[PLUGIN_ID] = [trailEntry];
+    return true;
   }
+  return false;
 }

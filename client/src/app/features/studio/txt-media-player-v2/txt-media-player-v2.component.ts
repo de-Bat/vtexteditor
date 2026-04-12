@@ -197,6 +197,11 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
   <!-- ═══════════ Right: Transcript Panel ═══════════ -->
   <section class="transcript-section">
 
+    <!-- Vertical side label -->
+    <div class="transcript-side-label"><span>TRANSCRIPT</span></div>
+
+    <div class="transcript-content-wrapper">
+
     <!-- Header -->
     <div class="transcript-header">
       <!-- Row 1: title + edit group + selection group + auto-follow + export -->
@@ -490,6 +495,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
       }
     </div>
 
+    </div><!-- /.transcript-content-wrapper -->
   </section>
 </div>
   `,

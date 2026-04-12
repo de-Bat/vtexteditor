@@ -1280,3 +1280,147 @@ audio {
     grid-template-columns: 1fr 440px;
   }
 }
+
+/* ── Effect type selector pills ─────────────────────── */
+.effect-pills-wrap {
+  display: flex;
+  gap: 2px;
+  background: rgba(44, 44, 47, 0.6);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.effect-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(246, 243, 245, 0.5);
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+
+  &:hover { color: var(--primary, #ba9eff); }
+
+  &.active {
+    background: rgba(186, 158, 255, 0.2);
+    color: var(--primary, #ba9eff);
+  }
+}
+
+/* ── Effect dot on filler badge ──────────────────────── */
+.effect-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  pointer-events: none;
+
+  &--fade       { background: var(--primary, #ba9eff); }
+  &--cross-cut  { background: var(--tertiary, #ff716a); }
+}
+
+.filler-badge {
+  position: relative; // needed for effect-dot absolute positioning
+}
+
+/* ── Effect override popover ─────────────────────────── */
+.effect-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  min-width: 180px;
+  background: rgba(36, 36, 39, 0.97);
+  backdrop-filter: blur(12px);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ep-row { display: flex; align-items: center; gap: 6px; }
+
+.ep-pills {
+  display: flex;
+  gap: 2px;
+  background: rgba(44, 44, 47, 0.6);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.ep-pill {
+  font-size: 0.7rem;
+  font-family: 'Space Grotesk', sans-serif;
+  padding: 3px 7px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(246, 243, 245, 0.6);
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+  white-space: nowrap;
+
+  &:hover { color: var(--primary, #ba9eff); }
+  &.active { background: rgba(186, 158, 255, 0.2); color: var(--primary, #ba9eff); }
+}
+
+.ep-dur-row { justify-content: space-between; }
+
+.ep-dur-label {
+  font-size: 0.68rem;
+  color: rgba(246, 243, 245, 0.45);
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.ep-dur-chip {
+  font-size: 0.68rem;
+  font-family: 'Space Grotesk', sans-serif;
+  background: rgba(44, 44, 47, 0.8);
+  color: rgba(246, 243, 245, 0.7);
+  border: 1px dashed rgba(72, 71, 74, 0.5);
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: border-color 150ms;
+
+  &:hover { border-color: var(--primary, #ba9eff); }
+  &.fixed { border-style: solid; color: var(--primary, #ba9eff); }
+}
+
+.ep-dur-input {
+  width: 70px;
+  font-size: 0.68rem;
+  font-family: 'Space Grotesk', sans-serif;
+  background: rgba(44, 44, 47, 0.9);
+  color: var(--on-surface, #f6f3f5);
+  border: 1px solid var(--primary, #ba9eff);
+  border-radius: 4px;
+  padding: 2px 5px;
+  outline: none;
+}
+
+.ep-reset {
+  font-size: 0.65rem;
+  color: rgba(186, 158, 255, 0.7);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline dotted;
+  align-self: flex-start;
+
+  &:hover { color: var(--primary, #ba9eff); }
+}
+
+.filler-badge.popover-open {
+  outline: 1px solid rgba(186, 158, 255, 0.4);
+}

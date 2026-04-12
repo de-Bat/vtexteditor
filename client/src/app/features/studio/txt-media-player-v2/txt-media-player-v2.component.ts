@@ -282,11 +282,26 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             </div>
           }
         </div>
+        <!-- Effect type selector for new cuts -->
+        <div class="effect-pills-wrap" role="group" aria-label="Default cut effect type">
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'hard-cut'"
+            (click)="setDefaultEffect('hard-cut')" title="Hard Cut — instant remove">
+            <span class="material-symbols-outlined" style="font-size:1rem">content_cut</span>
+          </button>
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'fade'"
+            (click)="setDefaultEffect('fade')" title="Fade — audio/video fade at cut boundary">
+            <span class="material-symbols-outlined" style="font-size:1rem">blur_on</span>
+          </button>
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'cross-cut'"
+            (click)="setDefaultEffect('cross-cut')" title="Cross-Cut — audio crossfade (preview ≈ export)">
+            <span class="material-symbols-outlined" style="font-size:1rem">shuffle</span>
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Scrollable Transcript -->
-    <div class="transcript-body" #transcriptEl (scroll)="onTranscriptScroll()">
+    <div class="transcript-body" #transcriptEl (scroll)="onTranscriptScroll()" (click)="clearSelection($event)">
       <!-- Scrollbar playback indicator -->
       <div class="scroll-indicator" [style.top.%]="scrollIndicatorPercent()"></div>
       @if (shouldVirtualize()) {
@@ -337,13 +352,61 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     @if (fi.duration >= 0.5) { {{ fi.label }} }
                   </span>
                 } @else if (fi.word.isRemoved) {
+                  @let region = wordIdToRegion().get(fi.word.id);
                   <span class="filler-badge"
-                    (click)="onWordClick(fi.word, $event)"
+                    [class.selected]="selectedWordIdSet().has(fi.word.id)"
+                    [class.popover-open]="effectPopoverWordId() === fi.word.id"
+                    (click)="onRemovedWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)">
-                    <span class="filler-text">{{ fi.word.text }}</span>
-                    <button class="filler-x" (click)="toggleRemove(fi.word); $event.stopPropagation()">
+
+                    @if (region?.effectTypeOverridden && region?.effectType !== 'hard-cut') {
+                      <span class="effect-dot effect-dot--{{ region!.effectType }}" aria-hidden="true"></span>
+                    }
+
+                    <span class="filler-text"
+                      [attr.contenteditable]="editMode() ? 'plaintext-only' : 'false'" spellcheck="false"
+                      (click)="$event.stopPropagation()"
+                    >{{ fi.word.text }}</span>
+                    <button class="filler-x" (click)="toggleRemove(fi.word); $event.stopPropagation()" aria-label="Restore word">
                       <span class="material-symbols-outlined">close</span>
                     </button>
+
+                    @if (effectPopoverWordId() === fi.word.id && region) {
+                      <div class="effect-popover" role="dialog" aria-label="Cut effect options" (click)="$event.stopPropagation()">
+                        <div class="ep-row">
+                          <div class="ep-pills" role="group" aria-label="Effect type">
+                            <button class="ep-pill" [class.active]="region.effectType === 'hard-cut'"
+                              (click)="setRegionEffect(region.id, 'hard-cut')">Hard Cut</button>
+                            <button class="ep-pill" [class.active]="region.effectType === 'fade'"
+                              (click)="setRegionEffect(region.id, 'fade')">Fade</button>
+                            <button class="ep-pill" [class.active]="region.effectType === 'cross-cut'"
+                              (click)="setRegionEffect(region.id, 'cross-cut')">Cross</button>
+                          </div>
+                        </div>
+                        @if (region.effectType !== 'hard-cut') {
+                          <div class="ep-row ep-dur-row">
+                            <span class="ep-dur-label">Duration</span>
+                            @if (durationEditRegionId() === region.id) {
+                              <input type="number" class="ep-dur-input" min="150" max="500"
+                                [value]="region.effectDuration"
+                                (change)="setRegionDuration(region.id, +$any($event.target).value)"
+                                (keydown.enter)="durationEditRegionId.set(null)"
+                                (blur)="durationEditRegionId.set(null)"
+                              />
+                            } @else {
+                              <button class="ep-dur-chip" [class.fixed]="region.durationFixed"
+                                (click)="durationEditRegionId.set(region.id)"
+                                [title]="region.durationFixed ? 'Pinned — click to edit' : 'Auto — click to pin'">
+                                {{ region.effectDuration }}ms {{ region.durationFixed ? '·pin' : '·auto' }}
+                              </button>
+                            }
+                          </div>
+                        }
+                        @if (region.effectTypeOverridden || region.durationFixed) {
+                          <button class="ep-reset" (click)="resetRegionEffect(region.id)">Reset to default</button>
+                        }
+                      </div>
+                    }
                   </span>
                 } @else {
                   <span class="word"
@@ -463,6 +526,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly highlightSilence = signal(false);
   /** Whether Smart Cut dropdown is open */
   readonly smartCutOpen = signal(false);
+  /** wordId of the removed word whose effect popover is open; null = closed */
+  readonly effectPopoverWordId = signal<string | null>(null);
+  /** regionId being edited in the duration input */
+  readonly durationEditRegionId = signal<string | null>(null);
   /** Filler words selected for cutting */
   readonly selectedFillers = signal<Set<string>>(new Set());
 
@@ -1018,6 +1085,60 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       next.has(word) ? next.delete(word) : next.add(word);
       return next;
     });
+  }
+
+  onRemovedWordClick(word: Word, event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.editMode()) return;
+    this.effectPopoverWordId.update((current) => (current === word.id ? null : word.id));
+    this.durationEditRegionId.set(null);
+  }
+
+  closeEffectPopover(): void {
+    this.effectPopoverWordId.set(null);
+    this.durationEditRegionId.set(null);
+  }
+
+  setDefaultEffect(type: EffectType): void {
+    this.defaultEffectType.set(type);
+    const updated = this.cutRegionService.applyDefaultEffectType(this.clip(), type);
+    this.clipService.applyLocalUpdate(updated);
+    this.editVersion.update((v) => v + 1);
+    this.scheduleCutRegionSave();
+  }
+
+  setRegionEffect(regionId: string, type: EffectType): void {
+    this.applyCutRegionChange(this.cutRegionService.setEffectType(this.clip(), regionId, type));
+  }
+
+  setRegionDuration(regionId: string, ms: number): void {
+    this.applyCutRegionChange(this.cutRegionService.setDuration(this.clip(), regionId, ms));
+    this.durationEditRegionId.set(null);
+  }
+
+  resetRegionEffect(regionId: string): void {
+    this.applyCutRegionChange(
+      this.cutRegionService.resetEffectType(this.clip(), regionId, this.defaultEffectType())
+    );
+    const { clip: c2 } = this.cutRegionService.resetDuration(this.clip(), regionId);
+    this.clipService.applyLocalUpdate(c2);
+    this.editVersion.update((v) => v + 1);
+    this.scheduleCutRegionSave();
+    this.closeEffectPopover();
+  }
+
+  clearSelection(event: MouseEvent): void {
+    if (this.editMode()) return;
+    const target = event.target as HTMLElement;
+    if (!target.closest('.filler-badge')) {
+      this.closeEffectPopover();
+    }
+    if (target.classList.contains('transcript-body') ||
+        target.classList.contains('word-flow') ||
+        target.classList.contains('seg-content')) {
+      this.selectedWordIds.set([]);
+      this.selectionAnchorWordId.set(null);
+    }
   }
 
   applySmartCut(): void {

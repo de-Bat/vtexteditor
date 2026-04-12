@@ -15,165 +15,202 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
   imports: [CommonModule],
   template: `
     <div class="export-panel">
+      <!-- Vertical side label -->
+      <div class="export-side-label"><span>EXPORT</span></div>
 
-      <!-- ── Header ── -->
-      <div class="ep-header">
-        <div class="ep-title-row">
-          <span class="ep-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-          </span>
-          <span class="ep-title">Export</span>
-          @if (status() === 'done') {
-            <span class="ep-status-chip done">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              Ready
-            </span>
-          } @else if (status() === 'pending') {
-            <span class="ep-status-chip running">Processing</span>
-          } @else if (status() === 'error') {
-            <span class="ep-status-chip error">Error</span>
-          }
-        </div>
-        <div class="ep-header-actions">
-          <button
-            class="btn-export"
-            [disabled]="status() === 'pending'"
-            (click)="startExport()"
-          >
-            @if (status() === 'pending') {
-              <span class="btn-spinner"></span>
-              <span>Running…</span>
-            } @else {
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
-              <span>Start</span>
-            }
-          </button>
-          <button class="btn-close" (click)="close.emit()" aria-label="Close Export Panel">×</button>
-        </div>
-      </div>
-
-      <!-- ── Range Selection (Scope) ── -->
-      <div class="ep-section">
-        <div class="ep-section-label">Source Range</div>
-        <div class="scope-grid">
-          @for (s of scopes; track s.value) {
-             <button
-              class="scope-btn"
-              [class.active]="exportScope() === s.value"
-              [disabled]="status() === 'pending'"
-              (click)="exportScope.set(s.value)"
-            >
-              <span class="sb-icon" [innerHTML]="getTrustedIconForScope(s.value)"></span>
-              <span class="sb-label">{{ s.label }}</span>
-            </button>
-          }
-        </div>
-
-        @if (exportScope() === 'selected') {
-          <div class="clip-selector fade-in">
-            @for (clip of availableClips(); track clip.id) {
-              <label class="clip-checkbox-row">
-                <input
-                  type="checkbox"
-                  [checked]="selectedClipIds().has(clip.id)"
-                  (change)="toggleClipSelection(clip.id)"
-                  [disabled]="status() === 'pending'"
-                />
-                <span class="ccr-label">{{ clip.name }}</span>
-                <span class="ccr-meta">{{ (clip.endTime - clip.startTime).toFixed(0) }}s</span>
-              </label>
-            }
-            @if (availableClips().length === 0) {
-              <div class="empty-selection">No clips found</div>
+      <div class="export-content-wrapper">
+        <!-- ── Header ── -->
+        <div class="ep-header">
+          <div class="ep-status-row">
+            @if (status() === 'done') {
+              <span class="ep-status-chip done">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Ready
+              </span>
+            } @else if (status() === 'pending') {
+              <span class="ep-status-chip running">Processing</span>
+            } @else if (status() === 'error') {
+              <span class="ep-status-chip error">Error</span>
             }
           </div>
-        }
-      </div>
-
-      <!-- ── Format selector ── -->
-      <div class="ep-section">
-        <div class="ep-section-label">Output Format</div>
-        <div class="format-grid">
-          @for (opt of formats; track opt.value) {
+          <div class="ep-header-actions">
             <button
-              class="format-card"
-              [class.selected]="selectedFormat() === opt.value"
+              class="btn-export"
               [disabled]="status() === 'pending'"
-              (click)="selectedFormat.set(opt.value)"
-              [attr.aria-pressed]="selectedFormat() === opt.value"
-              [attr.data-format]="opt.value"
+              (click)="startExport()"
             >
-               <span class="fc-icon" [innerHTML]="getTrustedIcon(opt.value)"></span>
-              <div class="fc-content">
-                <span class="fc-label">{{ opt.label }}</span>
-                <span class="fc-desc">{{ opt.desc }}</span>
-              </div>
+              @if (status() === 'pending') {
+                <span class="btn-spinner"></span>
+                <span>Running…</span>
+              } @else {
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+                <span>Start</span>
+              }
             </button>
-          }
+            <button class="btn-close" (click)="close.emit()" aria-label="Close Export Panel">×</button>
+          </div>
         </div>
-      </div>
 
-      <!-- ── Processing flow ── -->
-      @if (status() !== 'idle') {
-        <div class="ep-section ep-flow">
-          <div class="ep-section-label">Pipeline</div>
-          <div class="flow-steps">
-            @for (step of flowSteps; track step.id; let i = $index) {
-              <div class="flow-step" [class]="getStepState(i)">
-                <div class="fs-dot">
-                  @if (getStepState(i) === 'done') {
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  } @else if (getStepState(i) === 'active') {
-                    <span class="fs-pulse"></span>
-                  } @else { {{ i + 1 }} }
-                </div>
-                @if (i < flowSteps.length - 1) {
-                  <div class="fs-line"></div>
+        <!-- ── Middle Content (Scrollable) ── -->
+        <div class="ep-scroll-area">
+
+          <!-- ── Range Selection (Scope) ── -->
+          <div class="ep-section">
+            <div class="ep-section-label">Source Range</div>
+            <div class="scope-grid">
+              @for (s of scopes; track s.value) {
+                <button
+                  class="scope-btn"
+                  [class.active]="exportScope() === s.value"
+                  [disabled]="status() === 'pending'"
+                  (click)="exportScope.set(s.value)"
+                >
+                  <span class="sb-icon" [innerHTML]="getTrustedIconForScope(s.value)"></span>
+                  <span class="sb-label">{{ s.label }}</span>
+                </button>
+              }
+            </div>
+
+            @if (exportScope() === 'selected') {
+              <div class="clip-selector fade-in">
+                @for (clip of availableClips(); track clip.id) {
+                  <label class="clip-checkbox-row">
+                    <input
+                      type="checkbox"
+                      [checked]="selectedClipIds().has(clip.id)"
+                      (change)="toggleClipSelection(clip.id)"
+                      [disabled]="status() === 'pending'"
+                    />
+                    <span class="ccr-label">{{ clip.name }}</span>
+                    <span class="ccr-meta">{{ (clip.endTime - clip.startTime).toFixed(0) }}s</span>
+                  </label>
                 }
-                <div class="fs-label">{{ step.label }}</div>
+                @if (availableClips().length === 0) {
+                  <div class="empty-selection">No clips found</div>
+                }
               </div>
             }
           </div>
-          @if (status() === 'pending') {
-            <div class="ep-progress-bar">
-              <div class="ep-progress-fill" [style.width.%]="progress()"></div>
+
+          <!-- ── Format selector ── -->
+          <div class="ep-section">
+            <div class="ep-section-label">Output Format</div>
+            <div class="format-grid">
+              @for (opt of formats; track opt.value) {
+                <button
+                  class="format-card"
+                  [class.selected]="selectedFormat() === opt.value"
+                  [disabled]="status() === 'pending'"
+                  (click)="selectedFormat.set(opt.value)"
+                  [attr.aria-pressed]="selectedFormat() === opt.value"
+                  [attr.data-format]="opt.value"
+                >
+                  <span class="fc-icon" [innerHTML]="getTrustedIcon(opt.value)"></span>
+                  <div class="fc-content">
+                    <span class="fc-label">{{ opt.label }}</span>
+                    <span class="fc-desc">{{ opt.desc }}</span>
+                  </div>
+                </button>
+              }
             </div>
-            <div class="ep-progress-label">
-              <span class="ep-progress-percent">{{ progress() }}%</span>
-              @if (elapsedTime() > 0) {
-                <span class="ep-progress-time">
-                  {{ formatTime(elapsedTime()) }} 
-                  @if (remainingTime() > 0) {
-                    <span class="time-sep">/</span> ~{{ formatTime(remainingTime()) }} left
+          </div>
+
+          <!-- ── Processing flow ── -->
+          @if (status() !== 'idle') {
+            <div class="ep-section ep-flow">
+              <div class="ep-section-label">Pipeline</div>
+              <div class="flow-steps">
+                @for (step of flowSteps; track step.id; let i = $index) {
+                  <div class="flow-step" [class]="getStepState(i)">
+                    <div class="fs-dot">
+                      @if (getStepState(i) === 'done') {
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      } @else if (getStepState(i) === 'active') {
+                        <span class="fs-pulse"></span>
+                      } @else { {{ i + 1 }} }
+                    </div>
+                    @if (i < flowSteps.length - 1) {
+                      <div class="fs-line"></div>
+                    }
+                    <div class="fs-label">{{ step.label }}</div>
+                  </div>
+                }
+              </div>
+              @if (status() === 'pending') {
+                <div class="ep-progress-bar">
+                  <div class="ep-progress-fill" [style.width.%]="progress()"></div>
+                </div>
+                <div class="ep-progress-label">
+                  <span class="ep-progress-percent">{{ progress() }}%</span>
+                  @if (elapsedTime() > 0) {
+                    <span class="ep-progress-time">
+                      {{ formatTime(elapsedTime()) }} 
+                      @if (remainingTime() > 0) {
+                        <span class="time-sep">/</span> ~{{ formatTime(remainingTime()) }} left
+                      }
+                    </span>
                   }
-                </span>
+                </div>
               }
             </div>
           }
+
+        </div><!-- /.ep-scroll-area -->
+
+        <!-- ── Footer: Result / error ── -->
+        <div class="ep-footer">
+          @if (status() === 'done') {
+            <a class="btn-download" [href]="downloadUrl()" target="_blank" download>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download {{ formatLabel() }}
+            </a>
+          }
+          @if (status() === 'error') {
+            <p class="ep-error">{{ errorMsg() }}</p>
+          }
         </div>
-      }
 
-      <!-- ── Result / error ── -->
-      @if (status() === 'done') {
-        <a class="btn-download" [href]="downloadUrl()" target="_blank" download>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download {{ formatLabel() }}
-        </a>
-      }
-      @if (status() === 'error') {
-        <p class="ep-error">{{ errorMsg() }}</p>
-      }
-
+      </div><!-- /.export-content-wrapper -->
     </div>
   `,
   styles: [`
     .export-panel {
       display: flex;
-      flex-direction: column;
+      flex-direction: row; /* Side-by-side with label */
       gap: 0;
       background: var(--color-surface);
       width: 100%;
       height: 100%;
+      overflow: hidden;
+    }
+
+    /* ── Side Label ── */
+    .export-side-label {
+      width: 32px;
+      background: var(--color-surface-alt);
+      border-right: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+
+      span {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        font-family: 'Space Grotesk', 'Inter', sans-serif;
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        font-weight: 700;
+        color: var(--color-muted);
+        opacity: 0.7;
+      }
+    }
+
+    .export-content-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
       overflow: hidden;
     }
 
@@ -182,48 +219,41 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: .65rem .85rem .65rem .85rem;
+      padding: .6rem .75rem;
       border-bottom: 1px solid var(--color-border);
       gap: .5rem;
       flex-shrink: 0;
+      min-height: 48px;
     }
-    .ep-title-row {
+    .ep-status-row {
       display: flex;
       align-items: center;
-      gap: .5rem;
       min-width: 0;
     }
     .ep-header-actions {
       display: flex;
       align-items: center;
-      gap: .4rem;
+      gap: .5rem;
     }
     .btn-close {
       background: none;
       border: none;
       color: var(--color-muted);
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       cursor: pointer;
       padding: .2rem;
       line-height: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      &:hover { color: var(--color-text); }
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      &:hover { background: var(--color-surface-alt); color: var(--color-text); }
     }
-    .ep-icon {
-      color: var(--color-accent);
-      font-size: .9rem;
-      line-height: 1;
-    }
-    .ep-title {
-      font-size: .85rem;
-      font-weight: 700;
-      letter-spacing: .02em;
-      color: var(--color-text);
-    }
+    
     .ep-status-chip {
-      font-size: .65rem;
+      font-size: .62rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: .05em;
@@ -233,11 +263,11 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       align-items: center;
       gap: .25rem;
     }
-    .ep-status-chip.done    { background: rgba(76,175,130,.12); color: var(--color-success); border: 1px solid rgba(76,175,130,.2); }
-    .ep-status-chip.running { background: rgba(124,106,247,.12); color: var(--color-accent); border: 1px solid rgba(124,106,247,.2); }
+    .ep-status-chip.done    { background: rgba(76,175,130,.1); color: var(--color-success); border: 1px solid rgba(76,175,130,.2); }
+    .ep-status-chip.running { background: rgba(124,106,247,.1); color: var(--color-accent); border: 1px solid rgba(124,106,247,.2); }
     .ep-status-chip.error   { background: var(--color-error-subtle); color: var(--color-error); border: 1px solid rgba(224,92,92,.2); }
 
-    /* ── Start button — always visible in header ── */
+    /* ── Start button ── */
     .btn-export {
       display: inline-flex;
       align-items: center;
@@ -245,23 +275,22 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       background: var(--color-accent);
       color: #fff;
       border: none;
-      border-radius: 7px;
-      padding: .3rem .7rem;
-      font-size: .78rem;
+      border-radius: 6px;
+      padding: .35rem .75rem;
+      font-size: .75rem;
       font-weight: 700;
       cursor: pointer;
       flex-shrink: 0;
-      transition: opacity .15s, transform .1s, box-shadow .15s;
-      box-shadow: 0 2px 8px rgba(124,106,247,.3);
+      transition: all .15s ease;
+      box-shadow: 0 2px 6px rgba(124,106,247,.2);
       &:hover:not(:disabled) {
-        opacity: .88;
+        opacity: .9;
         transform: translateY(-1px);
-        box-shadow: 0 4px 14px rgba(124,106,247,.4);
+        box-shadow: 0 4px 10px rgba(124,106,247,.3);
       }
       &:active:not(:disabled) { transform: translateY(0); }
-      &:disabled { opacity: .45; cursor: default; box-shadow: none; }
+      &:disabled { opacity: .4; cursor: default; box-shadow: none; }
     }
-    .btn-play-icon { font-size: .7rem; }
     .btn-spinner {
       display: inline-block;
       width: 10px; height: 10px;
@@ -272,40 +301,50 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Scroll Area ── */
+    .ep-scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
     /* ── Sections ── */
     .ep-section {
-      padding: .7rem .85rem;
+      padding: .85rem;
       border-bottom: 1px solid var(--color-border);
       flex-shrink: 0;
     }
+    .ep-section:last-child { border-bottom: none; }
+    
     .ep-section-label {
-      font-size: .65rem;
+      font-size: .62rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: .07em;
       color: var(--color-muted);
-      margin-bottom: .5rem;
+      margin-bottom: .6rem;
     }
 
     /* ── Format grid ── */
     .format-grid {
       display: flex;
       flex-direction: column;
-      gap: .3rem;
+      gap: .35rem;
     }
     .format-card {
       display: grid;
       grid-template-columns: auto 1fr;
       grid-template-rows: auto auto;
-      gap: 0 .5rem;
+      gap: 0 .6rem;
       align-items: center;
-      padding: .45rem .6rem;
+      padding: .5rem .65rem;
       border: 1px solid var(--color-border);
-      border-radius: 7px;
+      border-radius: 8px;
       background: var(--color-bg);
       cursor: pointer;
       text-align: left;
-      transition: border-color .15s, background .15s;
+      transition: all .2s ease;
       &.selected {
         border-color: var(--color-accent);
         background: var(--color-accent-subtle);
@@ -313,7 +352,7 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       }
       &:hover:not(.selected):not(:disabled) {
         border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-        background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg));
+        background: color-mix(in srgb, var(--color-accent) 4%, var(--color-bg));
       }
       &:disabled { opacity: .5; cursor: default; }
     }
@@ -322,13 +361,12 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       border-radius: 8px;
       background: var(--color-surface-alt);
       color: var(--color-muted);
       transition: all .24s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
     }
     .format-card.selected .fc-icon {
       color: #fff;
@@ -337,36 +375,22 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
     /* Format Specific Colors */
     .format-card[data-format="video"].selected .fc-icon {
       background: #3b82f6;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+      box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
     }
     .format-card[data-format="text-plain"].selected .fc-icon {
       background: #10b981;
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+      box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
     }
     .format-card[data-format="text-srt"].selected .fc-icon {
       background: #f59e0b;
-      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+      box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3);
     }
 
-    .fc-content {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-    }
-    .fc-label {
-      font-size: .78rem;
-      font-weight: 600;
-      color: var(--color-text);
-      line-height: 1.2;
-    }
-    .fc-desc {
-      font-size: .68rem;
-      color: var(--color-muted);
-      line-height: 1.2;
-    }
+    .fc-content { display: flex; flex-direction: column; gap: 1px; }
+    .fc-label { font-size: .75rem; font-weight: 650; color: var(--color-text); line-height: 1.2; }
+    .fc-desc { font-size: .65rem; color: var(--color-muted); line-height: 1.2; }
 
     /* ── Flow steps ── */
-    .ep-flow { }
     .flow-steps {
       display: flex;
       flex-direction: column;
@@ -380,12 +404,12 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       position: relative;
     }
     .fs-dot {
-      width: 20px; height: 20px;
+      width: 18px; height: 18px;
       border-radius: 50%;
-      border: 2px solid var(--color-border);
+      border: 1px solid var(--color-border);
       background: var(--color-bg);
       color: var(--color-muted);
-      font-size: .65rem;
+      font-size: .6rem;
       font-weight: 700;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
@@ -394,17 +418,17 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       transition: all .3s ease;
     }
     .flow-step.done .fs-dot {
-      background: rgba(76,175,130,.2);
+      background: rgba(76,175,130,.15);
       border-color: var(--color-success);
       color: var(--color-success);
     }
     .flow-step.active .fs-dot {
-      background: rgba(124,106,247,.2);
+      background: rgba(124,106,247,.15);
       border-color: var(--color-accent);
     }
     .fs-pulse {
       display: block;
-      width: 7px; height: 7px;
+      width: 6px; height: 6px;
       border-radius: 50%;
       background: var(--color-accent);
       animation: pulse 1.2s ease-in-out infinite;
@@ -415,18 +439,18 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
     }
     .fs-line {
       position: absolute;
-      left: 9px;
-      top: 20px;
-      width: 2px;
+      left: 8.5px;
+      top: 18px;
+      width: 1px;
       height: 18px;
       background: var(--color-border);
     }
-    .flow-step.done .fs-line { background: var(--color-success); opacity: .4; }
+    .flow-step.done .fs-line { background: var(--color-success); opacity: .5; }
     .fs-label {
-      font-size: .73rem;
+      font-size: .7rem;
       color: var(--color-text-secondary);
-      padding-top: .18rem;
-      padding-bottom: .4rem;
+      padding-top: .1rem;
+      padding-bottom: .45rem;
     }
     .flow-step.done .fs-label { color: var(--color-success); }
     .flow-step.active .fs-label { color: var(--color-accent); font-weight: 600; }
@@ -445,9 +469,9 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       transition: width .4s ease;
     }
     .ep-progress-label {
-      font-size: .68rem;
+      font-size: .65rem;
       color: var(--color-muted);
-      margin-top: .3rem;
+      margin-top: .35rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -455,41 +479,43 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
     }
     .ep-progress-percent { font-weight: 700; color: var(--color-accent); }
     .ep-progress-time { opacity: 0.8; font-family: 'JetBrains Mono', monospace; }
-    .time-sep { margin: 0 2px; opacity: 0.4; }
 
-    /* ── Download / error ── */
+    /* ── Footer / download ── */
+    .ep-footer {
+      padding: .6rem .85rem .85rem;
+      border-top: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
     .btn-download {
-      display: block;
-      margin: .7rem .85rem;
-      padding: .5rem;
-      background: rgba(76,175,130,.15);
-      color: var(--color-success);
-      border: 1px solid rgba(76,175,130,.25);
-      border-radius: 8px;
-      text-align: center;
-      text-decoration: none;
-      font-size: .8rem;
-      font-weight: 600;
-      transition: all .15s;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: .4rem;
-      &:hover { background: rgba(76,175,130,.25); transform: translateY(-1px); }
+      padding: .6rem;
+      background: rgba(76,175,130,.12);
+      color: var(--color-success);
+      border: 1px solid rgba(76,175,130,.2);
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: .78rem;
+      font-weight: 700;
+      transition: all .2s;
+      &:hover { background: rgba(76,175,130,.2); transform: translateY(-1px); }
     }
+
     /* ── Range Selector ── */
     .scope-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: .35rem;
+      gap: .3rem;
       margin-bottom: .6rem;
     }
     .scope-btn {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: .3rem;
-      padding: .5rem .25rem;
+      gap: .25rem;
+      padding: .45rem .2rem;
       background: var(--color-surface-alt);
       border: 1px solid var(--color-border);
       border-radius: 6px;
@@ -509,11 +535,11 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       }
     }
     .sb-icon { line-height: 1; }
-    .sb-label { font-size: .65rem; font-weight: 600; text-align: center; }
+    .sb-label { font-size: .62rem; font-weight: 600; text-align: center; }
 
     .clip-selector {
       margin-top: .5rem;
-      max-height: 140px;
+      max-height: 120px;
       overflow-y: auto;
       background: var(--color-surface-alt);
       border-radius: 6px;
@@ -530,24 +556,24 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       padding: .35rem .5rem;
       border-radius: 4px;
       cursor: pointer;
-      &:hover { background: rgba(0,0,0,0.05); }
+      &:hover { background: rgba(0,0,0,0.03); }
       input { cursor: pointer; accent-color: var(--color-accent); }
     }
-    .ccr-label { font-size: .73rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ccr-meta { font-size: .65rem; color: var(--color-muted); }
-    .empty-selection { padding: .75rem; text-align: center; font-size: .7rem; color: var(--color-muted); font-style: italic; }
+    .ccr-label { font-size: .7rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ccr-meta { font-size: .62rem; color: var(--color-muted); }
+    .empty-selection { padding: .7rem; text-align: center; font-size: .68rem; color: var(--color-muted); font-style: italic; }
 
     .fade-in { animation: fadeIn .2s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
     .ep-error {
-      margin: .5rem .85rem;
-      padding: .4rem .6rem;
+      padding: .45rem .6rem;
       background: var(--color-error-subtle);
       color: var(--color-error);
       border-radius: 6px;
-      font-size: .75rem;
+      font-size: .72rem;
       line-height: 1.4;
+      margin: 0;
     }
   `]
 })

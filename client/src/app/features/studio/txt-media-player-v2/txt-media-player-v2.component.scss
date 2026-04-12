@@ -1228,6 +1228,12 @@ audio {
     font-size: 12px;
   }
 
+  .chip-count {
+    font-variant-numeric: tabular-nums;
+    min-width: 12px;
+    text-align: center;
+  }
+
   &.status-removed {
     color: var(--error);
     background: rgba(255, 110, 132, 0.1);

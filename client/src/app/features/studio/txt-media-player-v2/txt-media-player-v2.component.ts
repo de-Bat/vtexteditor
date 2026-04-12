@@ -488,33 +488,30 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
     <!-- Status Bar (replaces action footer) -->
     <div class="status-bar">
       @if (selectedCount()) {
-        <span class="status-chip">
+        <span class="status-chip" [title]="selectedCount() + ' selected'">
           <span class="material-symbols-outlined">select_all</span>
-          {{ selectedCount() }} selected
+          <span class="chip-count">{{ selectedCount() }}</span>
         </span>
       }
       @if (removedCount()) {
-        <span class="status-chip status-removed">
+        <span class="status-chip status-removed" [title]="removedCount() + ' removed'">
           <span class="material-symbols-outlined">content_cut</span>
-          {{ removedCount() }} removed
+          <span class="chip-count">{{ removedCount() }}</span>
         </span>
       }
       @if (jumpCutMode()) {
-        <span class="status-chip status-mode">
+        <span class="status-chip status-mode" title="Jump Cut Mode Active">
           <span class="material-symbols-outlined">auto_awesome</span>
-          Jump Cut
         </span>
       }
       @if (highlightFillers()) {
-        <span class="status-chip status-filler">
+        <span class="status-chip status-filler" title="Highlighting Fillers">
           <span class="material-symbols-outlined">visibility</span>
-          Fillers
         </span>
       }
       @if (highlightSilence()) {
-        <span class="status-chip status-silence">
+        <span class="status-chip status-silence" title="Highlighting Silence">
           <span class="material-symbols-outlined">hourglass_empty</span>
-          Silence
         </span>
       }
     </div>

@@ -206,10 +206,12 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
     <div class="transcript-header">
       <!-- Row 1: title + edit group + selection group + auto-follow + export -->
       <div class="header-row1">
-        <div class="hdr-title-group">
-          <h2 class="transcript-title">Transcript</h2>
-          <span class="auto-badge">AUTO-GEN</span>
+        <div class="hdr-group">
+          <div class="auto-badge-icon" title="Auto-Generated Transcript">
+            <span class="material-symbols-outlined">psychology</span>
+          </div>
         </div>
+        <div class="spacer"></div>
         <!-- Edit group -->
         <div class="hdr-group" role="group" aria-label="Edit history">
           <button class="hdr-btn" (click)="restoreAll()" title="Restore all removed words">

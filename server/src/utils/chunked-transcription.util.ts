@@ -35,7 +35,7 @@ export async function chunkAndTranscribe(
   transcribeFn: TranscribeFn,
   opts: ChunkOptions,
   fileDurationSecs?: number,
-  onProgress?: (progress: number) => void,
+  onProgress?: (progress: number, completed: number, total: number) => void,
 ): Promise<RawSegment[]> {
   const { chunkDurationSecs, maxConcurrent } = opts;
   const tag = '[chunked-transcription]';
@@ -64,7 +64,7 @@ export async function chunkAndTranscribe(
           console.log(`${tag} chunk ${chunk.index + 1}/${chunks.length} done — ${segments.length} segment(s)  [${completed}/${chunks.length} complete]`);
           
           const adjusted = adjustTimestamps(segments, chunk.startOffset);
-          onProgress?.(Math.round((completed / chunks.length) * 100));
+          onProgress?.(Math.round((completed / chunks.length) * 100), completed, chunks.length);
           return adjusted;
         }),
       ),

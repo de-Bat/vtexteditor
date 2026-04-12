@@ -24,14 +24,45 @@ interface UploadResult {
       (click)="fileInput.click()"
     >
       @if (uploading()) {
-        <div class="upload-progress-container">
-          <div class="upload-info">
-            <div class="spinner"></div>
-            <span>{{ statusLabel() }} {{ fileName() }}…</span>
+        <div class="upload-progress-container" style="text-align: left;">
+          <div class="info-header" style="justify-content: center; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+            @if (uploadProgress() === 0) {
+              <div class="spinner-sm"></div>
+            }
+            <span class="step-name" style="font-weight: 600; font-size: 0.9rem;">{{ statusLabel() }}</span>
           </div>
+          
           @if (uploadProgress() > 0) {
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" [style.width.%]="uploadProgress()"></div>
+            <div class="progress-details">
+              <div class="bar-row">
+                <div class="bar">
+                  <div class="fill" [style.width.%]="uploadProgress()"></div>
+                </div>
+                <span class="percent">{{ uploadProgress() }}%</span>
+              </div>
+              @if (elapsedTime() > 0) {
+                <div class="time-stats">
+                  <span class="time-item">
+                    <span class="label">Elapsed:</span>
+                    <span class="value">{{ formatTime(elapsedTime()) }}</span>
+                  </span>
+                  @if (remainingTime() > 0) {
+                    <span class="time-divider"></span>
+                    <span class="time-item">
+                      <span class="label">Remaining:</span>
+                      <span class="value">~{{ formatTime(remainingTime()) }}</span>
+                    </span>
+                  }
+                </div>
+              }
+            </div>
+            
+            <div class="file-name" style="text-align: center; font-size: 0.8rem; color: var(--color-muted); margin-top: 1rem;">
+              {{ fileName() }}
+            </div>
+          } @else {
+            <div class="file-name" style="text-align: center; font-size: 0.8rem; color: var(--color-muted); margin-top: 0.5rem;">
+              {{ fileName() }}
             </div>
           }
         </div>
@@ -82,25 +113,33 @@ interface UploadResult {
     .upload-progress-container {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 1.5rem;
+      align-items: stretch;
+      gap: 0.5rem;
       width: 100%;
       max-width: 400px;
     }
-    .upload-info { display: flex; align-items: center; gap: 1rem; color: var(--color-text); }
-    .progress-bar-bg {
-      width: 100%;
-      height: 8px;
-      background: var(--color-border);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .progress-bar-fill {
-      height: 100%;
-      background: var(--color-accent);
-      transition: width 0.2s ease-out;
-    }
     .upload-error { color: var(--color-error); margin-top: .5rem; font-size: .875rem; }
+    
+    .spinner-sm {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid transparent; border-top-color: var(--color-accent);
+      animation: spin 0.8s linear infinite;
+    }
+    .progress-details { margin-top: 0.6rem; width: 100%; }
+    .bar-row { display: flex; align-items: center; gap: 0.75rem; width: 100%; }
+    .bar { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+    .fill { height: 100%; background: var(--color-accent); transition: width 0.3s ease; }
+    .percent { font-size: 0.75rem; font-weight: 800; color: var(--color-accent); width: 35px; text-align: right; }
+    
+    .time-stats {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.75rem; margin-top: 0.8rem; font-size: 0.65rem;
+      color: var(--color-muted); font-weight: 600;
+    }
+    .time-item { display: flex; gap: 0.25rem; }
+    .time-item .label { opacity: 0.7; font-weight: 500; }
+    .time-item .value { color: var(--color-text); }
+    .time-divider { width: 1px; height: 10px; background: var(--color-border); opacity: 0.3; }
   `]
 })
 export class MediaUploaderComponent {
@@ -112,6 +151,8 @@ export class MediaUploaderComponent {
   readonly fileName = signal('');
   readonly error = signal('');
   readonly statusLabel = signal('Uploading');
+  readonly elapsedTime = signal(0);
+  readonly remainingTime = signal(0);
 
   private readonly api = inject(ApiService);
   private readonly fileHashService = inject(FileHashService);
@@ -138,6 +179,9 @@ export class MediaUploaderComponent {
     this.uploading.set(true);
     this.fileName.set(file.name);
     this.statusLabel.set('Checking');
+
+    // For file progress
+    (this as any)._uploadStartTime = Date.now();
 
     let hash: string | null = null;
     try {
@@ -188,7 +232,16 @@ export class MediaUploaderComponent {
         if (event.type === HttpEventType.UploadProgress) {
           const percent = Math.round(100 * event.loaded / (event.total ?? event.loaded));
           this.uploadProgress.set(percent);
-          this.statusLabel.set(`Uploading ${percent}%`);
+          
+          this.statusLabel.set(`Uploading`);
+          if (percent > 0) {
+            const elapsed = Math.max(0, Date.now() - (this as any)._uploadStartTime);
+            const estimatedTotal = Math.round(elapsed / (percent / 100));
+            const remaining = Math.max(0, estimatedTotal - elapsed);
+            
+            this.elapsedTime.set(elapsed);
+            this.remainingTime.set(percent === 100 ? 0 : remaining);
+          }
         } else if (event.type === HttpEventType.Response) {
           this.uploading.set(false);
           if (event.body) this.uploaded.emit(event.body);
@@ -199,5 +252,13 @@ export class MediaUploaderComponent {
         this.error.set(err.message);
       },
     });
+  }
+
+  formatTime(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
   }
 }

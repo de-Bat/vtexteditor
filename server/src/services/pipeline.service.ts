@@ -97,6 +97,10 @@ class PipelineService {
       // Merge step config into metadata under plugin ID key
       ctx = { ...ctx, metadata: { ...ctx.metadata, [step.pluginId]: step.config } };
 
+      const startProgress = Math.round((i / totalSteps) * 100);
+      const elapsedBefore = Date.now() - startTime;
+      const estimatedBefore = startProgress > 0 ? Math.round(elapsedBefore / (startProgress / 100)) : 0;
+
       sseService.broadcast({
         type: 'pipeline:progress',
         data: {
@@ -105,12 +109,18 @@ class PipelineService {
           totalSteps,
           pluginId: step.pluginId,
           pluginName: plugin.name,
-          progress: Math.round((i / totalSteps) * 100),
+          progress: startProgress,
+          elapsedTime: elapsedBefore,
+          estimatedTotalTime: estimatedBefore,
         },
       });
 
       ctx = await plugin.execute(ctx);
 
+      const endProgress = Math.round(((i + 1) / totalSteps) * 100);
+      const elapsedAfter = Date.now() - startTime;
+      const estimatedAfter = endProgress > 0 ? Math.round(elapsedAfter / (endProgress / 100)) : 0;
+
       sseService.broadcast({
         type: 'pipeline:progress',
         data: {
@@ -119,7 +129,9 @@ class PipelineService {
           totalSteps,
           pluginId: step.pluginId,
           pluginName: plugin.name,
-          progress: Math.round(((i + 1) / totalSteps) * 100),
+          progress: endProgress,
+          elapsedTime: elapsedAfter,
+          estimatedTotalTime: estimatedAfter,
         },
       });
     }

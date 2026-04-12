@@ -79,6 +79,21 @@ clipRoutes.get('/:id/stream', (req: Request, res: Response) => {
   }
 });
 
+/** PUT /api/clips/:id/cut-regions — replace clip's cut regions and sync isRemoved */
+clipRoutes.put('/:id/cut-regions', (req: Request, res: Response) => {
+  const { cutRegions } = req.body as { cutRegions?: unknown };
+  if (!Array.isArray(cutRegions)) {
+    res.status(400).json({ error: 'Body must be { cutRegions: CutRegion[] }' });
+    return;
+  }
+  const updated = clipService.updateCutRegions(String(req.params.id), cutRegions as any);
+  if (!updated) {
+    res.status(404).json({ error: 'Clip not found' });
+    return;
+  }
+  res.json(updated);
+});
+
 /** PUT /api/clips/:id/words — update word removal states */
 clipRoutes.put('/:id/words', (req: Request, res: Response) => {
   // Client sends { updates: [...] }; accept both that shape and a bare array.

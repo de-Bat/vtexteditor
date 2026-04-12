@@ -16,6 +16,30 @@ class ClipService {
     return this.getAll().find((c) => c.id === id);
   }
 
+  updateCutRegions(clipId: string, cutRegions: import('../models/clip.model').CutRegion[]): Clip | null {
+    const project = projectService.getCurrent();
+    if (!project) return null;
+
+    const clipIndex = project.clips.findIndex((c) => c.id === clipId);
+    if (clipIndex === -1) return null;
+
+    const clip = project.clips[clipIndex];
+
+    // Sync isRemoved on all words from the new cutRegions
+    const removedIds = new Set(cutRegions.flatMap((r) => r.wordIds));
+    const updatedSegments = clip.segments.map((seg) => ({
+      ...seg,
+      words: seg.words.map((w) => ({ ...w, isRemoved: removedIds.has(w.id) })),
+    }));
+
+    const updatedClip: Clip = { ...clip, cutRegions, segments: updatedSegments };
+    const updatedClips = [...project.clips];
+    updatedClips[clipIndex] = updatedClip;
+    projectService.update(project.id, { clips: updatedClips });
+
+    return updatedClip;
+  }
+
   updateWordStates(clipId: string, wordUpdates: Array<{ id: string; isRemoved?: boolean; text?: string }>): Clip | null {
     const project = projectService.getCurrent();
     if (!project) return null;

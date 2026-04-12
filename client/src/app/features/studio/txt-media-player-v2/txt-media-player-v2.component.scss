@@ -21,6 +21,9 @@
   --tertiary-container: #fd4e4d;
   --error: #ff6e84;
   --error-container: #a70138;
+  --search-match: rgba(251, 191, 36, 0.35);
+  --search-match-active: #fbbf24;
+  --on-search-match-active: #000;
 
   display: block;
   height: 100%;
@@ -794,9 +797,62 @@ audio {
 
     .search-input {
       width: 140px;
-      padding: 6px 12px 6px 4px;
+      padding: 6px 4px 6px 4px;
       opacity: 1;
       pointer-events: auto;
+    }
+  }
+
+  .search-input-group {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .search-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-right: 8px;
+    
+    .search-counts {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--primary);
+      margin-right: 6px;
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+      background: rgba(186, 158, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--on-surface-variant);
+      cursor: pointer;
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 150ms;
+
+      .material-symbols-outlined {
+        font-size: 16px;
+      }
+
+      &:hover {
+        background: var(--surface-container-highest);
+        color: var(--primary);
+      }
+
+      &:disabled {
+        opacity: 0.2;
+        cursor: not-allowed;
+      }
     }
   }
 
@@ -1101,10 +1157,22 @@ audio {
     }
   }
   &.search-match {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dim) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    text-shadow: none;
+    background: var(--search-match);
+    color: var(--on-surface);
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.2);
+
+    &-active {
+      background: var(--search-match-active) !important;
+      color: var(--on-search-match-active) !important;
+      -webkit-text-fill-color: var(--on-search-match-active) !important;
+      box-shadow: 0 0 20px rgba(251, 191, 36, 0.6), 0 0 0 1px var(--search-match-active);
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin: 0 -2px;
+      font-weight: 800;
+      text-shadow: none;
+    }
   }
   &.filler-hl {
     text-decoration: underline;

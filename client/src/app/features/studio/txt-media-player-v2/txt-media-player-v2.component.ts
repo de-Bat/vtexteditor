@@ -236,23 +236,44 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             <span class="material-symbols-outlined">auto_awesome</span>
           </button>
         </div>
+        <!-- Mode control -->
+        <div class="hdr-group hdr-divider" role="group" aria-label="Editor modes">
+          <button class="hdr-btn" [class.active]="editMode()" (click)="editMode.set(!editMode())" title="Toggle Edit Mode (E)">
+            <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
+          </button>
+        </div>
         <!-- Auto-follow moved to footer -->
       </div>
 
       <!-- Row 2: search + silence + Smart Cut + effect pills -->
       <div class="header-row2">
-        <!-- Collapsible search -->
+        <!-- Collapsible search + Match iteration -->
         <div class="search-wrap" [class.expanded]="searchExpanded()">
           <button class="hdr-btn search-trigger" (click)="searchExpanded.set(!searchExpanded())" title="Search">
             <span class="material-symbols-outlined">search</span>
           </button>
-          <input
-            type="text"
-            class="search-input"
-            placeholder="Search transcript..."
-            [value]="searchQuery()"
-            (input)="searchQuery.set($any($event.target).value)"
-          />
+          <div class="search-input-group">
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search transcript..."
+              [value]="searchQuery()"
+              (input)="searchQuery.set($any($event.target).value)"
+              (keydown.enter)="$event.preventDefault(); nextSearchMatch()"
+              (keydown.shift.enter)="$event.preventDefault(); prevSearchMatch()"
+            />
+            @if (searchQuery() && searchMatchIds().length > 0) {
+              <div class="search-nav">
+                <span class="search-counts">{{ currentMatchIndex() + 1 }} / {{ searchMatchIds().length }}</span>
+                <button class="nav-btn" (click)="prevSearchMatch()" title="Previous match">
+                  <span class="material-symbols-outlined">keyboard_arrow_up</span>
+                </button>
+                <button class="nav-btn" (click)="nextSearchMatch()" title="Next match">
+                  <span class="material-symbols-outlined">keyboard_arrow_down</span>
+                </button>
+              </div>
+            }
+          </div>
         </div>
 
         <div class="spacer"></div>
@@ -498,10 +519,11 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     }
                   </span>
                 } @else {
-                  <span class="word"
+                  <span class="word" [attr.id]="fi.word.id"
                     [class.highlighted]="fi.word.id === highlightedWordId()"
                     [class.selected]="selectedWordIdSet().has(fi.word.id)"
-                    [class.search-match]="searchMatchIds().has(fi.word.id)"
+                    [class.search-match]="searchMatchIdSet().has(fi.word.id)"
+                    [class.search-match-active]="fi.word.id === activeSearchMatchId()"
                     [class.filler-hl]="isFillerWord(fi.word)"
                     (mousedown)="onWordMouseDown(fi.word, $event)"
                     (mouseenter)="onWordMouseEnter(fi.word)"
@@ -613,14 +635,22 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly jumpCutMode = signal(false);
   readonly showOverlay = signal(false);
   readonly searchQuery = signal('');
+  readonly currentMatchIndex = signal(0);
   readonly selectedWordIds = signal<string[]>([]);
   readonly selectionAnchorWordId = signal<string | null>(null);
   readonly isDragSelecting = signal(false);
-  private dragSelectAnchorId: string | null = null;
   readonly transcriptScrollTop = signal(0);
   readonly transcriptViewportHeight = signal(0);
+  private dragSelectAnchorId: string | null = null;
+  private dragSelectBaselineIds: string[] = [];
+  private isDragAppendMode = false;
   readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
   private readonly editVersion = signal(0);
+
+  private readonly searchResetWatch = effect(() => {
+    this.searchQuery();
+    this.currentMatchIndex.set(0);
+  }, { allowSignalWrites: true });
 
   /* ── Smart-Cut Signals ────────────────────────────────── */
   /** Minimum silence gap (seconds) for smart-cut detection */
@@ -791,14 +821,39 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   readonly searchMatchIds = computed(() => {
     const q = this.searchQuery().toLowerCase().trim();
-    if (!q) return new Set<string>();
-    const ids = new Set<string>();
+    if (!q || q.length < 2) return [];
+    
+    // Subsequence fuzzy match (e.g. "abc" matches "apple berry cherry")
+    /**
+     * Smarter fuzzy match: matches subsequence and prioritizes starts-with.
+     */
+    const isFuzzyMatch = (text: string, query: string) => {
+      const t = text.toLowerCase();
+      const q = query.toLowerCase();
+      if (t.includes(q)) return true; // Direct match
+      
+      let qIdx = 0;
+      for (let i = 0; i < t.length && qIdx < q.length; i++) {
+        if (t[i] === q[qIdx]) qIdx++;
+      }
+      return qIdx === q.length;
+    };
+
+    const ids: string[] = [];
     for (const seg of this.clip().segments) {
       for (const w of seg.words) {
-        if (w.text.toLowerCase().includes(q)) ids.add(w.id);
+        if (isFuzzyMatch(w.text, q)) ids.push(w.id);
       }
     }
     return ids;
+  });
+
+  readonly searchMatchIdSet = computed(() => new Set(this.searchMatchIds()));
+
+  /** The ID of the currently active/focused search match. */
+  readonly activeSearchMatchId = computed(() => {
+    const matches = this.searchMatchIds();
+    return matches.length > 0 ? matches[this.currentMatchIndex()] : null;
   });
 
   /* ── Computed: Tag → Palette mapping ─────────────────── */
@@ -1098,11 +1153,25 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.justCompletedDrag = false;
       return;
     }
+    if (this.editMode()) return;
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
       this.selectedWordIds.set(range);
       return;
     }
+
+    if (event.ctrlKey || event.metaKey) {
+      this.selectionAnchorWordId.set(word.id);
+      const currentSet = new Set(this.selectedWordIds());
+      if (currentSet.has(word.id)) {
+        currentSet.delete(word.id);
+      } else {
+        currentSet.add(word.id);
+      }
+      this.selectedWordIds.set(Array.from(currentSet));
+      return;
+    }
+
     this.selectionAnchorWordId.set(word.id);
     this.selectedWordIds.set([word.id]);
     if (!word.isRemoved) this.mediaPlayer.seek(word.startTime);
@@ -1112,6 +1181,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (this.editMode()) return;
     if (event.button !== 0) return; // left button only
     this.dragSelectAnchorId = word.id;
+    this.isDragAppendMode = event.ctrlKey || event.metaKey;
+    this.dragSelectBaselineIds = this.isDragAppendMode ? [...this.selectedWordIds()] : [];
     // Don't set isDragSelecting yet — wait until the pointer actually moves to a different word
   }
 
@@ -1125,7 +1196,12 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.selectionAnchorWordId.set(this.dragSelectAnchorId);
     }
     const range = this.getWordRange(this.dragSelectAnchorId, word.id);
-    this.selectedWordIds.set(range);
+    if (this.isDragAppendMode) {
+      const combined = new Set([...this.dragSelectBaselineIds, ...range]);
+      this.selectedWordIds.set(Array.from(combined));
+    } else {
+      this.selectedWordIds.set(range);
+    }
   }
 
   private endDragSelect(): void {
@@ -1155,7 +1231,50 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   isSearchMatch(word: Word): boolean {
-    return this.searchMatchIds().has(word.id);
+    return this.searchMatchIdSet().has(word.id);
+  }
+
+  nextSearchMatch(): void {
+    const matches = this.searchMatchIds();
+    if (!matches.length) return;
+    const nextIdx = (this.currentMatchIndex() + 1) % matches.length;
+    this.currentMatchIndex.set(nextIdx);
+    this.scrollToWordById(matches[nextIdx]);
+  }
+
+  prevSearchMatch(): void {
+    const matches = this.searchMatchIds();
+    if (!matches.length) return;
+    const prevIdx = (this.currentMatchIndex() - 1 + matches.length) % matches.length;
+    this.currentMatchIndex.set(prevIdx);
+    this.scrollToWordById(matches[prevIdx]);
+  }
+
+  private scrollToWordById(wordId: string): void {
+    const segments = this.clip().segments;
+    let segIdx = -1;
+    for (let i = 0; i < segments.length; i++) {
+      if (segments[i].words.some(w => w.id === wordId)) {
+        segIdx = i;
+        break;
+      }
+    }
+    if (segIdx === -1) return;
+    const viewItem = this.segmentViewItems()[segIdx];
+    if (viewItem && this.transcriptElRef) {
+      const container = this.transcriptElRef.nativeElement;
+
+      // 1. First scroll to segment to ensure it's rendered by virtualization
+      container.scrollTo({ top: viewItem.top, behavior: 'auto' });
+
+      // 2. Then precisely scroll the word into the center of the viewport
+      setTimeout(() => {
+        const wordEl = container.querySelector(`[id="${wordId}"]`) as HTMLElement;
+        if (wordEl) {
+          wordEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+      }, 40);
+    }
   }
 
   /** @deprecated — use activeSegmentId() in template; kept for imperative code */

@@ -422,6 +422,8 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   readonly selectionAnchorWordId = signal<string | null>(null);
   readonly isDragSelecting = signal(false);
   private dragSelectAnchorId: string | null = null;
+  private dragSelectBaselineIds: string[] = [];
+  private isDragAppendMode = false;
   private justCompletedDrag = false;
   readonly transcriptScrollTop = signal(0);
   readonly transcriptViewportHeight = signal(0);
@@ -616,6 +618,8 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     if (this.editMode()) return;
     if (event.button !== 0) return;
     this.dragSelectAnchorId = word.id;
+    this.isDragAppendMode = event.ctrlKey || event.metaKey;
+    this.dragSelectBaselineIds = this.isDragAppendMode ? [...this.selectedWordIds()] : [];
   }
 
   onWordMouseEnter(word: Word): void {
@@ -628,7 +632,12 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
       this.selectionAnchorWordId.set(this.dragSelectAnchorId);
     }
     const range = this.getWordRange(this.dragSelectAnchorId, word.id);
-    this.selectedWordIds.set(range);
+    if (this.isDragAppendMode) {
+      const combined = new Set([...this.dragSelectBaselineIds, ...range]);
+      this.selectedWordIds.set(Array.from(combined));
+    } else {
+      this.selectedWordIds.set(range);
+    }
   }
 
   private endDragSelect(): void {

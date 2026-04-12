@@ -246,10 +246,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         </div>
       </div>
 
-      <!-- Row 2: search + silence interval + Smart Cut dropdown -->
+      <!-- Row 2: search + silence + Smart Cut + effect pills -->
       <div class="header-row2">
-        <div class="search-wrap">
-          <span class="material-symbols-outlined search-icon">search</span>
+        <!-- Collapsible search -->
+        <div class="search-wrap" [class.expanded]="searchExpanded()">
+          <button class="hdr-btn search-trigger" (click)="searchExpanded.set(!searchExpanded())" title="Search">
+            <span class="material-symbols-outlined">search</span>
+          </button>
           <input
             type="text"
             class="search-input"
@@ -258,21 +261,39 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             (input)="searchQuery.set($any($event.target).value)"
           />
         </div>
-        <div class="silence-interval-wrap">
-          <span class="material-symbols-outlined si-icon">timer</span>
-          <input type="number" class="si-input" min="0.1" max="5" step="0.1"
-            [value]="silenceIntervalSec()"
-            (change)="silenceIntervalSec.set(+$any($event.target).value)"
-            title="Min silence interval (sec)"
-          />
-          <span class="si-unit">s</span>
+
+        <div class="spacer"></div>
+
+        <!-- Silence interval popover -->
+        <div class="silence-control-wrap">
+          <button class="hdr-btn" [class.active]="silenceControlOpen()"
+            (click)="silenceControlOpen.set(!silenceControlOpen())" title="Min silence interval">
+            <span class="material-symbols-outlined">timer</span>
+          </button>
+          @if (silenceControlOpen()) {
+            <div class="silence-dropdown popover">
+              <div class="si-header">
+                <span class="si-label">Min Gap</span>
+                <div class="si-value">
+                  <input type="number" class="si-input" min="0.1" max="5" step="0.1"
+                    [value]="silenceIntervalSec()"
+                    (change)="silenceIntervalSec.set(+$any($event.target).value)"
+                  />
+                  <span class="si-unit">s</span>
+                </div>
+              </div>
+              <input type="range" class="si-slider" min="0.1" max="5" step="0.1"
+                [value]="silenceIntervalSec()"
+                (input)="silenceIntervalSec.set(+$any($event.target).value)"
+              />
+            </div>
+          }
         </div>
-        <!-- Smart Cut dropdown -->
+
+        <!-- Smart Cut (icon-only) -->
         <div class="smart-cut-wrap">
-          <button class="smart-cut-trigger" (click)="smartCutOpen.set(!smartCutOpen())" [class.open]="smartCutOpen()" title="Smart Cut">
-            <span class="material-symbols-outlined">content_cut</span>
-            Smart Cut
-            <span class="material-symbols-outlined sc-caret">expand_more</span>
+          <button class="hdr-btn" [class.active]="smartCutOpen()" (click)="smartCutOpen.set(!smartCutOpen())" title="Smart Cut">
+            <span class="material-symbols-outlined">auto_fix_high</span>
           </button>
           @if (smartCutOpen()) {
             <div class="smart-cut-dropdown" role="dialog" aria-label="Smart Cut options">
@@ -302,7 +323,8 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             </div>
           }
         </div>
-        <!-- Effect type selector for new cuts -->
+
+        <!-- Effect type selector for new cuts (unchanged) -->
         <div class="effect-pills-wrap" role="group" aria-label="Default cut effect type">
           <button class="effect-pill" [class.active]="defaultEffectType() === 'hard-cut'"
             (click)="setDefaultEffect('hard-cut')" title="Hard Cut — instant remove">

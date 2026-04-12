@@ -130,7 +130,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
         <!-- Current word caption -->
         @if (currentWord(); as cw) {
-          <div class="word-caption">{{ cw.text }}</div>
+          <div class="word-caption" [class.is-edited]="cw.isEdited">{{ cw.text }}</div>
         }
       </div>
     </div>
@@ -463,6 +463,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 } @else if (fi.word.isRemoved) {
                   @let region = wordIdToRegion().get(fi.word.id);
                   <span class="filler-badge"
+                    [class.is-edited]="fi.word.isEdited"
                     [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     [class.popover-open]="effectPopoverWordId() === fi.word.id"
                     (click)="onRemovedWordClick(fi.word, $event)"
@@ -520,6 +521,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                   </span>
                 } @else {
                   <span class="word" [attr.id]="fi.word.id"
+                    [class.is-edited]="fi.word.isEdited"
                     [class.highlighted]="fi.word.id === highlightedWordId()"
                     [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     [class.search-match]="searchMatchIdSet().has(fi.word.id)"
@@ -560,17 +562,15 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
     <!-- Status Bar (replaces action footer) -->
     <div class="status-bar">
-      <!-- Generated Status Indicator -->
-      <span class="status-chip status-indicator" title="Auto-Generated Transcript">
+      <!-- AI Indicator (Reflects Edited state) -->
+      <span class="status-chip status-indicator" 
+        [class.is-edited-badge]="isTranscriptEdited()"
+        [title]="isTranscriptEdited() ? 'AI Generated (User Edited)' : 'Auto-Generated Transcript'">
         <span class="material-symbols-outlined">psychology</span>
-      </span>
-
-      <!-- Edited Status Indicator -->
-      @if (isTranscriptEdited()) {
-        <span class="status-chip status-edited" title="User Edited Transcript">
+        @if (isTranscriptEdited()) {
           <span class="chip-label">Edited</span>
-        </span>
-      }
+        }
+      </span>
 
       @if (selectedCount()) {
         <span class="status-chip" [title]="selectedCount() + ' selected'">
@@ -680,6 +680,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /** Checks if any word in the clip has been manually text-edited */
   readonly isTranscriptEdited = computed(() => {
+    this.editVersion(); // track manual text edits
     return this.clip().segments.some(seg => seg.words.some(w => w.isEdited));
   });
 
@@ -732,6 +733,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
    * so the highlight never blinks off during micro-gaps.
    */
   readonly currentWord = computed(() => {
+    this.editVersion(); // track manual text edits
     const t = this.currentTime();
     const segments = this.clip().segments;
     let lastBefore: Word | null = null;
@@ -970,6 +972,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly shouldVirtualize = computed(() => this.totalWordCount() >= 1200);
 
   readonly segmentViewItems = computed<SegmentViewItem[]>(() => {
+    this.editVersion();
     const segments = this.clip().segments;
     let offset = 0;
     return segments.map((segment, index) => {
@@ -1004,6 +1007,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   });
 
   readonly renderedItems = computed(() => {
+    this.editVersion();
     const items = this.segmentViewItems();
     if (!this.shouldVirtualize()) return items;
     if (!items.length) return [];
@@ -1551,7 +1555,18 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (this.cutRegionSaveTimer) clearTimeout(this.cutRegionSaveTimer);
     this.cutRegionSaveTimer = setTimeout(() => {
       const c = this.clip();
+      
+      // Save cut regions
       this.clipService.updateCutRegions(c.id, c.cutRegions ?? []).subscribe({ error: console.error });
+      
+      // Save edited word texts
+      const editedWordUpdates = c.segments.flatMap(s => 
+        s.words.filter(w => w.isEdited).map(w => ({ id: w.id, text: w.text, isEdited: true }))
+      );
+      if (editedWordUpdates.length > 0) {
+        this.clipService.updateWordStates(c.id, editedWordUpdates).subscribe({ error: console.error });
+      }
+
       this.cutRegionSaveTimer = null;
     }, 800);
   }

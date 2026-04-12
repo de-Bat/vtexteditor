@@ -40,6 +40,12 @@
   overflow: hidden;
 }
 
+@keyframes status-glow-edited {
+  0% { box-shadow: 0 0 0 rgba(245, 158, 11, 0); }
+  50% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+  100% { box-shadow: 0 0 0 rgba(245, 158, 11, 0); }
+}
+
 /* ── Utility ──────────────────────────────────────────── */
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined';
@@ -205,11 +211,18 @@ audio {
   background: var(--primary-container);
   color: var(--on-primary-container);
   font-family: 'Manrope', sans-serif;
-  font-weight: 700;
   font-size: 1.125rem;
   pointer-events: none;
   white-space: nowrap;
   direction: rtl;
+  transition: all 0.2s ease;
+
+  &.is-edited {
+    background: #f59e0b;
+    color: #1a1a1a;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+    transform: translateX(-50%) scale(1.05);
+  }
 }
 
 /* ═══════ Timeline Panel ════════════════════════════════ */
@@ -1179,6 +1192,11 @@ audio {
     text-decoration-color: #f59e0b;
     text-underline-offset: 3px;
   }
+  &.is-edited {
+    color: #f59e0b;
+    font-weight: 600;
+    text-shadow: 0 0 8px rgba(245, 158, 11, 0.15);
+  }
 }
 
 /* ── Filler/removed word badge ────────────────────────── */
@@ -1197,6 +1215,15 @@ audio {
     outline: 1px solid rgba(186, 158, 255, 0.65);
     background: rgba(186, 158, 255, 0.25);
     border-color: transparent;
+  }
+
+  &.is-edited {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.05);
+
+    .filler-text {
+      color: #f59e0b;
+    }
   }
 }
 
@@ -1362,13 +1389,15 @@ audio {
     background: rgba(186, 158, 255, 0.08);
     color: var(--primary);
     border-color: rgba(186, 158, 255, 0.1);
-  }
 
-  &.status-edited {
-    background: rgba(245, 158, 11, 0.08);
-    color: #f59e0b;
-    border-color: rgba(245, 158, 11, 0.1);
-    animation: status-glow-edited 3s infinite;
+    &.is-edited-badge {
+      background: rgba(245, 158, 11, 0.08);
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.1);
+      animation: status-glow-edited 3s infinite;
+      padding-right: 10px; /* accommodate label */
+      width: auto !important; /* expand to show label */
+    }
   }
 
   &.status-removed {

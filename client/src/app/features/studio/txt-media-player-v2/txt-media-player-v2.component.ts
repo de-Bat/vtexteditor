@@ -206,50 +206,11 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
     <!-- Header -->
     <div class="transcript-header">
-      <!-- Row 1: title + edit group + selection group -->
+      <!-- Row 1: Search + Standard Tools -->
       <div class="header-row1">
-        <div class="hdr-group">
-          <!-- Psychology icon moved to footer -->
-        </div>
-        <div class="spacer"></div>
-        <!-- Edit group -->
-        <div class="hdr-group" role="group" aria-label="Edit history">
-          <button class="hdr-btn" (click)="restoreAll()" title="Restore all removed words">
-            <span class="material-symbols-outlined">settings_backup_restore</span>
-          </button>
-          <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Ctrl+Z)">
-            <span class="material-symbols-outlined">undo</span>
-          </button>
-          <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Ctrl+Shift+Z)">
-            <span class="material-symbols-outlined">redo</span>
-          </button>
-        </div>
-        <!-- Selection group -->
-        <div class="hdr-group hdr-divider" role="group" aria-label="Selection actions">
-          <button class="hdr-btn" (click)="removeSelected()" [disabled]="!selectedCount()" title="Cut selected">
-            <span class="material-symbols-outlined">content_cut</span>
-          </button>
-          <button class="hdr-btn" (click)="restoreSelected()" [disabled]="!selectedCount()" title="Healing restore selected">
-            <span class="material-symbols-outlined">healing</span>
-          </button>
-          <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" title="Jump-cut preview">
-            <span class="material-symbols-outlined">auto_awesome</span>
-          </button>
-        </div>
-        <!-- Mode control -->
-        <div class="hdr-group hdr-divider" role="group" aria-label="Editor modes">
-          <button class="hdr-btn" [class.active]="editMode()" (click)="editMode.set(!editMode())" title="Toggle Edit Mode (E)">
-            <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
-          </button>
-        </div>
-        <!-- Auto-follow moved to footer -->
-      </div>
-
-      <!-- Row 2: search + silence + Smart Cut + effect pills -->
-      <div class="header-row2">
         <!-- Collapsible search + Match iteration -->
         <div class="search-wrap" [class.expanded]="searchExpanded()">
-          <button class="hdr-btn search-trigger" (click)="searchExpanded.set(!searchExpanded())" title="Search">
+          <button class="hdr-btn search-trigger" (click)="toggleSearch()" title="Search">
             <span class="material-symbols-outlined">search</span>
           </button>
           <div class="search-input-group">
@@ -262,7 +223,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
               (keydown.enter)="$event.preventDefault(); nextSearchMatch()"
               (keydown.shift.enter)="$event.preventDefault(); prevSearchMatch()"
             />
-            @if (searchQuery() && searchMatchIds().length > 0) {
+            @if (searchExpanded() && searchQuery() && searchMatchIds().length > 0) {
               <div class="search-nav">
                 <span class="search-counts">{{ currentMatchIndex() + 1 }} / {{ searchMatchIds().length }}</span>
                 <button class="nav-btn" (click)="prevSearchMatch()" title="Previous match">
@@ -278,13 +239,51 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
         <div class="spacer"></div>
 
-        <!-- Inline tools / Responsive More menu -->
         @if (!searchExpanded()) {
-          <div class="inline-tools">
-            <!-- Silence interval popover -->
+          <!-- Tools visible when search is NOT expanded -->
+          <div class="hdr-group">
+            <!-- Mode control -->
+            <button class="hdr-btn" [class.active]="editMode()" (click)="editMode.set(!editMode())" title="Toggle Edit Mode (E)">
+              <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
+            </button>
+            
+            <!-- Smart Cut -->
+            <div class="smart-cut-wrap">
+              <button class="hdr-btn" [class.active]="smartCutOpen()" (click)="toggleMenu('smartCut')" title="Smart Cut">
+                <span class="material-symbols-outlined">auto_fix_high</span>
+              </button>
+              @if (smartCutOpen()) {
+                <div class="smart-cut-dropdown popover">
+                  <div class="sc-section-title">Filler Words — EN</div>
+                  <div class="sc-chips">
+                    @for (fw of FILLER_WORDS_EN; track fw) {
+                      <button class="sc-chip" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
+                    }
+                  </div>
+                  <div class="sc-section-title sc-section-he">Filler Words — עב</div>
+                  <div class="sc-chips">
+                    @for (fw of FILLER_WORDS_HE; track fw) {
+                      <button class="sc-chip sc-chip-he" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
+                    }
+                  </div>
+                  <div class="sc-toggles">
+                    <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())">
+                      <span class="material-symbols-outlined">visibility</span>
+                      Fillers
+                    </button>
+                    <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())">
+                      <span class="material-symbols-outlined">hourglass_empty</span>
+                      Silence
+                    </button>
+                  </div>
+                  <button class="sc-apply-btn" (click)="applySmartCut()">Apply Smart Cut</button>
+                </div>
+              }
+            </div>
+
+            <!-- Interval (Silence) -->
             <div class="silence-control-wrap">
-              <button class="hdr-btn" [class.active]="silenceControlOpen()"
-                (click)="toggleMenu('silence')" title="Min silence interval">
+              <button class="hdr-btn" [class.active]="silenceControlOpen()" (click)="toggleMenu('silence')" title="Min silence interval">
                 <span class="material-symbols-outlined">timer</span>
               </button>
               @if (silenceControlOpen()) {
@@ -306,79 +305,38 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 </div>
               }
             </div>
+          </div>
 
-            <!-- Smart Cut (icon-only) -->
-            <div class="smart-cut-wrap">
-              <button class="hdr-btn" [class.active]="smartCutOpen()" (click)="toggleMenu('smartCut')" title="Smart Cut">
-                <span class="material-symbols-outlined">auto_fix_high</span>
-              </button>
-              @if (smartCutOpen()) {
-                <div class="smart-cut-dropdown popover" role="dialog" aria-label="Smart Cut options">
-                  <div class="sc-section-title">Filler Words — EN</div>
-                  <div class="sc-chips">
-                    @for (fw of FILLER_WORDS_EN; track fw) {
-                      <button class="sc-chip" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
-                    }
-                  </div>
-                  <div class="sc-section-title sc-section-he">Filler Words — עב</div>
-                  <div class="sc-chips">
-                    @for (fw of FILLER_WORDS_HE; track fw) {
-                      <button class="sc-chip sc-chip-he" [class.selected]="selectedFillers().has(fw)" (click)="toggleFiller(fw)">{{ fw }}</button>
-                    }
-                  </div>
-                  <div class="sc-toggles">
-                    <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())" title="Highlight fillers">
-                      <span class="material-symbols-outlined">visibility</span>
-                      Fillers
-                    </button>
-                    <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())" title="Highlight silence-adjacent words">
-                      <span class="material-symbols-outlined">hourglass_empty</span>
-                      Silence
-                    </button>
-                  </div>
-                  <button class="sc-apply-btn" (click)="applySmartCut()">Apply Smart Cut</button>
-                </div>
-              }
-            </div>
-
-            <!-- Effect type selector for new cuts -->
-            <div class="effect-pills-wrap" role="group" aria-label="Default cut effect type">
-              <button class="effect-pill" [class.active]="defaultEffectType() === 'hard-cut'"
-                (click)="setDefaultEffect('hard-cut')" title="Hard Cut">
-                <span class="material-symbols-outlined" style="font-size:1rem">content_cut</span>
-              </button>
-              <button class="effect-pill" [class.active]="defaultEffectType() === 'fade'"
-                (click)="setDefaultEffect('fade')" title="Fade">
-                <span class="material-symbols-outlined" style="font-size:1rem">blur_on</span>
-              </button>
-              <button class="effect-pill" [class.active]="defaultEffectType() === 'cross-cut'"
-                (click)="setDefaultEffect('cross-cut')" title="Cross-Cut">
-                <span class="material-symbols-outlined" style="font-size:1rem">shuffle</span>
-              </button>
-            </div>
+          <!-- Edit History -->
+          <div class="hdr-group hdr-divider">
+            <button class="hdr-btn" (click)="restoreAll()" title="Restore all removed words">
+              <span class="material-symbols-outlined">settings_backup_restore</span>
+            </button>
+            <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Ctrl+Z)">
+              <span class="material-symbols-outlined">undo</span>
+            </button>
+            <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Ctrl+Shift+Z)">
+              <span class="material-symbols-outlined">redo</span>
+            </button>
           </div>
         } @else {
-          <!-- Search is expanded -> Collapse others into more menu -->
+          <!-- Search is expanded -> Collapse ALL tools into more menu -->
           <div class="more-menu-wrap">
             <button class="hdr-btn" [class.active]="moreMenuOpen()" (click)="toggleMenu('more')" title="More tools">
               <span class="material-symbols-outlined">more_horiz</span>
             </button>
             @if (moreMenuOpen()) {
               <div class="more-menu-dropdown popover">
-                <!-- Silence inside menu -->
                 <div class="menu-item-group">
-                  <span class="menu-label">Min Silence Gap</span>
-                  <div class="si-row">
-                    <input type="range" class="si-slider" min="0.1" max="5" step="0.1"
-                      [value]="silenceIntervalSec()"
-                      (input)="silenceIntervalSec.set(+$any($event.target).value)"
-                    />
-                    <span class="si-val-text">{{ silenceIntervalSec() }}s</span>
-                  </div>
+                  <span class="menu-label">Editor Mode</span>
+                  <button class="hdr-btn w-full" [class.active]="editMode()" (click)="editMode.set(!editMode())" style="justify-content:flex-start; width:100%; gap:8px; padding:0 8px">
+                    <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
+                    <span>{{ editMode() ? 'Disable Edit Mode' : 'Enable Edit Mode' }}</span>
+                  </button>
                 </div>
-                <!-- Smart Cut triggers inside menu -->
+
                 <div class="menu-item-group">
-                  <span class="menu-label">Smart Highlights</span>
+                  <span class="menu-label">Smart Cut</span>
                   <div class="sc-toggles">
                     <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())">
                       <span class="material-symbols-outlined">visibility</span>
@@ -389,20 +347,71 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                       Silence
                     </button>
                   </div>
+                  <button class="sc-apply-btn" (click)="applySmartCut()" style="margin-top:4px">Apply Smart Cut</button>
                 </div>
-                <!-- Effects inside menu -->
+
                 <div class="menu-item-group">
-                  <span class="menu-label">Default Effect</span>
-                  <div class="effect-pills-wrap">
-                    <button class="effect-pill" [class.active]="defaultEffectType() === 'hard-cut'" (click)="setDefaultEffect('hard-cut')">Cut</button>
-                    <button class="effect-pill" [class.active]="defaultEffectType() === 'fade'" (click)="setDefaultEffect('fade')">Fade</button>
-                    <button class="effect-pill" [class.active]="defaultEffectType() === 'cross-cut'" (click)="setDefaultEffect('cross-cut')">Cross</button>
+                  <span class="menu-label">Min Silence Gap</span>
+                  <div class="si-row">
+                    <input type="range" class="si-slider" min="0.1" max="5" step="0.1"
+                      [value]="silenceIntervalSec()"
+                      (input)="silenceIntervalSec.set(+$any($event.target).value)"
+                    />
+                    <span class="si-val-text">{{ silenceIntervalSec() }}s</span>
+                  </div>
+                </div>
+
+                <div class="menu-item-group">
+                  <span class="menu-label">History</span>
+                  <div class="hdr-group">
+                    <button class="hdr-btn" (click)="restoreAll()" title="Restore all">
+                      <span class="material-symbols-outlined">settings_backup_restore</span>
+                    </button>
+                    <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo">
+                      <span class="material-symbols-outlined">undo</span>
+                    </button>
+                    <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo">
+                      <span class="material-symbols-outlined">redo</span>
+                    </button>
                   </div>
                 </div>
               </div>
             }
           </div>
         }
+      </div>
+
+      <!-- Row 2: Selection Actions (Only shown on selection) -->
+      <div class="header-row2 selection-toolbar" [class.visible]="selectedCount() > 0">
+        <div class="hdr-group">
+          <button class="hdr-btn" (click)="removeSelected()" title="Cut selected">
+            <span class="material-symbols-outlined">content_cut</span>
+          </button>
+          <button class="hdr-btn" (click)="restoreSelected()" title="Healing restore selected">
+            <span class="material-symbols-outlined">healing</span>
+          </button>
+          <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" title="Jump-cut preview">
+            <span class="material-symbols-outlined">auto_awesome</span>
+          </button>
+        </div>
+
+        <div class="spacer"></div>
+
+        <!-- Effect Pills (Default selection effect) -->
+        <div class="effect-pills-wrap">
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'hard-cut'"
+            (click)="setDefaultEffect('hard-cut')" title="Hard Cut">
+            <span class="material-symbols-outlined" style="font-size:1rem">content_cut</span>
+          </button>
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'fade'"
+            (click)="setDefaultEffect('fade')" title="Fade">
+            <span class="material-symbols-outlined" style="font-size:1rem">blur_on</span>
+          </button>
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'cross-cut'"
+            (click)="setDefaultEffect('cross-cut')" title="Cross-Cut">
+            <span class="material-symbols-outlined" style="font-size:1rem">shuffle</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1110,6 +1119,14 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   togglePlay(): void {
     this.effectPlayer.resumeAudioContext();
     this.playing() ? this.mediaPlayer.pause() : this.mediaPlayer.play().catch(() => {});
+  }
+
+  toggleSearch(): void {
+    const newState = !this.searchExpanded();
+    this.searchExpanded.set(newState);
+    if (!newState) {
+      this.searchQuery.set('');
+    }
   }
 
   toggleMute(): void {

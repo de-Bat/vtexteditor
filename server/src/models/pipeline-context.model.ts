@@ -20,5 +20,5 @@ export interface PipelineContext {
   /** Generic key-value cache provided by the pipeline service */
   cache: PipelineCache;
   /** Callback to report granular progress updates (e.g. LLM streaming) */
-  reportProgress?: (message: string, progress?: number) => void;
+  reportProgress?: (message: string, progress?: number, estimatedRemainingMs?: number) => void;
 }

@@ -63,7 +63,9 @@ class PipelineService {
       }
 
       // Update the progress reporter for the current step to capture 'i'
-      ctx.reportProgress = (message: string, subProgress?: number) => {
+      const pluginStartTime = Date.now();
+      ctx.reportProgress = (message: string, subProgress?: number, pluginRemainingMs?: number) => {
+        const now = Date.now();
         const currentStep = i + 1;
         const pluginObj = pluginRegistry.getById(sortedSteps[i].pluginId);
         
@@ -71,10 +73,25 @@ class PipelineService {
         const stepProgress = ((subProgress ?? 0) / 100) * (1 / totalSteps);
         const totalProgress = Math.round((baseProgress + stepProgress) * 100);
 
-        const now = Date.now();
         const elapsed = now - startTime;
+        const pluginElapsed = now - pluginStartTime;
+        
         let estimatedTotal = 0;
-        if (totalProgress > 0) {
+        if (pluginRemainingMs !== undefined) {
+          // If plugin provides its own remaining time, use it
+          // Estimated total = current elapsed + remaining for this step + estimated for future steps
+          const futureStepsCount = totalSteps - currentStep;
+          const avgStepTime = i > 0 ? (startTime - Date.now()) / i : pluginElapsed / (subProgress || 1) * 100; // rough avg
+          // Actually, let's keep it simple: if plugin says it has X left, 
+          // we trust it for this step.
+          estimatedTotal = elapsed + pluginRemainingMs;
+          
+          // Add estimated time for future steps if we have many
+          if (futureStepsCount > 0) {
+            const estFuture = (elapsed / currentStep) * futureStepsCount;
+            estimatedTotal += estFuture;
+          }
+        } else if (totalProgress > 0) {
           estimatedTotal = Math.round(elapsed / (totalProgress / 100));
         }
 
@@ -89,6 +106,7 @@ class PipelineService {
             progress: totalProgress,
             message,
             elapsedTime: elapsed,
+            pluginElapsedTime: pluginElapsed,
             estimatedTotalTime: estimatedTotal
           },
         });
@@ -118,7 +136,9 @@ class PipelineService {
       ctx = await plugin.execute(ctx);
 
       const endProgress = Math.round(((i + 1) / totalSteps) * 100);
-      const elapsedAfter = Date.now() - startTime;
+      const nowAfter = Date.now();
+      const elapsedAfter = nowAfter - startTime;
+      const pluginElapsedFinal = nowAfter - pluginStartTime;
       const estimatedAfter = endProgress > 0 ? Math.round(elapsedAfter / (endProgress / 100)) : 0;
 
       sseService.broadcast({
@@ -131,6 +151,7 @@ class PipelineService {
           pluginName: plugin.name,
           progress: endProgress,
           elapsedTime: elapsedAfter,
+          pluginElapsedTime: pluginElapsedFinal,
           estimatedTotalTime: estimatedAfter,
         },
       });

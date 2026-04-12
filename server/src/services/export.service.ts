@@ -39,9 +39,9 @@ class ExportService {
   }
 
   /** Start an export job asynchronously. Returns jobId immediately. */
-  start(projectId: string, format: ExportFormat): string {
+  start(projectId: string, format: ExportFormat, clipIds?: string[]): string {
     const id = uuidv4();
-    const job: ExportJob = { id, projectId, format, status: 'pending', createdAt: new Date().toISOString() };
+    const job: ExportJob = { id, projectId, format, clipIds, status: 'pending', createdAt: new Date().toISOString() };
     this.jobs.set(id, job);
     setImmediate(() => this.run(id));
     return id;

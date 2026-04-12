@@ -228,17 +228,31 @@ export const whisperPlugin: IPlugin = {
 
     let rawSegments: RawSegment[];
     try {
-      rawSegments = await chunkAndTranscribe(
-        audioPath,
-        transcribeChunk,
-        { chunkDurationSecs, maxConcurrent },
-        ctx.mediaInfo?.duration,
-        (progress, completed, total, active) => {
-          const pending = total - completed - active;
-          const status = `Transcribing chunks (${completed}/[blue:${total}]) — [green:${active}] active, [orange:${pending}] pending…`;
-          ctx.reportProgress?.(status, progress);
-        }
-      );
+        const transcriptionStartTime = Date.now();
+        rawSegments = await chunkAndTranscribe(
+          audioPath,
+          transcribeChunk,
+          { chunkDurationSecs, maxConcurrent },
+          ctx.mediaInfo?.duration,
+          (progress, completed, total, active) => {
+            const pending = total - completed - active;
+            const status = `Transcribing chunks (${completed}/[blue:${total}]) — [green:${active}] active, [orange:${pending}] pending…`;
+            
+            let remainingMs: number | undefined;
+            if (completed > 0) {
+              const now = Date.now();
+              const elapsed = now - transcriptionStartTime;
+              const avgPerChunk = elapsed / completed;
+              const remainingChunks = total - completed;
+              // Chunks are processed in parallel, so we estimate remaining time
+              // by dividing the serial remaining time by concurrency.
+              const parallelFactor = Math.max(1, active);
+              remainingMs = (avgPerChunk * remainingChunks) / parallelFactor;
+            }
+
+            ctx.reportProgress?.(status, progress, remainingMs);
+          }
+        );
     } finally {
       if (tempCreated && fs.existsSync(audioPath)) {
         fs.unlinkSync(audioPath);

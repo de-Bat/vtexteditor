@@ -89,10 +89,14 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             class="video-el"
             [src]="mediaUrl()"
             preload="metadata"
+            [style.opacity]="effectPlayer.videoOpacity()"
+            [style.filter]="effectPlayer.videoFilter()"
           ></video>
         } @else {
           <audio #mediaEl [src]="mediaUrl()" preload="metadata"></audio>
-          <div class="audio-placeholder">
+          <div class="audio-placeholder"
+            [style.opacity]="effectPlayer.videoOpacity()"
+            [style.filter]="effectPlayer.videoFilter()">
             <span class="material-symbols-outlined audio-icon">headphones</span>
             <span class="audio-label">Audio Only</span>
           </div>
@@ -819,6 +823,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Private State ───────────────────────────────────── */
   private suppressScrollDetection = false;
+  private readonly effectInProgress = signal(false);
   private readonly handleResize = () => this.measureTranscriptViewport();
   private readonly handleKeydown: (event: KeyboardEvent) => void;
   private detachKeyboard: (() => void) | null = null;
@@ -909,10 +914,14 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     const el = event.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    this.effectPlayer.resetAll();
+    this.effectInProgress.set(false);
     this.mediaPlayer.seek(ratio * this.duration());
   }
 
   seekToTime(time: number): void {
+    this.effectPlayer.resetAll();
+    this.effectInProgress.set(false);
     this.mediaPlayer.seek(time);
   }
 
@@ -1184,19 +1193,64 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   private applyJumpCut(currentTime: number): void {
-    for (const seg of this.clip().segments) {
+    if (this.effectInProgress()) return;
+
+    const segments = this.clip().segments;
+    let startIdx = Math.max(0, this.lastActiveSegmentIdx);
+    if (startIdx < segments.length && currentTime < segments[startIdx].startTime) startIdx = 0;
+
+    const EPSILON = 0.08;
+
+    for (let i = startIdx; i < segments.length; i++) {
+      const seg = segments[i];
+      if (seg.startTime > currentTime + 1) break;
+
       for (const word of seg.words) {
-        if (word.isRemoved && currentTime >= word.startTime && currentTime < word.endTime) {
-          const next = this.findNextActiveWordStart(word.endTime);
-          if (next !== null) {
-            this.mediaPlayer.seek(next);
-          } else {
-            this.mediaPlayer.pause();
-          }
-          return;
+        if (!word.isRemoved) continue;
+        if (currentTime < word.startTime - EPSILON || currentTime >= word.endTime - EPSILON) continue;
+
+        const nextStart = this.findNextActiveWordStart(word.endTime);
+        if (nextStart === null) { this.enforceSegmentBounds(currentTime); return; }
+        if (Math.abs(nextStart - currentTime) <= EPSILON) return;
+
+        const region = this.wordIdToRegion().get(word.id);
+        const effectType = region?.effectType ?? 'hard-cut';
+        const effectDuration = region?.effectDuration ?? 200;
+        const halfMs = effectDuration / 2;
+
+        if (effectType === 'hard-cut') {
+          this.mediaPlayer.seek(nextStart);
+        } else if (effectType === 'fade') {
+          this.effectInProgress.set(true);
+          this.effectPlayer.startFadeOut(halfMs);
+          setTimeout(() => {
+            this.mediaPlayer.seek(nextStart);
+            this.effectPlayer.startFadeIn(halfMs);
+            setTimeout(() => this.effectInProgress.set(false), halfMs + 50);
+          }, halfMs);
+        } else if (effectType === 'cross-cut') {
+          this.effectInProgress.set(true);
+          this.effectPlayer.triggerCrossCutFlash();
+          this.mediaPlayer.seek(nextStart);
+          this.effectPlayer.startAudioCrossfade(effectDuration);
+          setTimeout(() => this.effectInProgress.set(false), effectDuration + 50);
         }
+        return;
       }
     }
+  }
+
+  private enforceSegmentBounds(currentTime: number): void {
+    const segments = this.clip().segments;
+    if (!segments.length) return;
+    const last = segments[segments.length - 1];
+    if (currentTime >= last.endTime) this.mediaPlayer.pause();
+  }
+
+  private get lastActiveSegmentIdx(): number {
+    const id = this.activeSegmentId();
+    if (!id) return 0;
+    return Math.max(0, this.clip().segments.findIndex(s => s.id === id));
   }
 
   private findNextActiveWordStart(afterTime: number): number | null {

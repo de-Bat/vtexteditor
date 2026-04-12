@@ -4,6 +4,8 @@ import { srtImportPlugin } from './transcription/srt-import.plugin';
 import { whisperPlugin } from './transcription/whisper-openai.plugin';
 import { groqWhisperPlugin } from './transcription/groq-whisper.plugin';
 import { reconstruct2storyPlugin } from './narrative/reconstruct2story.plugin';
+import { locationsPlugin } from './locations/locations.plugin';
+import { timestampsPlugin } from './timestamps/timestamps.plugin';
 
 class PluginRegistry {
   private plugins: Map<string, IPlugin> = new Map();
@@ -13,6 +15,8 @@ class PluginRegistry {
     this.register(whisperPlugin);
     this.register(groqWhisperPlugin);
     this.register(reconstruct2storyPlugin);
+    this.register(locationsPlugin);
+    this.register(timestampsPlugin);
   }
 
   register(plugin: IPlugin): void {

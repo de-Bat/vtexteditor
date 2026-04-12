@@ -1,8 +1,7 @@
 import { z } from 'zod';
-import { MetadataType } from '../models/segment-metadata.model';
 
 const BaseMetadataSchema = z.object({
-  type: z.enum(['speaker', 'geo', 'timeRange', 'language', 'custom']),
+  type: z.enum(['speaker', 'geo', 'trail', 'timeRange', 'language', 'custom']),
   sourcePluginId: z.string().min(1),
   confidence: z.number().min(0).max(1).optional(),
 });
@@ -18,6 +17,17 @@ const GeoMetadataSchema = BaseMetadataSchema.extend({
   lat: z.number(),
   lng: z.number(),
   placeName: z.string().optional(),
+});
+
+const TrailPointSchema = z.object({
+  lat: z.number(),
+  lng: z.number(),
+  name: z.string().optional(),
+});
+
+const TrailMetadataSchema = BaseMetadataSchema.extend({
+  type: z.literal('trail'),
+  points: z.array(TrailPointSchema).min(1),
 });
 
 const TimeRangeMetadataSchema = BaseMetadataSchema.extend({
@@ -42,6 +52,7 @@ const CustomMetadataSchema = BaseMetadataSchema.extend({
 export const MetadataEntrySchema = z.discriminatedUnion('type', [
   SpeakerMetadataSchema,
   GeoMetadataSchema,
+  TrailMetadataSchema,
   TimeRangeMetadataSchema,
   LanguageMetadataSchema,
   CustomMetadataSchema,

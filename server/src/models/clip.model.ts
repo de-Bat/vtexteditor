@@ -1,4 +1,5 @@
 import { Segment } from './segment.model';
+import { MetadataEntry } from './segment-metadata.model';
 
 export type EffectType = 'hard-cut' | 'fade' | 'cross-cut';
 
@@ -22,4 +23,6 @@ export interface Clip {
   segments: Segment[];
   cutRegions: CutRegion[];
   showSilenceMarkers?: boolean;
+  /** Structured metadata entries for the entire clip */
+  metadata?: Record<string, MetadataEntry[]>;
 }

@@ -63,30 +63,83 @@
   overflow: hidden;
 }
 
-.panel-header {
-  height: 56px;
-  min-height: 56px;
+.panel-tabs {
   display: flex;
-  align-items: center;
-  justify-content: center; // Center the segment range now that title is gone
-  padding: 0 16px;
+  background: var(--surface-container-lowest, #0d0d0f);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(19, 19, 21, 0.8);
-  backdrop-filter: blur(8px);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  padding: 4px;
+  gap: 4px;
 }
 
-
-.segment-range {
+.tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--on-surface-variant, #acaaad);
   font-family: 'Space Grotesk', sans-serif;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--on-surface, #e6e1e5);
+  }
+
+  &.active {
+    background: var(--surface-container-high, #2b2930);
+    color: var(--primary, #ba9eff);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.panel-header {
+  height: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(19, 19, 21, 0.4);
+}
+
+.range-badge {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
   color: var(--secondary, #9093ff);
   background: rgba(144, 147, 255, 0.1);
   padding: 4px 10px;
   border-radius: 6px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+
+  &.clip-badge {
+    color: var(--primary, #ba9eff);
+    background: rgba(186, 158, 255, 0.1);
+  }
+
+  &.range-empty {
+    color: var(--outline, #767577);
+    background: rgba(255, 255, 255, 0.05);
+  }
 }
 
 .panel-empty {

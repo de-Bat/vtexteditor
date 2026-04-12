@@ -1,6 +1,6 @@
 import { Component, ChangeDetectionStrategy, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SegmentMetadata } from '../../../core/models/segment-metadata.model';
+import { MetadataEntry, SpeakerMetadata, GeoMetadata, TimeRangeMetadata, LanguageMetadata, CustomMetadata, TextMetadata, TrailMetadata } from '../../../core/models/segment-metadata.model';
 
 @Component({
   selector: 'app-metadata-entry',
@@ -50,6 +50,10 @@ import { SegmentMetadata } from '../../../core/models/segment-metadata.model';
           }
           @case ('text') {
             <div class="main-val text-content">{{ asText(entry()).content }}</div>
+          }
+          @case ('trail') {
+            <div class="main-val">Trail Path</div>
+            <div class="sub-val">{{ asTrail(entry()).points.length }} points tracked</div>
           }
         }
       </div>
@@ -156,12 +160,13 @@ import { SegmentMetadata } from '../../../core/models/segment-metadata.model';
     .type-language .type-badge { color: #fbbf24; background: rgba(251, 191, 36, 0.1); }
     .type-custom .type-badge { color: #acaaad; background: rgba(172, 170, 173, 0.1); }
     .type-text .type-badge { color: var(--primary); background: rgba(186, 158, 255, 0.1); }
+    .type-trail .type-badge { color: #f472b6; background: rgba(244, 114, 182, 0.1); }
   `]
 })
 export class MetadataEntryComponent {
-  readonly entry = input.required<SegmentMetadata>();
-  readonly edit = output<SegmentMetadata>();
-  readonly delete = output<SegmentMetadata>();
+  readonly entry = input.required<MetadataEntry>();
+  readonly edit = output<MetadataEntry>();
+  readonly delete = output<MetadataEntry>();
 
   protected getIcon(type: string): string {
     switch (type) {
@@ -170,6 +175,7 @@ export class MetadataEntryComponent {
       case 'timeRange': return 'schedule';
       case 'language': return 'language';
       case 'text': return 'notes';
+      case 'trail': return 'route';
       default: return 'label';
     }
   }
@@ -179,6 +185,7 @@ export class MetadataEntryComponent {
   protected asGeo(e: any) { return e as any; }
   protected asTime(e: any) { return e as any; }
   protected asLang(e: any) { return e as any; }
-  protected asCustom(e: any) { return e as any; }
-  protected asText(e: any) { return e as any; }
+  protected asCustom(e: any) { return e as CustomMetadata; }
+  protected asText(e: any) { return e as TextMetadata; }
+  protected asTrail(e: any) { return e as TrailMetadata; }
 }

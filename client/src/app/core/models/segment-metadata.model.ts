@@ -1,4 +1,4 @@
-export type MetadataType = 'speaker' | 'geo' | 'timeRange' | 'language' | 'custom' | 'text';
+export type MetadataType = 'speaker' | 'geo' | 'trail' | 'timeRange' | 'language' | 'custom' | 'text';
 
 export interface BaseMetadata {
   type: MetadataType;
@@ -17,6 +17,17 @@ export interface GeoMetadata extends BaseMetadata {
   lat: number;
   lng: number;
   placeName?: string;
+}
+
+export interface TrailPoint {
+  lat: number;
+  lng: number;
+  name?: string;
+}
+
+export interface TrailMetadata extends BaseMetadata {
+  type: 'trail';
+  points: TrailPoint[];
 }
 
 export interface TimeRangeMetadata extends BaseMetadata {
@@ -43,9 +54,10 @@ export interface TextMetadata extends BaseMetadata {
   content: string;
 }
 
-export type SegmentMetadata =
+export type MetadataEntry =
   | SpeakerMetadata
   | GeoMetadata
+  | TrailMetadata
   | TimeRangeMetadata
   | LanguageMetadata
   | CustomMetadata

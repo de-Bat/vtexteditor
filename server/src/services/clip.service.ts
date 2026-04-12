@@ -1,6 +1,6 @@
 import { Clip } from '../models/clip.model';
 import { Word } from '../models/word.model';
-import { SegmentMetadata } from '../models/segment-metadata.model';
+import { MetadataEntry } from '../models/segment-metadata.model';
 import { projectService } from './project.service';
 
 class ClipService {
@@ -73,7 +73,7 @@ class ClipService {
 
   updateSegmentMetadata(
     projectId: string, clipId: string, segmentId: string, 
-    metadata: Record<string, SegmentMetadata[]>
+    metadata: Record<string, MetadataEntry[]>
   ): import('../models/segment.model').Segment | null {
     const project = projectService.get(projectId);
     if (!project) return null;
@@ -100,7 +100,7 @@ class ClipService {
 
   patchSegmentMetadata(
     projectId: string, clipId: string, segmentId: string, 
-    sourcePluginId: string, entries: SegmentMetadata[]
+    sourcePluginId: string, entries: MetadataEntry[]
   ): import('../models/segment.model').Segment | null {
     const project = projectService.get(projectId);
     if (!project) return null;
@@ -126,6 +126,47 @@ class ClipService {
 
     projectService.update(projectId, { clips: updatedClips });
     return updatedSegment;
+  }
+
+  updateClipMetadata(
+    projectId: string, clipId: string, 
+    metadata: Record<string, MetadataEntry[]>
+  ): Clip | null {
+    const project = projectService.get(projectId);
+    if (!project) return null;
+
+    const clipIndex = project.clips.findIndex(c => c.id === clipId);
+    if (clipIndex === -1) return null;
+    const clip = project.clips[clipIndex];
+
+    const updatedClip = { ...clip, metadata };
+    const updatedClips = [...project.clips];
+    updatedClips[clipIndex] = updatedClip;
+
+    projectService.update(projectId, { clips: updatedClips });
+    return updatedClip;
+  }
+
+  patchClipMetadata(
+    projectId: string, clipId: string, 
+    sourcePluginId: string, entries: MetadataEntry[]
+  ): Clip | null {
+    const project = projectService.get(projectId);
+    if (!project) return null;
+
+    const clipIndex = project.clips.findIndex(c => c.id === clipId);
+    if (clipIndex === -1) return null;
+    const clip = project.clips[clipIndex];
+
+    const currentMetadata = clip.metadata ?? {};
+    const updatedMetadata = { ...currentMetadata, [sourcePluginId]: entries };
+
+    const updatedClip = { ...clip, metadata: updatedMetadata };
+    const updatedClips = [...project.clips];
+    updatedClips[clipIndex] = updatedClip;
+
+    projectService.update(projectId, { clips: updatedClips });
+    return updatedClip;
   }
 }
 

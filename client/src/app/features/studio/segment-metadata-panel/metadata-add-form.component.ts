@@ -1,17 +1,17 @@
 import {
-  Component, ChangeDetectionStrategy, output, signal, inject
+  Component, ChangeDetectionStrategy, output, signal, inject, input
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormGroup, FormControl, Validators, FormsModule } from '@angular/forms';
 import {
-  SegmentMetadata, MetadataType,
-  SpeakerMetadata, GeoMetadata, TimeRangeMetadata, LanguageMetadata, CustomMetadata
+  MetadataEntry, MetadataType,
+  SpeakerMetadata, GeoMetadata, TimeRangeMetadata, LanguageMetadata, CustomMetadata, TrailMetadata, TrailPoint
 } from '../../../core/models/segment-metadata.model';
 
 @Component({
   selector: 'app-metadata-add-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="add-form-container">
@@ -28,6 +28,9 @@ import {
           <select id="meta-type" formControlName="type" class="form-select">
             <option value="speaker">Speaker</option>
             <option value="geo">Geo Location</option>
+            @if (allowTrails()) {
+              <option value="trail">Trail (Path)</option>
+            }
             <option value="timeRange">Time Range</option>
             <option value="language">Language</option>
             <option value="custom">Custom Key/Value</option>
@@ -97,6 +100,33 @@ import {
               <div class="field-group">
                 <label>Value</label>
                 <input formControlName="value" placeholder="Value" class="form-input" />
+              </div>
+            }
+            @case ('trail') {
+              <div class="trail-editor">
+                <div class="field-header">
+                  <label>Points ({{ trailPoints().length }})</label>
+                  <button type="button" class="btn-icon" (click)="addTrailPoint()">
+                    <span class="material-symbols-outlined">add_location_alt</span>
+                  </button>
+                </div>
+                
+                <div class="points-list">
+                  @for (p of trailPoints(); track $index) {
+                    <div class="point-item">
+                      <div class="point-fields">
+                        <input [(ngModel)]="p.lat" [ngModelOptions]="{standalone: true}" type="number" placeholder="Lat" class="form-input mini" />
+                        <input [(ngModel)]="p.lng" [ngModelOptions]="{standalone: true}" type="number" placeholder="Lng" class="form-input mini" />
+                        <input [(ngModel)]="p.name" [ngModelOptions]="{standalone: true}" placeholder="Name (opt)" class="form-input mini name" />
+                      </div>
+                      <button type="button" class="btn-remove" (click)="removeTrailPoint($index)">
+                        <span class="material-symbols-outlined">delete</span>
+                      </button>
+                    </div>
+                  } @empty {
+                    <p class="empty-hint">Add at least one point to the trail</p>
+                  }
+                </div>
               </div>
             }
             @case ('text') {
@@ -249,11 +279,81 @@ import {
       box-shadow: 0 4px 12px rgba(186, 158, 255, 0.3);
     }
     .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .trail-editor {
+      background: rgba(0,0,0,0.1);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 8px;
+    }
+    .field-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .btn-icon {
+      background: transparent;
+      border: none;
+      color: var(--primary, #ba9eff);
+      cursor: pointer;
+      display: flex;
+      padding: 4px;
+      border-radius: 4px;
+      &:hover { background: rgba(186, 158, 255, 0.1); }
+    }
+    .points-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .point-item {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 6px;
+      border-radius: 6px;
+    }
+    .point-fields {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+    }
+    .form-input.mini {
+      padding: 6px 8px;
+      font-size: 11px;
+    }
+    .form-input.name { flex: 1.5; }
+    .btn-remove {
+      background: transparent;
+      border: none;
+      color: var(--error, #ffb4ab);
+      cursor: pointer;
+      display: flex;
+      padding: 4px;
+      border-radius: 4px;
+      &:hover { background: rgba(255, 180, 171, 0.1); }
+      .material-symbols-outlined { font-size: 16px; }
+    }
+    .empty-hint {
+      font-size: 11px;
+      color: #777;
+      text-align: center;
+      margin: 8px 0;
+      font-style: italic;
+    }
   `]
 })
 export class MetadataAddFormComponent {
-  readonly submitted = output<SegmentMetadata>();
+  readonly allowTrails = input(false);
+  readonly submitted = output<MetadataEntry>();
   readonly cancelled = output<void>();
+
+  protected readonly trailPoints = signal<TrailPoint[]>([]);
 
   protected readonly form = new FormGroup({
     type: new FormControl<MetadataType>('speaker', { nonNullable: true }),
@@ -312,6 +412,9 @@ export class MetadataAddFormComponent {
       case 'text':
         this.form.controls.content.setValidators([Validators.required]);
         break;
+      case 'trail':
+        // Trail points are managed via signal, we'll check validity in submit()
+        break;
     }
     
     Object.values(this.form.controls).forEach(c => c.updateValueAndValidity());
@@ -321,7 +424,7 @@ export class MetadataAddFormComponent {
     if (this.form.invalid) return;
     
     const v = this.form.getRawValue();
-    let entry: SegmentMetadata;
+    let entry: MetadataEntry;
     
     switch (v.type) {
       case 'speaker':
@@ -346,10 +449,23 @@ export class MetadataAddFormComponent {
       case 'text':
         entry = { type: 'text', sourcePluginId: 'user', content: v.content! };
         break;
+      case 'trail':
+        if (this.trailPoints().length === 0) return;
+        entry = { type: 'trail', sourcePluginId: 'user', points: [...this.trailPoints()] };
+        break;
     }
     
     this.submitted.emit(entry!);
     this.form.reset({ type: v.type });
+    this.trailPoints.set([]);
     this.updateValidators(v.type);
+  }
+
+  protected addTrailPoint(): void {
+    this.trailPoints.update(pts => [...pts, { lat: 0, lng: 0 }]);
+  }
+
+  protected removeTrailPoint(index: number): void {
+    this.trailPoints.update(pts => pts.filter((_, i) => i !== index));
   }
 }

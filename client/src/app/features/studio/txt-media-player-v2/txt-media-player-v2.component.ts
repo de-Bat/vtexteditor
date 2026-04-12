@@ -275,11 +275,6 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
               <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
             </button>
 
-            <!-- Metadata Panel -->
-            <button class="hdr-btn" [class.active]="metadataPanelOpen()" (click)="metadataPanelToggle.emit()" title="Toggle Metadata Panel (M)">
-              <span class="material-symbols-outlined">info_i</span>
-            </button>
-            
             <!-- Smart Cut -->
             <div class="smart-cut-wrap">
               <button class="hdr-btn" [class.active]="smartCutOpen()" (click)="toggleMenu('smartCut')" [disabled]="metadataPanelOpen()" title="Smart Cut">
@@ -469,6 +464,10 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           [class.active]="active"
           [class.selected-for-meta]="seg.id === selectedSegmentId()"
           (click)="onSegmentClick(seg.id); $event.stopPropagation()">
+          
+          <!-- Segment progress trail -->
+          <div class="segment-trail" [style.width.%]="getSegmentTrail(seg)"></div>
+
           <!-- Drag handle -->
           <div class="drag-ind">
             <span class="material-symbols-outlined drag-handle">drag_indicator</span>
@@ -486,6 +485,9 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
               <span class="seg-time" [class.active]="active">
                 {{ formatTimeShort(seg.startTime) }} - {{ active ? 'CURRENT' : formatTimeShort(seg.endTime) }}
               </span>
+              @if (hasMetadata(seg)) {
+                <span class="material-symbols-outlined segment-metadata-indicator" title="Segment has metadata">description</span>
+              }
               <span class="material-symbols-outlined seg-more">more_horiz</span>
             </div>
 
@@ -1698,6 +1700,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         target.classList.contains('seg-content')) {
       this.selectedWordIds.set([]);
       this.selectionAnchorWordId.set(null);
+      this.selectedSegmentId.set(null);
     }
   }
 
@@ -1918,6 +1921,19 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.transcriptScrollTop.set(el.scrollTop);
   }
 
+  hasMetadata(seg: Segment): boolean {
+    if (!seg.metadata) return false;
+    return Object.values(seg.metadata).some(entries => entries && entries.length > 0);
+  }
+
+  getSegmentTrail(seg: Segment): number {
+    const ct = this.currentTime();
+    if (ct < seg.startTime) return 0;
+    if (ct > seg.endTime) return 100;
+    const dur = seg.endTime - seg.startTime;
+    if (dur <= 0) return 0;
+    return ((ct - seg.startTime) / dur) * 100;
+  }
 }
 
 

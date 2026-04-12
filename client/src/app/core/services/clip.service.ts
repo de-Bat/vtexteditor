@@ -4,6 +4,8 @@ import { Clip } from '../models/clip.model';
 import { CutRegion } from '../models/cut-region.model';
 import { tap } from 'rxjs/operators';
 import { Observable } from 'rxjs';
+import { SegmentMetadata } from '../models/segment-metadata.model';
+import { Segment } from '../models/segment.model';
 
 @Injectable({ providedIn: 'root' })
 export class ClipService {
@@ -57,5 +59,28 @@ export class ClipService {
     for (const seg of newClip.segments) {
       for (const w of seg.words) if (editedSet.has(w.id)) w.isEdited = true;
     }
+  }
+
+  updateSegmentMetadata(
+    projectId: string, clipId: string, segmentId: string, 
+    sourcePluginId: string, entries: SegmentMetadata[]
+  ): void {
+    this.api.patch<Segment>(
+      `/projects/${projectId}/clips/${clipId}/segments/${segmentId}/metadata/${sourcePluginId}`, 
+      entries
+    ).subscribe({
+      next: (updatedSegment) => {
+        this.clips.update(clips => clips.map(clip => {
+          if (clip.id === clipId) {
+            const updatedSegments = clip.segments.map(s => 
+              s.id === segmentId ? updatedSegment : s
+            );
+            return { ...clip, segments: updatedSegments };
+          }
+          return clip;
+        }));
+      },
+      error: (err) => console.error('Failed to update segment metadata:', err)
+    });
   }
 }

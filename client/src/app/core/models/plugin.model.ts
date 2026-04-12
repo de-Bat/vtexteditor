@@ -1,3 +1,5 @@
+import { MetadataProduction } from './segment-metadata.model';
+
 export type PluginType =
   | 'transcription'
   | 'diarization'
@@ -14,6 +16,8 @@ export interface PluginMeta {
   configSchema: Record<string, unknown>;
   /** Whether this plugin ships an Angular UI component */
   hasUI: boolean;
+  settingsMap?: Record<string, string>;
+  produces?: MetadataProduction[];
 }
 
 export interface PipelineStep {

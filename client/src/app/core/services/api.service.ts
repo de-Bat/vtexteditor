@@ -21,6 +21,10 @@ export class ApiService {
     return this.http.put<T>(`${this.base}${path}`, body).pipe(catchError(this.handleError));
   }
 
+  patch<T>(path: string, body: unknown): Observable<T> {
+    return this.http.patch<T>(`${this.base}${path}`, body).pipe(catchError(this.handleError));
+  }
+
   uploadFile<T>(path: string, formData: FormData): Observable<HttpEvent<T>> {
     const req = new HttpRequest('POST', `${this.base}${path}`, formData, {
       reportProgress: true,

@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { projectService } from '../services/project.service';
+import { clipService } from '../services/clip.service';
+import { validateMetadataMap, validateMetadataEntry } from '../validators/segment-metadata.validator';
+import { SegmentMetadata } from '../models/segment-metadata.model';
 
 export const projectsRoutes = Router();
 
@@ -39,4 +42,54 @@ projectsRoutes.delete('/:id', (req: Request, res: Response) => {
     return;
   }
   res.status(204).send();
+});
+
+/** PUT /api/projects/:projectId/clips/:clipId/segments/:segmentId/metadata — replace all metadata */
+projectsRoutes.put('/:projectId/clips/:clipId/segments/:segmentId/metadata', (req: Request, res: Response) => {
+  const { projectId, clipId, segmentId } = req.params;
+  const validation = validateMetadataMap(req.body);
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
+  }
+  try {
+    const segment = clipService.updateSegmentMetadata(
+      projectId as string, clipId as string, segmentId as string,
+      req.body as Record<string, SegmentMetadata[]>
+    );
+    if (!segment) return res.status(404).json({ error: 'Project, clip, or segment not found' });
+    res.json(segment);
+  } catch (err) {
+    console.error(`[PUT metadata] Error:`, err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/** PATCH /api/projects/:projectId/clips/:clipId/segments/:segmentId/metadata/:sourcePluginId — replace one plugin's entries */
+projectsRoutes.patch('/:projectId/clips/:clipId/segments/:segmentId/metadata/:sourcePluginId', (req: Request, res: Response) => {
+  const { projectId, clipId, segmentId, sourcePluginId } = req.params;
+  if (!Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'Request body must be an array of metadata entries' });
+  }
+  for (let i = 0; i < req.body.length; i++) {
+    const result = validateMetadataEntry(req.body[i]);
+    if (!result.valid) {
+      return res.status(400).json({ error: `entries[${i}]: ${result.error}` });
+    }
+    if ((req.body[i] as Record<string, unknown>).sourcePluginId !== sourcePluginId) {
+      return res.status(400).json({
+        error: `entries[${i}].sourcePluginId must match route param "${sourcePluginId}"`
+      });
+    }
+  }
+  try {
+    const segment = clipService.patchSegmentMetadata(
+      projectId as string, clipId as string, segmentId as string, sourcePluginId as string,
+      req.body as SegmentMetadata[]
+    );
+    if (!segment) return res.status(404).json({ error: 'Project, clip, or segment not found' });
+    res.json(segment);
+  } catch (err) {
+    console.error(`[PATCH metadata] Error:`, err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });

@@ -217,8 +217,8 @@ describe('buildPrompt', () => {
   it('detects and labels internal pauses between words', () => {
     const clip = makeClip([{ id: 'seg-1', text: 'Hello world' }]);
     clip.segments[0].words = [
-      { id: 'w1', startTime: 0, endTime: 1, text: 'Hello' },
-      { id: 'w2', startTime: 5, endTime: 6, text: 'world' }, // 4s gap
+      { id: 'w1', startTime: 0, endTime: 1, text: 'Hello', segmentId: 'seg-1', isRemoved: false },
+      { id: 'w2', startTime: 5, endTime: 6, text: 'world', segmentId: 'seg-1', isRemoved: false }, // 4s gap
     ];
     const { prompt } = buildPrompt([clip], { maxEvents: 5 });
     expect(prompt).toContain('(Pause 4.0s)');

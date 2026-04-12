@@ -21,6 +21,7 @@ import { CutRegionService, CutHistoryEntry } from '../txt-media-player/cut-regio
 import { EffectPlayerService } from '../txt-media-player/effect-player.service';
 import { CutRegion, EffectType } from '../../../core/models/cut-region.model';
 import { KeyboardShortcutsService } from '../txt-media-player/keyboard-shortcuts.service';
+import { SegmentMetadataPanelComponent } from '../segment-metadata-panel/segment-metadata-panel.component';
 
 /* ── Palette & Constants ────────────────────────────────────── */
 
@@ -70,7 +71,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 @Component({
   selector: 'app-txt-media-player-v2',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SegmentMetadataPanelComponent],
   template: `
 <div class="player-v2">
 
@@ -249,6 +250,11 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             <!-- Mode control -->
             <button class="hdr-btn" [class.active]="editMode()" (click)="editMode.set(!editMode())" title="Toggle Edit Mode (E)">
               <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
+            </button>
+
+            <!-- Metadata Panel -->
+            <button class="hdr-btn" [class.active]="metadataPanelOpen()" (click)="toggleMetadataPanel()" title="Toggle Metadata Panel (M)">
+              <span class="material-symbols-outlined">info_i</span>
             </button>
             
             <!-- Smart Cut -->
@@ -632,6 +638,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
     </div>
 
     </div><!-- /.transcript-content-wrapper -->
+
+    @if (metadataPanelOpen()) {
+      <app-segment-metadata-panel
+        [segmentId]="selectedSegmentId()"
+        [clips]="[clip()]"
+      />
+    }
   </section>
 </div>
   `,
@@ -671,6 +684,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly isDragSelecting = signal(false);
   readonly transcriptScrollTop = signal(0);
   readonly transcriptViewportHeight = signal(0);
+  readonly metadataPanelOpen = signal(false);
+  readonly selectedSegmentId = signal<string | null>(null);
   private dragSelectAnchorId: string | null = null;
   private dragSelectBaselineIds: string[] = [];
   private isDragAppendMode = false;
@@ -1178,6 +1193,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       removeSelection: () => this.removeSelected(),
       undo: () => this.undo(),
       redo: () => this.redo(),
+      toggleMetadata: () => this.toggleMetadataPanel(),
     });
   }
 
@@ -1216,6 +1232,18 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (!newState) {
       this.searchQuery.set('');
     }
+  }
+
+  toggleMetadataPanel(): void {
+    this.metadataPanelOpen.set(!this.metadataPanelOpen());
+    if (this.metadataPanelOpen() && !this.selectedSegmentId()) {
+      this.selectedSegmentId.set(this.activeSegmentId());
+    }
+    this.moreMenuOpen.set(false);
+  }
+
+  onSegmentClick(segId: string): void {
+    this.selectedSegmentId.set(segId);
   }
 
   toggleMute(): void {

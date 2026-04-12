@@ -8,6 +8,7 @@ import { sseService } from './sse.service';
 import { config } from '../config';
 import { ensureDir } from '../utils/file.util';
 import { Word } from '../models/word.model';
+import { Segment } from '../models/segment.model';
 
 export type ExportFormat = 'video' | 'text-plain' | 'text-srt';
 
@@ -56,7 +57,7 @@ class ExportService {
       if (!project) throw new Error(`Project ${job.projectId} not found`);
 
       const clips = clipService.getAll(job.projectId);
-      const allWords: Word[] = clips.flatMap((c) => c.segments.flatMap((s) => s.words));
+      const allWords: Word[] = clips.flatMap((c) => c.segments.flatMap((s: Segment) => s.words));
       const activeWords = allWords.filter((w) => !w.isRemoved);
 
       if (job.format === 'text-plain') {

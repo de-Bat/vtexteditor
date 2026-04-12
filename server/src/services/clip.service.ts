@@ -1,5 +1,6 @@
 import { Clip } from '../models/clip.model';
 import { Word } from '../models/word.model';
+import { SegmentMetadata } from '../models/segment-metadata.model';
 import { projectService } from './project.service';
 
 class ClipService {
@@ -68,6 +69,63 @@ class ClipService {
     projectService.update(project.id, { clips: updatedClips });
 
     return updatedClip;
+  }
+
+  updateSegmentMetadata(
+    projectId: string, clipId: string, segmentId: string, 
+    metadata: Record<string, SegmentMetadata[]>
+  ): import('../models/segment.model').Segment | null {
+    const project = projectService.get(projectId);
+    if (!project) return null;
+
+    const clipIndex = project.clips.findIndex(c => c.id === clipId);
+    if (clipIndex === -1) return null;
+    const clip = project.clips[clipIndex];
+
+    const segmentIndex = clip.segments.findIndex(s => s.id === segmentId);
+    if (segmentIndex === -1) return null;
+    const segment = clip.segments[segmentIndex];
+
+    const updatedSegment = { ...segment, metadata };
+    const updatedSegments = [...clip.segments];
+    updatedSegments[segmentIndex] = updatedSegment;
+
+    const updatedClip = { ...clip, segments: updatedSegments };
+    const updatedClips = [...project.clips];
+    updatedClips[clipIndex] = updatedClip;
+
+    projectService.update(projectId, { clips: updatedClips });
+    return updatedSegment;
+  }
+
+  patchSegmentMetadata(
+    projectId: string, clipId: string, segmentId: string, 
+    sourcePluginId: string, entries: SegmentMetadata[]
+  ): import('../models/segment.model').Segment | null {
+    const project = projectService.get(projectId);
+    if (!project) return null;
+
+    const clipIndex = project.clips.findIndex(c => c.id === clipId);
+    if (clipIndex === -1) return null;
+    const clip = project.clips[clipIndex];
+
+    const segmentIndex = clip.segments.findIndex(s => s.id === segmentId);
+    if (segmentIndex === -1) return null;
+    const segment = clip.segments[segmentIndex];
+
+    const currentMetadata = segment.metadata ?? {};
+    const updatedMetadata = { ...currentMetadata, [sourcePluginId]: entries };
+
+    const updatedSegment = { ...segment, metadata: updatedMetadata };
+    const updatedSegments = [...clip.segments];
+    updatedSegments[segmentIndex] = updatedSegment;
+
+    const updatedClip = { ...clip, segments: updatedSegments };
+    const updatedClips = [...project.clips];
+    updatedClips[clipIndex] = updatedClip;
+
+    projectService.update(projectId, { clips: updatedClips });
+    return updatedSegment;
   }
 }
 

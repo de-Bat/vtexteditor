@@ -133,7 +133,9 @@ interface PluginMeta {
 
 ### Pipeline Integration
 
-Plugins write metadata directly to `segment.metadata` during `execute()`. No new API surface on `PipelineContext`:
+Plugins write metadata directly to `segment.metadata` during `execute()`. No new API surface on `PipelineContext`.
+
+**Re-run behavior:** When a pipeline re-runs, each plugin overwrites its own key in `segment.metadata` (keyed by `sourcePluginId`). User-added entries (`sourcePluginId: 'user'`) are preserved across re-runs since no plugin writes to that key.
 
 ```typescript
 // Example: diarization plugin
@@ -292,7 +294,7 @@ No new state management needed. Metadata lives on the segment model, the panel r
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Metadata vs tags | Parallel systems | Tags are simple flat strings; metadata is structured and typed. No migration needed. |
-| User editing | Edit/delete plugin data | Users correct plugin output (e.g., fix misidentified speaker). No manual add of new entries from scratch — only edit/delete of existing + add new. |
+| User editing | Edit, delete, and add | Users can correct plugin output (e.g., fix misidentified speaker), delete entries, and manually add new metadata entries via the panel. |
 | Plugin declaration | `produces` on `PluginMeta` | Lightweight discoverability without full schema registry overhead. |
 | Storage | Inline on segment | Simplest approach; no joins, no separate collections. Metadata travels with the segment. |
 | UI pattern | Toggleable side panel | Keeps transcript clean; dedicated space for metadata detail. |

@@ -540,6 +540,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
       removeSelection: () => this.removeSelected(),
       undo: () => this.undo(),
       redo: () => this.redo(),
+      toggleMetadata: () => {}, // No-op for V1
     });
   }
 

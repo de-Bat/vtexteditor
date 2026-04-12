@@ -15,14 +15,16 @@ import { MetadataAddFormComponent } from './metadata-add-form.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="panel-container">
-      <div class="panel-header">
-        <span class="title">Segment Metadata</span>
-        @if (segment(); as res) {
-          <span class="segment-range">
-             {{ formatSecs(res.segment.startTime) }} &ndash; {{ formatSecs(res.segment.endTime) }}
-          </span>
-        }
-      </div>
+      <div class="panel-side-label"><span>METADATA</span></div>
+      
+      <div class="panel-content-wrapper">
+        <div class="panel-header">
+          @if (segment(); as res) {
+            <span class="segment-range">
+               {{ formatSecs(res.segment.startTime) }} &ndash; {{ formatSecs(res.segment.endTime) }}
+            </span>
+          }
+        </div>
 
       @if (!segment()) {
         <div class="panel-empty">
@@ -74,6 +76,7 @@ import { MetadataAddFormComponent } from './metadata-add-form.component';
           }
         </div>
       }
+      </div>
     </div>
   `,
   styleUrl: './segment-metadata-panel.component.scss',

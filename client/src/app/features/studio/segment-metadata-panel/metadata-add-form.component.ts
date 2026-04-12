@@ -31,6 +31,7 @@ import {
             <option value="timeRange">Time Range</option>
             <option value="language">Language</option>
             <option value="custom">Custom Key/Value</option>
+            <option value="text">Text Note</option>
           </select>
         </div>
 
@@ -98,6 +99,12 @@ import {
                 <input formControlName="value" placeholder="Value" class="form-input" />
               </div>
             }
+            @case ('text') {
+              <div class="field-group">
+                <label>Content</label>
+                <textarea formControlName="content" placeholder="Enter descriptive note..." class="form-input form-textarea" rows="3"></textarea>
+              </div>
+            }
           }
         </div>
 
@@ -110,45 +117,55 @@ import {
   `,
   styles: [`
     .add-form-container {
-      background: var(--surface-1, #fff);
-      border: 1px solid var(--border-color, #e0e0e0);
-      border-radius: 16px;
+      background: var(--surface-container-highest, #262528);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
       padding: 16px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-      margin-bottom: 16px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+      margin-bottom: 20px;
+      animation: slide-down 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes slide-down {
+      from { transform: translateY(-10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
 
     .form-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .form-header h3 {
-      font-size: 16px;
-      font-weight: 600;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
       margin: 0;
-      color: var(--text-primary, #1d1d1f);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--on-surface, #f6f3f5);
     }
 
     .close-btn {
       background: none;
       border: none;
       cursor: pointer;
-      color: #999;
+      color: var(--outline, #767577);
       display: flex;
       padding: 4px;
-      border-radius: 50%;
+      border-radius: 6px;
+      transition: all 0.2s;
     }
 
-    .close-btn:hover { background: rgba(0,0,0,0.05); color: #666; }
+    .close-btn:hover { background: rgba(255, 255, 255, 0.05); color: var(--on-surface, #f6f3f5); }
 
     .field-group {
-      margin-bottom: 12px;
+      margin-bottom: 14px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
     }
 
     .field-row {
@@ -159,63 +176,79 @@ import {
     .field-row .field-group { flex: 1; }
 
     label {
-      font-size: 11px;
-      font-weight: 600;
-      color: #888;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--outline, #767577);
       text-transform: uppercase;
+      letter-spacing: 0.05em;
       padding-left: 2px;
     }
 
     .form-select, .form-input {
       width: 100%;
-      padding: 8px 12px;
+      padding: 10px 12px;
       border-radius: 8px;
-      border: 1px solid #ddd;
-      font-size: 14px;
-      background: #fafafa;
-      transition: all 0.2s;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 13px;
+      background: rgba(0, 0, 0, 0.2);
+      color: var(--on-surface, #f6f3f5);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      font-family: 'Inter', sans-serif;
+    }
+
+    .form-textarea {
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.5;
     }
 
     .form-select:focus, .form-input:focus {
       outline: none;
-      border-color: var(--primary-color, #007aff);
-      background: #fff;
-      box-shadow: 0 0 0 3px rgba(0,122,255,0.1);
+      border-color: var(--primary, #ba9eff);
+      background: rgba(0, 0, 0, 0.3);
+      box-shadow: 0 0 0 3px rgba(186, 158, 255, 0.15);
     }
 
     .form-actions {
       display: flex;
       justify-content: flex-end;
-      gap: 8px;
+      gap: 10px;
       margin-top: 20px;
       padding-top: 16px;
-      border-top: 1px solid #f0f0f0;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
     }
 
     .btn {
-      padding: 8px 16px;
+      padding: 10px 18px;
       border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
       cursor: pointer;
       border: none;
-      transition: all 0.2s;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .btn-secondary {
-      background: #f0f0f2;
-      color: #333;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--on-surface-variant, #acaaad);
     }
 
-    .btn-secondary:hover { background: #e5e5e7; }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); color: var(--on-surface, #f6f3f5); }
 
     .btn-primary {
-      background: var(--primary-color, #007aff);
-      color: white;
+      background: var(--primary, #ba9eff);
+      color: var(--on-primary-container, #2b006e);
     }
 
-    .btn-primary:hover { opacity: 0.9; }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary:hover { 
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(186, 158, 255, 0.3);
+    }
+    .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
   `]
 })
 export class MetadataAddFormComponent {
@@ -234,6 +267,7 @@ export class MetadataAddFormComponent {
     code: new FormControl(''),
     key: new FormControl(''),
     value: new FormControl(''),
+    content: new FormControl(''),
   });
 
   protected readonly selectedType = signal<MetadataType>('speaker');
@@ -275,6 +309,9 @@ export class MetadataAddFormComponent {
         this.form.controls.key.setValidators([Validators.required]);
         this.form.controls.value.setValidators([Validators.required]);
         break;
+      case 'text':
+        this.form.controls.content.setValidators([Validators.required]);
+        break;
     }
     
     Object.values(this.form.controls).forEach(c => c.updateValueAndValidity());
@@ -305,6 +342,9 @@ export class MetadataAddFormComponent {
         break;
       case 'custom':
         entry = { type: 'custom', sourcePluginId: 'user', key: v.key!, value: v.value! };
+        break;
+      case 'text':
+        entry = { type: 'text', sourcePluginId: 'user', content: v.content! };
         break;
     }
     

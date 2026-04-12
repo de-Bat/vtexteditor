@@ -48,6 +48,9 @@ import { SegmentMetadata } from '../../../core/models/segment-metadata.model';
             <div class="main-val">{{ asCustom(entry()).key }}</div>
             <div class="sub-val">{{ asCustom(entry()).value }}</div>
           }
+          @case ('text') {
+            <div class="main-val text-content">{{ asText(entry()).content }}</div>
+          }
         }
       </div>
 
@@ -63,41 +66,44 @@ import { SegmentMetadata } from '../../../core/models/segment-metadata.model';
   `,
   styles: [`
     .entry-card {
-      background: var(--surface-2, #f5f5f7);
-      border-radius: 12px;
+      background: var(--surface-container-high, #1f1f22);
+      border-radius: 10px;
       padding: 12px;
       margin-bottom: 8px;
-      border: 1px solid transparent;
-      transition: all 0.2s ease;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
 
     .entry-card:hover {
-      border-color: #ddd;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      border-color: rgba(186, 158, 255, 0.3);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
     }
 
     .entry-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
 
     .type-badge {
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 8px;
-      border-radius: 20px;
-      background: rgba(0,0,0,0.05);
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.03);
     }
 
     .type-badge .icon { font-size: 14px; }
     .type-badge .type-name { 
-      font-size: 10px; 
+      font-size: 9px; 
       text-transform: uppercase; 
-      font-weight: 700;
-      letter-spacing: 0.05em;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      opacity: 0.8;
     }
 
     .actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
@@ -106,35 +112,50 @@ import { SegmentMetadata } from '../../../core/models/segment-metadata.model';
     .icon-btn {
       background: none;
       border: none;
-      padding: 4px;
-      border-radius: 4px;
+      padding: 6px;
+      border-radius: 6px;
       cursor: pointer;
-      color: #888;
+      color: var(--on-surface-variant, #acaaad);
       display: flex;
+      transition: all 0.2s;
     }
-    .icon-btn:hover { background: rgba(0,0,0,0.05); color: #333; }
-    .icon-btn.delete:hover { color: #ff3b30; }
-    .icon-btn .material-symbols-outlined { font-size: 18px; }
+    .icon-btn:hover { background: rgba(255, 255, 255, 0.05); color: var(--on-surface, #f6f3f5); }
+    .icon-btn.delete:hover { color: #ff6e84; background: rgba(255, 110, 132, 0.1); }
+    .icon-btn .material-symbols-outlined { font-size: 16px; }
 
-    .entry-body { margin-bottom: 8px; }
-    .main-val { font-size: 14px; font-weight: 600; color: #1d1d1f; }
-    .sub-val { font-size: 12px; color: #86868b; margin-top: 2px; }
+    .entry-body { margin-bottom: 10px; }
+    .main-val { font-size: 13px; font-weight: 500; color: var(--on-surface, #f6f3f5); line-height: 1.5; }
+    .sub-val { font-size: 11px; color: var(--on-surface-variant, #acaaad); margin-top: 4px; font-family: 'Space Grotesk', sans-serif; }
+    
+    .text-content {
+      font-family: 'Inter', sans-serif;
+      white-space: pre-wrap;
+      background: rgba(0, 0, 0, 0.15);
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      border-left: 2px solid var(--primary, #ba9eff);
+    }
 
     .entry-footer {
       display: flex;
       justify-content: space-between;
-      font-size: 10px;
-      color: #999;
-      border-top: 1px solid rgba(0,0,0,0.03);
-      padding-top: 6px;
+      font-size: 9px;
+      color: var(--outline, #767577);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     /* Type-specific accents */
-    .type-speaker .type-badge { color: #007aff; background: rgba(0,122,255,0.1); }
-    .type-geo .type-badge { color: #34c759; background: rgba(52,199,89,0.1); }
-    .type-timeRange .type-badge { color: #5856d6; background: rgba(88,86,214,0.1); }
-    .type-language .type-badge { color: #ff9500; background: rgba(255,149,0,0.1); }
-    .type-custom .type-badge { color: #8e8e93; background: rgba(142,142,147,0.1); }
+    .type-speaker .type-badge { color: #ba9eff; background: rgba(186, 158, 255, 0.1); }
+    .type-geo .type-badge { color: #34d399; background: rgba(52, 211, 153, 0.1); }
+    .type-timeRange .type-badge { color: #9093ff; background: rgba(144, 147, 255, 0.1); }
+    .type-language .type-badge { color: #fbbf24; background: rgba(251, 191, 36, 0.1); }
+    .type-custom .type-badge { color: #acaaad; background: rgba(172, 170, 173, 0.1); }
+    .type-text .type-badge { color: var(--primary); background: rgba(186, 158, 255, 0.1); }
   `]
 })
 export class MetadataEntryComponent {
@@ -148,6 +169,7 @@ export class MetadataEntryComponent {
       case 'geo': return 'location_on';
       case 'timeRange': return 'schedule';
       case 'language': return 'language';
+      case 'text': return 'notes';
       default: return 'label';
     }
   }
@@ -158,4 +180,5 @@ export class MetadataEntryComponent {
   protected asTime(e: any) { return e as any; }
   protected asLang(e: any) { return e as any; }
   protected asCustom(e: any) { return e as any; }
+  protected asText(e: any) { return e as any; }
 }

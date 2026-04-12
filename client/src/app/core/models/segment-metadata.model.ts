@@ -1,4 +1,4 @@
-export type MetadataType = 'speaker' | 'geo' | 'timeRange' | 'language' | 'custom';
+export type MetadataType = 'speaker' | 'geo' | 'timeRange' | 'language' | 'custom' | 'text';
 
 export interface BaseMetadata {
   type: MetadataType;
@@ -38,9 +38,22 @@ export interface CustomMetadata extends BaseMetadata {
   value: string | number | boolean;
 }
 
+export interface TextMetadata extends BaseMetadata {
+  type: 'text';
+  content: string;
+}
+
 export type SegmentMetadata =
   | SpeakerMetadata
   | GeoMetadata
   | TimeRangeMetadata
   | LanguageMetadata
-  | CustomMetadata;
+  | CustomMetadata
+  | TextMetadata;
+
+/** Describes what kind of metadata a plugin produces */
+export interface MetadataProduction {
+  type: MetadataType;
+  confidenceThreshold?: number;
+  description: string;
+}

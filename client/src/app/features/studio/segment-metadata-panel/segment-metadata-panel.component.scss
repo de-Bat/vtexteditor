@@ -1,19 +1,66 @@
 :host {
   display: flex;
   flex-direction: column;
-  width: 320px;
-  min-width: 320px;
-  border-left: 1px solid var(--border-color, #e0e0e0);
-  background: var(--surface-1, #ffffff);
+  width: 100%;
   height: 100%;
   overflow: hidden;
-  box-shadow: -4px 0 16px rgba(0,0,0,0.02);
+  background: var(--surface-container-low, #131315);
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .panel-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
+  position: relative;
+
+  // Matching linkage accent on the right edge (since transcript is now to the right)
+  &::before {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--secondary, #9093ff);
+    opacity: 0;
+    transition: opacity 300ms ease;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: -2px 0 10px rgba(144, 147, 255, 0.3);
+  }
+
+  &:not(:empty)::before {
+    opacity: 0.6;
+  }
+}
+
+.panel-side-label {
+  width: 36px;
+  background: var(--surface-container-lowest, #0d0d0f);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  span {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    font-weight: 700;
+    color: var(--outline-variant, #acaaad);
+  }
+}
+
+.panel-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .panel-header {
@@ -21,25 +68,24 @@
   min-height: 56px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center; // Center the segment range now that title is gone
   padding: 0 16px;
-  border-bottom: 1px solid var(--border-color, #f0f0f0);
-  background: #fff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(19, 19, 21, 0.8);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
   z-index: 10;
 }
 
-.title {
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--text-primary, #1d1d1f);
-}
 
 .segment-range {
-  font-size: 12px;
-  font-weight: 500;
-  color: #888;
-  background: #f5f5f7;
-  padding: 4px 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--secondary, #9093ff);
+  background: rgba(144, 147, 255, 0.1);
+  padding: 4px 10px;
   border-radius: 6px;
 }
 
@@ -55,14 +101,17 @@
 }
 
 .large-icon {
-  font-size: 48px;
+  font-size: 40px;
   margin-bottom: 16px;
-  opacity: 0.3;
+  color: var(--primary, #ba9eff);
+  opacity: 0.4;
 }
 
 .panel-empty p {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 200px;
+  color: var(--on-surface-variant, #acaaad);
 }
 
 .panel-content {
@@ -80,20 +129,25 @@
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 10px;
+  padding: 12px;
   border-radius: 10px;
-  border: 1px dashed var(--primary-color, #007aff);
-  background: rgba(0, 122, 255, 0.03);
-  color: var(--primary-color, #007aff);
-  font-size: 13px;
-  font-weight: 600;
+  border: 1px dashed var(--primary, #ba9eff);
+  background: rgba(186, 158, 255, 0.03);
+  color: var(--primary, #ba9eff);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .add-meta-btn:hover {
-  background: rgba(0, 122, 255, 0.08);
+  background: rgba(186, 158, 255, 0.08);
   border-style: solid;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(186, 158, 255, 0.1);
 }
 
 .section-header {
@@ -107,9 +161,9 @@
 }
 
 .chevron {
-  font-size: 20px;
-  color: #bbb;
-  transition: transform 0.2s;
+  font-size: 18px;
+  color: var(--outline, #767577);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .chevron.open {
@@ -117,19 +171,21 @@
 }
 
 .section-title {
-  font-size: 12px;
-  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
-  color: #444;
-  letter-spacing: 0.5px;
+  color: var(--on-surface-variant, #acaaad);
+  letter-spacing: 0.1em;
 }
 
 .count {
-  font-size: 11px;
-  background: #eee;
-  padding: 2px 6px;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 8px;
   border-radius: 10px;
-  color: #777;
+  color: var(--outline, #767577);
+  font-weight: 700;
 }
 
 .section-items {

@@ -7,6 +7,7 @@ import {
   computed,
   effect,
   input,
+  output,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -201,11 +202,33 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
     </div>
   </section>
 
+  <!-- Metadata Panel Section (Column 2) - Positions between player and transcript -->
+  <div class="metadata-panel-side" [class.opened]="metadataPanelOpen()">
+    @if (metadataPanelOpen()) {
+      <app-segment-metadata-panel
+        [segmentId]="selectedSegmentId()"
+        [clips]="[clip()]"
+      />
+    }
+  </div>
+
   <!-- ═══════════ Right: Transcript Panel ═══════════ -->
-  <section class="transcript-section">
+  <section class="transcript-section" [class.metadata-mode]="metadataPanelOpen()">
 
     <!-- Vertical side label -->
     <div class="transcript-side-label"><span>TRANSCRIPT</span></div>
+
+    <!-- Linkage Indicator (The visual bridge) -->
+    @if (selectedSegmentLinkage(); as linkage) {
+      <div class="linkage-indicator"
+        [class.visible]="linkage.isVisible"
+        [style.transform]="'translateY(' + linkage.top + 'px)'"
+        [style.height.px]="linkage.height"
+        [style.--link-color]="linkage.color">
+        <div class="linkage-beam"></div>
+        <div class="linkage-arrow"></div>
+      </div>
+    }
 
     <div class="transcript-content-wrapper">
 
@@ -248,18 +271,18 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           <!-- Tools visible when search is NOT expanded -->
           <div class="hdr-group">
             <!-- Mode control -->
-            <button class="hdr-btn" [class.active]="editMode()" (click)="editMode.set(!editMode())" title="Toggle Edit Mode (E)">
+            <button class="hdr-btn" [class.active]="editMode()" (click)="editMode.set(!editMode())" [disabled]="metadataPanelOpen()" title="Toggle Edit Mode (E)">
               <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
             </button>
 
             <!-- Metadata Panel -->
-            <button class="hdr-btn" [class.active]="metadataPanelOpen()" (click)="toggleMetadataPanel()" title="Toggle Metadata Panel (M)">
+            <button class="hdr-btn" [class.active]="metadataPanelOpen()" (click)="metadataPanelToggle.emit()" title="Toggle Metadata Panel (M)">
               <span class="material-symbols-outlined">info_i</span>
             </button>
             
             <!-- Smart Cut -->
             <div class="smart-cut-wrap">
-              <button class="hdr-btn" [class.active]="smartCutOpen()" (click)="toggleMenu('smartCut')" title="Smart Cut">
+              <button class="hdr-btn" [class.active]="smartCutOpen()" (click)="toggleMenu('smartCut')" [disabled]="metadataPanelOpen()" title="Smart Cut">
                 <span class="material-symbols-outlined">auto_fix_high</span>
               </button>
               @if (smartCutOpen()) {
@@ -293,7 +316,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
             <!-- Interval (Silence) -->
             <div class="silence-control-wrap">
-              <button class="hdr-btn" [class.active]="silenceControlOpen()" (click)="toggleMenu('silence')" title="Min silence interval">
+              <button class="hdr-btn" [class.active]="silenceControlOpen()" (click)="toggleMenu('silence')" [disabled]="metadataPanelOpen()" title="Min silence interval">
                 <span class="material-symbols-outlined">timer</span>
               </button>
               @if (silenceControlOpen()) {
@@ -319,13 +342,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
           <!-- Edit History -->
           <div class="hdr-group hdr-divider">
-            <button class="hdr-btn" (click)="restoreAll()" [disabled]="removedCount() === 0" title="Restore all removals">
+            <button class="hdr-btn" (click)="restoreAll()" [disabled]="removedCount() === 0 || metadataPanelOpen()" title="Restore all removals">
               <span class="material-symbols-outlined">settings_backup_restore</span>
             </button>
-            <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Control+Z)">
+            <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo() || metadataPanelOpen()" title="Undo (Control+Z)">
               <span class="material-symbols-outlined">undo</span>
             </button>
-            <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Control+Shift+Z)">
+            <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo() || metadataPanelOpen()" title="Redo (Control+Shift+Z)">
               <span class="material-symbols-outlined">redo</span>
             </button>
           </div>
@@ -339,7 +362,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
               <div class="more-menu-dropdown popover">
                 <div class="menu-item-group">
                   <span class="menu-label">Editor Mode</span>
-                  <button class="hdr-btn w-full" [class.active]="editMode()" (click)="editMode.set(!editMode())" style="justify-content:flex-start; width:100%; gap:8px; padding:0 8px">
+                  <button class="hdr-btn w-full" [class.active]="editMode()" (click)="editMode.set(!editMode())" [disabled]="metadataPanelOpen()" style="justify-content:flex-start; width:100%; gap:8px; padding:0 8px">
                     <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
                     <span>{{ editMode() ? 'Disable Edit Mode' : 'Enable Edit Mode' }}</span>
                   </button>
@@ -348,16 +371,16 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 <div class="menu-item-group">
                   <span class="menu-label">Smart Cut</span>
                   <div class="sc-toggles">
-                    <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())">
+                    <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())" [disabled]="metadataPanelOpen()">
                       <span class="material-symbols-outlined">visibility</span>
                       Fillers
                     </button>
-                    <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())">
+                    <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())" [disabled]="metadataPanelOpen()">
                       <span class="material-symbols-outlined">hourglass_empty</span>
                       Silence
                     </button>
                   </div>
-                  <button class="sc-apply-btn" (click)="applySmartCut()" style="margin-top:4px">Apply Smart Cut</button>
+                  <button class="sc-apply-btn" (click)="applySmartCut()" [disabled]="metadataPanelOpen()" style="margin-top:4px">Apply Smart Cut</button>
                 </div>
 
                 <div class="menu-item-group">
@@ -374,13 +397,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 <div class="menu-item-group">
                   <span class="menu-label">History</span>
                   <div class="hdr-group">
-                    <button class="hdr-btn" (click)="restoreAll()" [disabled]="removedCount() === 0" title="Restore all">
+                    <button class="hdr-btn" (click)="restoreAll()" [disabled]="removedCount() === 0 || metadataPanelOpen()" title="Restore all">
                       <span class="material-symbols-outlined">settings_backup_restore</span>
                     </button>
-                    <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo">
+                    <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo() || metadataPanelOpen()" title="Undo">
                       <span class="material-symbols-outlined">undo</span>
                     </button>
-                    <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo">
+                    <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo() || metadataPanelOpen()" title="Redo">
                       <span class="material-symbols-outlined">redo</span>
                     </button>
                   </div>
@@ -392,9 +415,9 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
       </div>
 
       <!-- Row 2: Selection Actions (Only shown on selection) -->
-      <div class="header-row2 selection-toolbar" [class.visible]="selectedCount() > 0">
+      <div class="header-row2 selection-toolbar" [class.visible]="selectedCount() > 0 && !metadataPanelOpen()">
         <div class="hdr-group">
-          <button class="hdr-btn" (click)="removeSelected()" title="Cut selected">
+          <button class="hdr-btn" (click)="removeSelected()" [disabled]="metadataPanelOpen()" title="Cut selected">
             <span class="material-symbols-outlined">content_cut</span>
           </button>
           <button class="hdr-btn" (click)="restoreSelected()" title="Healing restore selected">
@@ -442,7 +465,10 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         @let active = seg.id === activeSegmentId();
         @let palette = SEGMENT_PALETTE[segColorIndex(seg, segIdx) % SEGMENT_PALETTE.length];
 
-        <div class="seg-block" [class.active]="active">
+        <div class="seg-block" 
+          [class.active]="active"
+          [class.selected-for-meta]="seg.id === selectedSegmentId()"
+          (click)="onSegmentClick(seg.id); $event.stopPropagation()">
           <!-- Drag handle -->
           <div class="drag-ind">
             <span class="material-symbols-outlined drag-handle">drag_indicator</span>
@@ -637,14 +663,10 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
       }
     </div>
 
-    </div><!-- /.transcript-content-wrapper -->
-
-    @if (metadataPanelOpen()) {
-      <app-segment-metadata-panel
-        [segmentId]="selectedSegmentId()"
-        [clips]="[clip()]"
-      />
-    }
+      @if (shouldVirtualize()) {
+        <div class="v-spacer" [style.height.px]="virtualPaddingBottom()"></div>
+      }
+    </div>
   </section>
 </div>
   `,
@@ -684,7 +706,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly isDragSelecting = signal(false);
   readonly transcriptScrollTop = signal(0);
   readonly transcriptViewportHeight = signal(0);
-  readonly metadataPanelOpen = signal(false);
+  readonly metadataPanelOpen = input(false);
+  readonly metadataPanelToggle = output<void>();
+
   readonly selectedSegmentId = signal<string | null>(null);
   private dragSelectAnchorId: string | null = null;
   private dragSelectBaselineIds: string[] = [];
@@ -790,6 +814,25 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       }
     }
     return null; 
+  });
+
+  /** Precise vertical geometry of the selected segment for the linkage indicator. */
+  readonly selectedSegmentLinkage = computed(() => {
+    const id = this.selectedSegmentId();
+    if (!id || !this.metadataPanelOpen()) return null;
+    
+    const items = this.segmentViewItems();
+    const item = items.find(i => i.segment.id === id);
+    if (!item) return null;
+
+    const viewportTop = item.top - this.transcriptScrollTop();
+    const height = item.bottom - item.top;
+    const color = SEGMENT_PALETTE[item.colorIndex % SEGMENT_PALETTE.length].border;
+
+    // Visibility check (is it within the scrollable viewport?)
+    const isVisible = viewportTop + height > -10 && viewportTop < this.transcriptViewportHeight() + 10;
+
+    return { top: viewportTop, height, color, isVisible };
   });
 
   readonly highlightedWordId = computed(() =>
@@ -1190,10 +1233,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.handleKeydown = this.keyboardShortcuts.createPlayerHandler({
       togglePlay: () => this.togglePlay(),
       seekRelative: (s) => this.mediaPlayer.seek(Math.max(0, this.currentTime() + s)),
-      removeSelection: () => this.removeSelected(),
-      undo: () => this.undo(),
-      redo: () => this.redo(),
-      toggleMetadata: () => this.toggleMetadataPanel(),
+      removeSelection: () => { if (!this.metadataPanelOpen()) this.removeSelected(); },
+      undo: () => { if (!this.metadataPanelOpen()) this.undo(); },
+      redo: () => { if (!this.metadataPanelOpen()) this.redo(); },
+      toggleMetadata: () => this.metadataPanelToggle.emit(),
     });
   }
 
@@ -1235,8 +1278,14 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   toggleMetadataPanel(): void {
-    this.metadataPanelOpen.set(!this.metadataPanelOpen());
-    if (this.metadataPanelOpen() && !this.selectedSegmentId()) {
+    const opening = !this.metadataPanelOpen();
+    if (opening) {
+      // Clear word selection when entering metadata mode
+      this.selectedWordIds.set([]);
+      this.selectionAnchorWordId.set(null);
+    }
+    this.metadataPanelToggle.emit();
+    if (!this.metadataPanelOpen() && !this.selectedSegmentId()) {
       this.selectedSegmentId.set(this.activeSegmentId());
     }
     this.moreMenuOpen.set(false);
@@ -1291,7 +1340,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.justCompletedDrag = false;
       return;
     }
-    if (this.editMode()) return;
+    if (this.editMode() || this.metadataPanelOpen()) return;
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
       this.selectedWordIds.set(range);
@@ -1316,7 +1365,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onWordMouseDown(word: Word, event: MouseEvent): void {
-    if (this.editMode()) return;
+    if (this.editMode() || this.metadataPanelOpen()) return;
     if (event.button !== 0) return; // left button only
     this.dragSelectAnchorId = word.id;
     this.isDragAppendMode = event.ctrlKey || event.metaKey;
@@ -1325,7 +1374,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onWordMouseEnter(word: Word): void {
-    if (this.editMode()) return;
+    if (this.editMode() || this.metadataPanelOpen()) return;
     if (!this.dragSelectAnchorId) return;
     if (word.id === this.dragSelectAnchorId) return;
     // First time we enter a different word — commit to drag-select mode

@@ -95,7 +95,10 @@ interface SegmentViewportItem {
         </button>
       </div>
 
-      <div class="transcript" #transcriptEl (scroll)="onTranscriptScroll()" (click)="clearSelection($event)">
+      <div class="transcript" #transcriptEl 
+        [class.drag-selecting]="isDragSelecting()"
+        (scroll)="onTranscriptScroll()" 
+        (click)="clearSelection($event)">
         @if (shouldVirtualizeTranscript()) {
           <div class="virtual-spacer" [style.height.px]="virtualPaddingTop()"></div>
         }
@@ -110,6 +113,8 @@ interface SegmentViewportItem {
                   [class.removed]="word.isRemoved"
                   [class.selected]="isSelected(word.id)"
                   [class.jump-cut-hidden]="jumpCutMode() && word.isRemoved"
+                  (mousedown)="onWordMouseDown(word, $event)"
+                  (mouseenter)="onWordMouseEnter(word)"
                   (click)="onWordClick(word, $event)"
                   (dblclick)="toggleRemove(word)"
                   [attr.contenteditable]="editMode() ? 'plaintext-only' : 'false'"
@@ -253,6 +258,12 @@ interface SegmentViewportItem {
       overflow-y: auto;
       padding: 1rem 1.25rem;
       display: block;
+
+      &.drag-selecting {
+        cursor: crosshair;
+        user-select: none;
+        .word { cursor: crosshair; }
+      }
     }
     .segment {
       margin-bottom: .75rem;
@@ -269,12 +280,17 @@ interface SegmentViewportItem {
       line-height: 1.8;
     }
     .word {
-      cursor: text;
+      cursor: pointer;
       padding: .1rem .2rem;
       border-radius: 3px;
       font-size: .9rem;
       transition: background .1s;
-      user-select: text;
+      user-select: none;
+
+      &[contenteditable="plaintext-only"] {
+        cursor: text;
+        user-select: text;
+      }
 
       &:focus {
         outline: none;
@@ -404,6 +420,9 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
   readonly selectedWordIds = signal<string[]>([]);
   readonly selectionAnchorWordId = signal<string | null>(null);
+  readonly isDragSelecting = signal(false);
+  private dragSelectAnchorId: string | null = null;
+  private justCompletedDrag = false;
   readonly transcriptScrollTop = signal(0);
   readonly transcriptViewportHeight = signal(0);
 
@@ -487,6 +506,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   private pendingWordUpdates = new Map<string, { isRemoved?: boolean; text?: string }>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly handleTranscriptResize = () => this.measureTranscriptViewport();
+  private readonly handleDragEnd = () => this.endDragSelect();
   private readonly handleKeydown: (event: KeyboardEvent) => void;
   private detachKeyboardListener: (() => void) | null = null;
 
@@ -528,6 +548,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     this.measureTranscriptViewport();
     this.detachKeyboardListener = this.keyboardShortcuts.bindWindowKeydown(this.handleKeydown);
     window.addEventListener('resize', this.handleTranscriptResize);
+    document.addEventListener('mouseup', this.handleDragEnd);
   }
 
   ngOnDestroy(): void {
@@ -538,6 +559,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     this.detachKeyboardListener?.();
     this.detachKeyboardListener = null;
     window.removeEventListener('resize', this.handleTranscriptResize);
+    document.removeEventListener('mouseup', this.handleDragEnd);
   }
 
   togglePlay(): void {
@@ -562,6 +584,10 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
   }
 
   onWordClick(word: Word, event: MouseEvent): void {
+    if (this.justCompletedDrag) {
+      this.justCompletedDrag = false;
+      return;
+    }
     if (this.editMode()) return;
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
@@ -584,6 +610,39 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
     this.selectionAnchorWordId.set(word.id);
     this.selectedWordIds.set([word.id]);
     this.seekToWord(word);
+  }
+
+  onWordMouseDown(word: Word, event: MouseEvent): void {
+    if (this.editMode()) return;
+    if (event.button !== 0) return;
+    this.dragSelectAnchorId = word.id;
+  }
+
+  onWordMouseEnter(word: Word): void {
+    if (this.editMode()) return;
+    if (!this.dragSelectAnchorId) return;
+    if (word.id === this.dragSelectAnchorId) return;
+
+    if (!this.isDragSelecting()) {
+      this.isDragSelecting.set(true);
+      this.selectionAnchorWordId.set(this.dragSelectAnchorId);
+    }
+    const range = this.getWordRange(this.dragSelectAnchorId, word.id);
+    this.selectedWordIds.set(range);
+  }
+
+  private endDragSelect(): void {
+    if (this.isDragSelecting()) {
+      const firstId = this.selectedWordIds()[0];
+      if (firstId) {
+        const word = this.findWordById(firstId);
+        if (word && !word.isRemoved) this.mediaPlayer.seek(word.startTime);
+      }
+      this.justCompletedDrag = true;
+      setTimeout(() => this.justCompletedDrag = false, 100);
+    }
+    this.dragSelectAnchorId = null;
+    this.isDragSelecting.set(false);
   }
 
   isSelected(wordId: string): boolean {
@@ -614,6 +673,7 @@ export class TxtMediaPlayerComponent implements AfterViewInit, OnDestroy {
 
   clearSelection(event: MouseEvent): void {
     if (this.editMode()) return;
+    if (this.isDragSelecting() || this.justCompletedDrag) return;
     const target = event.target as HTMLElement;
     if (target.classList.contains('transcript') || 
         target.classList.contains('segment') || 

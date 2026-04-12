@@ -815,6 +815,16 @@ audio {
   text-align: right;
   position: relative;
 
+  /* Suppress native text selection and show crosshair during drag-select */
+  &.drag-selecting {
+    cursor: crosshair;
+    user-select: none;
+
+    .word {
+      cursor: crosshair;
+    }
+  }
+
   &::-webkit-scrollbar {
     width: 6px;
   }
@@ -1052,9 +1062,9 @@ audio {
 .word {
   padding: 2px 4px;
   color: rgba(246, 243, 245, 0.8);
-  cursor: text;
+  cursor: pointer;
   transition: color 200ms;
-  user-select: text;
+  user-select: none; /* app manages selection — suppress native text highlight */
   font-size: 0.9rem;
 
   &:focus {
@@ -1080,7 +1090,11 @@ audio {
     border-radius: 2px;
   }
 
+  /* Re-enable native selection in edit mode so users can place cursor / copy */
   &[contenteditable="plaintext-only"] {
+    cursor: text;
+    user-select: text;
+
     &:focus {
        background: rgba(186, 158, 255, 0.15);
        box-shadow: 0 0 0 2px var(--primary);

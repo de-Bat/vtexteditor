@@ -386,7 +386,10 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
     </div>
 
     <!-- Scrollable Transcript -->
-    <div class="transcript-body" #transcriptEl (scroll)="onTranscriptScroll()" (click)="clearSelection($event)">
+    <div class="transcript-body" #transcriptEl
+      [class.drag-selecting]="isDragSelecting()"
+      (scroll)="onTranscriptScroll()"
+      (click)="clearSelection($event)">
       <!-- Scrollbar playback indicator -->
       <div class="scroll-indicator" [style.top.%]="scrollIndicatorPercent()"></div>
       @if (shouldVirtualize()) {
@@ -500,6 +503,8 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     [class.search-match]="searchMatchIds().has(fi.word.id)"
                     [class.filler-hl]="isFillerWord(fi.word)"
+                    (mousedown)="onWordMouseDown(fi.word, $event)"
+                    (mouseenter)="onWordMouseEnter(fi.word)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)"
                     (blur)="onWordTextBlur(fi.word, $event)"
@@ -610,6 +615,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly searchQuery = signal('');
   readonly selectedWordIds = signal<string[]>([]);
   readonly selectionAnchorWordId = signal<string | null>(null);
+  readonly isDragSelecting = signal(false);
+  private dragSelectAnchorId: string | null = null;
   readonly transcriptScrollTop = signal(0);
   readonly transcriptViewportHeight = signal(0);
   readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -980,8 +987,12 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   private readonly effectInProgress = signal(false);
   private readonly handleResize = () => this.measureTranscriptViewport();
   private readonly handleKeydown: (event: KeyboardEvent) => void;
+  private readonly handleDragEnd = () => this.endDragSelect();
   private detachKeyboard: (() => void) | null = null;
   private previousVolume = 1;
+  /** Set synchronously in endDragSelect; consumed in onWordClick to prevent the
+   *  follow-up click from collapsing the drag selection to a single word. */
+  private justCompletedDrag = false;
 
   private readonly playbackWatch = effect(() => {
     const t = this.currentTime();
@@ -1022,6 +1033,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.measureTranscriptViewport();
     this.detachKeyboard = this.keyboardShortcuts.bindWindowKeydown(this.handleKeydown);
     window.addEventListener('resize', this.handleResize);
+    document.addEventListener('mouseup', this.handleDragEnd);
   }
 
   ngOnDestroy(): void {
@@ -1032,6 +1044,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.detachKeyboard?.();
     this.detachKeyboard = null;
     window.removeEventListener('resize', this.handleResize);
+    document.removeEventListener('mouseup', this.handleDragEnd);
   }
 
   /* ── Public Methods (template) ───────────────────────── */
@@ -1080,6 +1093,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onWordClick(word: Word, event: MouseEvent): void {
+    // Drag just finished — the click that fires after mouseup must not collapse selection
+    if (this.justCompletedDrag) {
+      this.justCompletedDrag = false;
+      return;
+    }
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
       this.selectedWordIds.set(range);
@@ -1088,6 +1106,43 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.selectionAnchorWordId.set(word.id);
     this.selectedWordIds.set([word.id]);
     if (!word.isRemoved) this.mediaPlayer.seek(word.startTime);
+  }
+
+  onWordMouseDown(word: Word, event: MouseEvent): void {
+    if (this.editMode()) return;
+    if (event.button !== 0) return; // left button only
+    this.dragSelectAnchorId = word.id;
+    // Don't set isDragSelecting yet — wait until the pointer actually moves to a different word
+  }
+
+  onWordMouseEnter(word: Word): void {
+    if (this.editMode()) return;
+    if (!this.dragSelectAnchorId) return;
+    if (word.id === this.dragSelectAnchorId) return;
+    // First time we enter a different word — commit to drag-select mode
+    if (!this.isDragSelecting()) {
+      this.isDragSelecting.set(true);
+      this.selectionAnchorWordId.set(this.dragSelectAnchorId);
+    }
+    const range = this.getWordRange(this.dragSelectAnchorId, word.id);
+    this.selectedWordIds.set(range);
+  }
+
+  private endDragSelect(): void {
+    if (this.isDragSelecting()) {
+      // Seek to first selected word so playhead jumps to the selection start
+      const firstId = this.selectedWordIds()[0];
+      if (firstId) {
+        const word = this.findWordById(firstId);
+        if (word && !word.isRemoved) this.mediaPlayer.seek(word.startTime);
+      }
+      // Flag consumed by onWordClick to block the click that fires right after mouseup
+      this.justCompletedDrag = true;
+      // Safety: reset flag after a short delay if it wasn't swallowed by onWordClick
+      setTimeout(() => this.justCompletedDrag = false, 100);
+    }
+    this.dragSelectAnchorId = null;
+    this.isDragSelecting.set(false);
   }
 
   isSelected(wordId: string): boolean {
@@ -1327,6 +1382,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   clearSelection(event: MouseEvent): void {
     if (this.editMode()) return;
+    if (this.isDragSelecting() || this.justCompletedDrag) return; 
     const target = event.target as HTMLElement;
     if (!target.closest('.filler-badge')) {
       this.closeEffectPopover();

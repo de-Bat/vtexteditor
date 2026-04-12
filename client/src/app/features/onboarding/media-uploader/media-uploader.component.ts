@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, inject, output, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, output, signal, OnDestroy } from '@angular/core';
 import { HttpEventType } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
@@ -158,6 +158,38 @@ export class MediaUploaderComponent {
   private readonly api = inject(ApiService);
   private readonly fileHashService = inject(FileHashService);
 
+  private _timerId: any;
+  private _uploadStartTime = 0;
+
+  ngOnDestroy(): void {
+    this.stopTimer();
+  }
+
+  private startTimer(): void {
+    this.stopTimer();
+    this._timerId = setInterval(() => {
+      this.updateTimeStats(this.uploadProgress());
+    }, 1000);
+  }
+
+  private stopTimer(): void {
+    if (this._timerId) {
+      clearInterval(this._timerId);
+      this._timerId = undefined;
+    }
+  }
+
+  private updateTimeStats(percent: number): void {
+    if (percent <= 0) return;
+    
+    const elapsed = Date.now() - this._uploadStartTime;
+    this.elapsedTime.set(elapsed);
+    
+    const estimatedTotal = Math.round(elapsed / (percent / 100));
+    const remaining = Math.max(0, estimatedTotal - elapsed);
+    this.remainingTime.set(percent === 100 ? 0 : remaining);
+  }
+
   onDragOver(e: DragEvent): void {
     e.preventDefault();
     this.isDragOver.set(true);
@@ -182,7 +214,7 @@ export class MediaUploaderComponent {
     this.statusLabel.set('Checking');
 
     // For file progress
-    (this as any)._uploadStartTime = Date.now();
+    this._uploadStartTime = Date.now();
 
     let hash: string | null = null;
     try {
@@ -228,27 +260,22 @@ export class MediaUploaderComponent {
     fd.append('media', file);
     if (hash) fd.append('hash', hash);
 
+    this.startTimer();
     this.api.uploadFile<UploadResult>('/media', fd).subscribe({
       next: (event) => {
         if (event.type === HttpEventType.UploadProgress) {
           const percent = Math.round(100 * event.loaded / (event.total ?? event.loaded));
           this.uploadProgress.set(percent);
-          
           this.statusLabel.set(`Uploading`);
-          if (percent > 0) {
-            const elapsed = Math.max(0, Date.now() - (this as any)._uploadStartTime);
-            const estimatedTotal = Math.round(elapsed / (percent / 100));
-            const remaining = Math.max(0, estimatedTotal - elapsed);
-            
-            this.elapsedTime.set(elapsed);
-            this.remainingTime.set(percent === 100 ? 0 : remaining);
-          }
+          this.updateTimeStats(percent);
         } else if (event.type === HttpEventType.Response) {
+          this.stopTimer();
           this.uploading.set(false);
           if (event.body) this.uploaded.emit(event.body);
         }
       },
       error: (err: Error) => {
+        this.stopTimer();
         this.uploading.set(false);
         this.error.set(err.message);
       },

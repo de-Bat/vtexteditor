@@ -1,4 +1,4 @@
-import { Component, input, computed, Output, EventEmitter, inject } from '@angular/core';
+import { Component, input, computed, Output, EventEmitter, inject, signal, effect, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { SseEvent } from '../../../core/services/sse.service';
@@ -229,11 +229,48 @@ export type StepStatus = 'done' | 'running' | 'pending';
     }
   `]
 })
-export class ProcessingProgressComponent {
+export class ProcessingProgressComponent implements OnDestroy {
   private readonly sanitizer = inject(DomSanitizer);
   readonly event = input<SseEvent | null>(null);
   readonly steps = input<PipelineStep[]>([]);
   @Output() readonly back = new EventEmitter<void>();
+
+  private readonly _ticker = signal(Date.now());
+  private _timerId?: any;
+
+  constructor() {
+    effect(() => {
+      const s = this.status();
+      if (s === 'running') {
+        if (!this._timerId) {
+          this._timerId = setInterval(() => {
+            this._ticker.set(Date.now());
+          }, 1000);
+        }
+      } else {
+        this.stopTicker();
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.stopTicker();
+  }
+
+  private stopTicker(): void {
+    if (this._timerId) {
+      clearInterval(this._timerId);
+      this._timerId = undefined;
+    }
+  }
+
+  private readonly _lastServerUpdate = computed(() => {
+    const ev = this.event();
+    return {
+      elapsed: (ev?.data?.['elapsedTime'] as number) ?? 0,
+      timestamp: Date.now()
+    };
+  });
 
   readonly status = computed<ProcessingStatus>(() => {
     const ev = this.event();
@@ -285,8 +322,13 @@ export class ProcessingProgressComponent {
   });
 
   readonly elapsedTime = computed(() => {
-    const ev = this.event();
-    return (ev?.data?.['elapsedTime'] as number) ?? 0;
+    const status = this.status();
+    const server = this._lastServerUpdate();
+    if (status !== 'running') return server.elapsed;
+
+    const ticker = this._ticker();
+    const delta = ticker - server.timestamp;
+    return server.elapsed + Math.max(0, delta);
   });
 
   readonly estimatedTotalTime = computed(() => {

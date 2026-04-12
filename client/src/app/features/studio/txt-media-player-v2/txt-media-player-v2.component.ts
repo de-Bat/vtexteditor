@@ -45,7 +45,7 @@ interface SegmentViewItem {
   colorIndex: number;
   top: number;
   bottom: number;
-  silenceAfter: { durationText: string; midTime: number } | null;
+  silenceAfter: { id: string; duration: number; durationText: string; midTime: number } | null;
 }
 
 /** Items rendered inside the word-flow: a word, a time marker, or a silence chip. */
@@ -550,11 +550,15 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           </div>
         </div>
 
-        <!-- Silence marker -->
-        @if (clip().showSilenceMarkers && item.silenceAfter; as sil) {
-          <div class="silence-row">
+        <!-- Silence marker (Always visible if exists) -->
+        @if (item.silenceAfter; as sil) {
+          <div class="silence-row" [class.silence-playing]="activeSilence()?.id === sil.id">
             <div class="silence-line"></div>
-            <div class="silence-pill" (click)="seekToTime(sil.midTime)">
+            <div class="silence-pill"
+              [class.silence-playing]="activeSilence()?.id === sil.id"
+              [class.silence-hl]="highlightSilence() && sil.duration >= silenceIntervalSec()"
+              [style.--sil-prog]="activeSilence()?.id === sil.id ? activeSilence()!.progress : 0"
+              (click)="seekToTime(sil.midTime)">
               <span class="material-symbols-outlined">timer</span>
               <span class="silence-text">{{ sil.durationText }} Silence</span>
               <span class="material-symbols-outlined silence-x">close</span>
@@ -758,20 +762,15 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.editVersion(); // track manual text edits
     const t = this.currentTime();
     const segments = this.clip().segments;
-    let lastBefore: Word | null = null;
+    
     for (const seg of segments) {
       for (const w of seg.words) {
         if (w.isRemoved) continue;
+        // Strict boundary check — no snapping to nearest word in gaps
         if (t >= w.startTime && t < w.endTime) return w;
-        if (w.endTime <= t) lastBefore = w;
-        if (w.startTime > t) {
-          // We're in a gap — pick whichever neighbor is closer
-          if (lastBefore && (t - lastBefore.endTime) <= (w.startTime - t)) return lastBefore;
-          return w;
-        }
       }
     }
-    return lastBefore; // past the last word — keep it highlighted
+    return null; 
   });
 
   readonly highlightedWordId = computed(() =>
@@ -784,15 +783,35 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
    */
   readonly activeSilence = computed<{ id: string; progress: number } | null>(() => {
     const t = this.currentTime();
-    for (const seg of this.clip().segments) {
-      const words = seg.words;
-      for (let i = 1; i < words.length; i++) {
-        const gapStart = words[i - 1].endTime;
-        const gapEnd = words[i].startTime;
+    const segments = this.clip().segments;
+    
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      const words = seg.words.filter(w => !w.isRemoved);
+      
+      // 1. Check inner-segment gaps (between words)
+      for (let j = 1; j < words.length; j++) {
+        const gapStart = words[j - 1].endTime;
+        const gapEnd = words[j].startTime;
         const gap = gapEnd - gapStart;
         if (gap >= INLINE_SILENCE_THRESHOLD_SEC && t >= gapStart && t < gapEnd) {
           return {
-            id: `sil-${seg.id}-${i}`,
+            id: `sil-${seg.id}-${j}`,
+            progress: (t - gapStart) / gap,
+          };
+        }
+      }
+
+      // 2. Check inter-segment gap (after this segment, before the next)
+      if (i < segments.length - 1) {
+        const nextStart = segments[i + 1].startTime;
+        const gapStart = seg.endTime;
+        const gapEnd = nextStart;
+        const gap = gapEnd - gapStart;
+        
+        if (gap >= SILENCE_THRESHOLD_SEC && t >= gapStart && t < gapEnd) {
+          return {
+            id: `sil-after-${seg.id}`,
             progress: (t - gapStart) / gap,
           };
         }
@@ -1051,18 +1070,12 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         const nextStart = segments[index + 1].startTime;
         const gap = nextStart - segment.endTime;
         if (gap >= SILENCE_THRESHOLD_SEC) {
-          // Check if this gap is explicitly cut (no silence row if it's "ignored")
-          const isCut = clip.cutRegions?.some(r => 
-            r.startTime !== undefined && r.endTime !== undefined &&
-            r.startTime <= segment.endTime + 0.05 && 
-            r.endTime >= nextStart - 0.05
-          );
-          if (!isCut) {
-            item.silenceAfter = {
-              durationText: gap.toFixed(1) + 's',
-              midTime: segment.endTime + gap / 2,
-            };
-          }
+          item.silenceAfter = {
+            id: `sil-after-${segment.id}`,
+            duration: gap,
+            durationText: gap.toFixed(1) + 's',
+            midTime: segment.endTime + gap / 2,
+          };
         }
       }
       offset += estimatedHeight + (item.silenceAfter ? 40 : 0);

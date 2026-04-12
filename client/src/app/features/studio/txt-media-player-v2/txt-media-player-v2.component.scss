@@ -1397,34 +1397,83 @@ audio {
   align-items: center;
   gap: 12px;
   padding-right: 32px;
-  margin: 8px 0;
+  margin: 12px 0;
+  transition: opacity 0.3s ease;
+
+  &.silence-playing {
+    .silence-line {
+      background: var(--secondary);
+      opacity: 0.4;
+      box-shadow: 0 0 8px rgba(144, 147, 255, 0.3);
+    }
+  }
 }
 
 .silence-line {
   height: 1px;
   flex: 1;
   background: rgba(72, 71, 74, 0.2);
+  transition: all 0.3s ease;
 }
 
 .silence-pill {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 12px;
+  padding: 6px 16px;
   border-radius: 9999px;
   background: var(--surface-container);
   border: 1px dashed rgba(72, 71, 74, 0.5);
   cursor: pointer;
-  transition: border-color 200ms;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    width: calc(var(--sil-prog, 0) * 100%);
+    background: var(--secondary);
+    box-shadow: 0 0 10px rgba(144, 147, 255, 0.6);
+    transition: width 0.1s linear;
+  }
 
   &:hover {
     border-color: var(--error);
+    background: var(--surface-container-high);
+    transform: translateY(-1px);
+  }
+
+  &.silence-playing {
+    background: rgba(144, 147, 255, 0.1);
+    border-color: var(--secondary);
+    border-style: solid;
+    box-shadow: 0 0 15px rgba(144, 147, 255, 0.15);
+
+    .material-symbols-outlined, .silence-text {
+      color: var(--secondary);
+    }
+  }
+
+  &.silence-hl {
+    border-color: #3b82f6;
+    border-style: solid;
+    background: rgba(59, 130, 246, 0.08);
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
+
+    .material-symbols-outlined, .silence-text {
+      color: #3b82f6;
+    }
   }
 
   .material-symbols-outlined {
     font-size: 14px;
     color: var(--outline);
+    transition: color 0.2s;
   }
 
   &:hover .material-symbols-outlined {
@@ -1439,6 +1488,7 @@ audio {
   color: var(--outline);
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  transition: color 0.2s;
 
   .silence-pill:hover & {
     color: var(--error);

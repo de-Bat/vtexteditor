@@ -1,5 +1,6 @@
-import { Component, input, computed, Output, EventEmitter } from '@angular/core';
+import { Component, input, computed, Output, EventEmitter, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { SseEvent } from '../../../core/services/sse.service';
 import { PipelineStep } from '../../../core/models/plugin.model';
 
@@ -53,19 +54,19 @@ export type StepStatus = 'done' | 'running' | 'pending';
                       <div class="time-stats">
                         <span class="time-item">
                           <span class="label">Elapsed:</span>
-                          <span class="value">{{ formatTime(elapsedTime()) }}</span>
+                          <span class="value c-blue">{{ formatTime(elapsedTime()) }}</span>
                         </span>
                         @if (remainingTime() > 0) {
                           <span class="time-divider"></span>
                           <span class="time-item">
                             <span class="label">Remaining:</span>
-                            <span class="value">~{{ formatTime(remainingTime()) }}</span>
+                            <span class="value c-green">~{{ formatTime(remainingTime()) }}</span>
                           </span>
                         }
                       </div>
                     }
                   </div>
-                <p class="msg">{{ message() }}</p>
+                  <p class="msg" [innerHTML]="coloredMessage()"></p>
               }
             </div>
           </div>
@@ -136,9 +137,9 @@ export type StepStatus = 'done' | 'running' | 'pending';
     .step-info { flex: 1; padding: 0.1rem 0 1.5rem; }
     
     .info-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
-    .step-name { font-size: 0.9rem; font-weight: 600; text-transform: capitalize; }
+    .step-name { font-size: 1.1rem; font-weight: 700; text-transform: capitalize; }
     .step-badge {
-      font-size: 0.6rem; font-weight: 800; padding: 0.1rem 0.4rem;
+      font-size: 0.7rem; font-weight: 800; padding: 0.2rem 0.6rem;
       background: var(--color-accent); color: #fff; border-radius: 4px;
       letter-spacing: 0.05em; animation: flash 1.5s infinite;
     }
@@ -147,27 +148,29 @@ export type StepStatus = 'done' | 'running' | 'pending';
     
     .progress-details { margin-top: 0.6rem; }
     .bar-row { display: flex; align-items: center; gap: 0.75rem; }
-    .bar { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+    .bar { flex: 1; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
     .fill { height: 100%; background: var(--color-accent); transition: width 0.3s ease; }
-    .percent { font-size: 0.75rem; font-weight: 800; color: var(--color-accent); width: 35px; text-align: right; }
+    .percent { font-size: 0.9rem; font-weight: 800; color: var(--color-accent); width: 45px; text-align: right; }
     
     .time-stats {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      margin-top: 0.4rem;
-      font-size: 0.65rem;
+      margin-top: 0.6rem;
+      font-size: 0.85rem;
       color: var(--color-muted);
       font-weight: 600;
+      letter-spacing: 0.02em;
     }
-    .time-item { display: flex; gap: 0.25rem; }
-    .time-item .label { opacity: 0.7; font-weight: 500; }
-    .time-item .value { color: var(--color-text); }
+    .time-item { display: flex; gap: 0.25rem; align-items: baseline; }
+    .time-item .label { opacity: 0.7; font-weight: 500; font-size: 0.65rem; text-transform: uppercase; }
+    .time-item .value { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; }
+    
     .time-divider { width: 1px; height: 10px; background: var(--color-border); opacity: 0.3; }
     
     .msg {
-      font-size: 0.75rem; color: var(--color-muted); margin: 0.3rem 0 0;
-      max-height: 120px;
+      font-size: 0.9rem; color: var(--color-text); margin: 0.5rem 0 0;
+      max-height: 150px;
       overflow-y: auto;
       white-space: pre-wrap;
       font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -227,6 +230,7 @@ export type StepStatus = 'done' | 'running' | 'pending';
   `]
 })
 export class ProcessingProgressComponent {
+  private readonly sanitizer = inject(DomSanitizer);
   readonly event = input<SseEvent | null>(null);
   readonly steps = input<PipelineStep[]>([]);
   @Output() readonly back = new EventEmitter<void>();
@@ -266,6 +270,18 @@ export class ProcessingProgressComponent {
   readonly message = computed(() => {
     const ev = this.event();
     return (ev?.data?.['message'] as string) ?? (ev?.data?.['error'] as string) ?? '';
+  });
+
+  readonly coloredMessage = computed<SafeHtml>(() => {
+    const msg = this.message();
+    if (!msg) return '';
+    
+    // Replace [color:text] with <span class="c-color">text</span>
+    const html = msg.replace(/\[(orange|green|blue)\s*:\s*([^\]]+)\]/gi, (_, color, text) => {
+      return `<span class="c-${color.toLowerCase()}">${text}</span>`;
+    });
+    
+    return this.sanitizer.bypassSecurityTrustHtml(html);
   });
 
   readonly elapsedTime = computed(() => {

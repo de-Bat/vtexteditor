@@ -30,3 +30,8 @@ html, body {
 }
 
 button { font-family: inherit; }
+
+/* Progress reporting color utilities */
+.c-orange { color: #ff9800 !important; }
+.c-green  { color: var(--color-success) !important; }
+.c-blue   { color: var(--color-accent) !important; }

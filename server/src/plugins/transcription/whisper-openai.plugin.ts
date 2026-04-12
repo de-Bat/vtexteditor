@@ -235,7 +235,7 @@ export const whisperPlugin: IPlugin = {
         ctx.mediaInfo?.duration,
         (progress, completed, total, active) => {
           const pending = total - completed - active;
-          const status = `Transcribing chunks (${completed}/${total}) — ${active} active, ${pending} pending…`;
+          const status = `Transcribing chunks (${completed}/[blue:${total}]) — [green:${active}] active, [orange:${pending}] pending…`;
           ctx.reportProgress?.(status, progress);
         }
       );

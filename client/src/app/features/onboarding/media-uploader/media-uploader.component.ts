@@ -44,13 +44,13 @@ interface UploadResult {
                 <div class="time-stats">
                   <span class="time-item">
                     <span class="label">Elapsed:</span>
-                    <span class="value">{{ formatTime(elapsedTime()) }}</span>
+                    <span class="value c-blue">{{ formatTime(elapsedTime()) }}</span>
                   </span>
                   @if (remainingTime() > 0) {
                     <span class="time-divider"></span>
                     <span class="time-item">
                       <span class="label">Remaining:</span>
-                      <span class="value">~{{ formatTime(remainingTime()) }}</span>
+                      <span class="value c-green">~{{ formatTime(remainingTime()) }}</span>
                     </span>
                   }
                 </div>
@@ -127,18 +127,19 @@ interface UploadResult {
     }
     .progress-details { margin-top: 0.6rem; width: 100%; }
     .bar-row { display: flex; align-items: center; gap: 0.75rem; width: 100%; }
-    .bar { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+    .bar { flex: 1; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
     .fill { height: 100%; background: var(--color-accent); transition: width 0.3s ease; }
-    .percent { font-size: 0.75rem; font-weight: 800; color: var(--color-accent); width: 35px; text-align: right; }
+    .percent { font-size: 0.9rem; font-weight: 800; color: var(--color-accent); width: 45px; text-align: right; }
     
     .time-stats {
       display: flex; align-items: center; justify-content: center;
-      gap: 0.75rem; margin-top: 0.8rem; font-size: 0.65rem;
+      gap: 0.75rem; margin-top: 1rem; font-size: 0.85rem;
       color: var(--color-muted); font-weight: 600;
+      letter-spacing: 0.02em;
     }
-    .time-item { display: flex; gap: 0.25rem; }
-    .time-item .label { opacity: 0.7; font-weight: 500; }
-    .time-item .value { color: var(--color-text); }
+    .time-item { display: flex; gap: 0.25rem; align-items: baseline; }
+    .time-item .label { opacity: 0.7; font-weight: 500; font-size: 0.65rem; text-transform: uppercase; }
+    .time-item .value { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; }
     .time-divider { width: 1px; height: 10px; background: var(--color-border); opacity: 0.3; }
   `]
 })
@@ -258,7 +259,6 @@ export class MediaUploaderComponent {
     const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    if (minutes > 0) return `${minutes}m ${seconds}s`;
-    return `${seconds}s`;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
 }

@@ -539,6 +539,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly highlightSilence = signal(false);
   /** Whether Smart Cut dropdown is open */
   readonly smartCutOpen = signal(false);
+  /** Whether the search input is expanded */
+  readonly searchExpanded = signal(false);
+  /** Whether the silence-interval popover is open */
+  readonly silenceControlOpen = signal(false);
   /** wordId of the removed word whose effect popover is open; null = closed */
   readonly effectPopoverWordId = signal<string | null>(null);
   /** regionId being edited in the duration input */

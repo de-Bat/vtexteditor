@@ -1426,3 +1426,41 @@ audio {
 .filler-badge.popover-open {
   outline: 1px solid rgba(186, 158, 255, 0.4);
 }
+
+/* ── Timeline cut-region overlay ─────────────────────── */
+.cut-region-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  border-radius: 2px;
+
+  // Striped pattern at 40% opacity (hard-cut / default)
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 110, 132, 0.35) 0px,
+    rgba(255, 110, 132, 0.35) 3px,
+    transparent 3px,
+    transparent 7px
+  );
+
+  &--fade {
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(186, 158, 255, 0.35) 0px,
+      rgba(186, 158, 255, 0.35) 3px,
+      transparent 3px,
+      transparent 7px
+    );
+  }
+
+  &--cross-cut {
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(255, 113, 106, 0.35) 0px,
+      rgba(255, 113, 106, 0.35) 3px,
+      transparent 3px,
+      transparent 7px
+    );
+  }
+}

@@ -177,6 +177,15 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
               <div class="track-gap" [style.width.%]="item.widthPercent"></div>
             }
           }
+          <!-- Cut region overlays -->
+          @for (overlay of cutRegionOverlays(); track overlay.regionId) {
+            <div class="cut-region-overlay cut-region-overlay--{{ overlay.effectType }}"
+              [style.left.%]="overlay.leftPercent"
+              [style.width.%]="overlay.widthPercent"
+              [title]="overlay.effectType"
+              aria-hidden="true">
+            </div>
+          }
         </div>
         <div class="playhead" [style.left.%]="progress()">
           <div class="playhead-dot"></div>
@@ -721,6 +730,34 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       items.push({ kind: 'segment', widthPercent: Math.max(0.3, (segDur / dur) * 100), colorIndex: ci });
     }
     return items;
+  });
+
+  /* ── Computed: Cut Region Overlays ──────────────────── */
+  readonly cutRegionOverlays = computed(() => {
+    this.editVersion();
+    const clip = this.clip();
+    const dur = this.duration();
+    if (!dur || !clip.cutRegions?.length) return [];
+
+    const wordMap = new Map<string, Word>();
+    for (const seg of clip.segments) {
+      for (const w of seg.words) wordMap.set(w.id, w);
+    }
+
+    return clip.cutRegions
+      .map((region) => {
+        const words = region.wordIds.map((id) => wordMap.get(id)).filter((w): w is Word => !!w);
+        if (!words.length) return null;
+        const start = Math.min(...words.map((w) => w.startTime));
+        const end = Math.max(...words.map((w) => w.endTime));
+        return {
+          regionId: region.id,
+          leftPercent: (start / dur) * 100,
+          widthPercent: ((end - start) / dur) * 100,
+          effectType: region.effectType,
+        };
+      })
+      .filter((o): o is NonNullable<typeof o> => o !== null);
   });
 
   /* ── Computed: Timeline Ruler Marks ──────────────────── */

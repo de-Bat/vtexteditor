@@ -233,7 +233,11 @@ export const whisperPlugin: IPlugin = {
         transcribeChunk,
         { chunkDurationSecs, maxConcurrent },
         ctx.mediaInfo?.duration,
-        (progress, completed, total) => ctx.reportProgress?.(`Transcribing chunks (${completed}/${total})…`, progress)
+        (progress, completed, total, active) => {
+          const pending = total - completed - active;
+          const status = `Transcribing chunks (${completed}/${total}) — ${active} active, ${pending} pending…`;
+          ctx.reportProgress?.(status, progress);
+        }
       );
     } finally {
       if (tempCreated && fs.existsSync(audioPath)) {

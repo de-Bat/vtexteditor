@@ -35,7 +35,7 @@ export async function chunkAndTranscribe(
   transcribeFn: TranscribeFn,
   opts: ChunkOptions,
   fileDurationSecs?: number,
-  onProgress?: (progress: number, completed: number, total: number) => void,
+  onProgress?: (progress: number, completed: number, total: number, active: number) => void,
 ): Promise<RawSegment[]> {
   const { chunkDurationSecs, maxConcurrent } = opts;
   const tag = '[chunked-transcription]';
@@ -53,19 +53,27 @@ export async function chunkAndTranscribe(
 
   const limit = pLimit(maxConcurrent);
   let completed = 0;
+  let active = 0;
 
   try {
     const chunkResults = await Promise.all(
       chunks.map((chunk) =>
         limit(async () => {
-          console.log(`${tag} chunk ${chunk.index + 1}/${chunks.length} starting (offset=${chunk.startOffset}s)`);
-          const segments = await transcribeFn(chunk.path);
-          completed++;
-          console.log(`${tag} chunk ${chunk.index + 1}/${chunks.length} done — ${segments.length} segment(s)  [${completed}/${chunks.length} complete]`);
+          active++;
+          console.log(`${tag} chunk ${chunk.index + 1}/${chunks.length} starting (offset=${chunk.startOffset}s) [active=${active}]`);
           
-          const adjusted = adjustTimestamps(segments, chunk.startOffset);
-          onProgress?.(Math.round((completed / chunks.length) * 100), completed, chunks.length);
-          return adjusted;
+          try {
+            onProgress?.(Math.round((completed / chunks.length) * 100), completed, chunks.length, active);
+            const segments = await transcribeFn(chunk.path);
+            completed++;
+            console.log(`${tag} chunk ${chunk.index + 1}/${chunks.length} done — ${segments.length} segment(s)  [${completed}/${chunks.length} complete]`);
+            
+            const adjusted = adjustTimestamps(segments, chunk.startOffset);
+            return adjusted;
+          } finally {
+            active--;
+            onProgress?.(Math.round((completed / chunks.length) * 100), completed, chunks.length, active);
+          }
         }),
       ),
     );

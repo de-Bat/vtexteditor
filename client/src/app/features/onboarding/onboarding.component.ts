@@ -9,6 +9,7 @@ import { forkJoin } from 'rxjs';
 import { SseService } from '../../core/services/sse.service';
 import { PluginService } from '../../core/services/plugin.service';
 import { ProjectService } from '../../core/services/project.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { ProjectSummary } from '../../core/models/project.model';
 import { PipelineStep } from '../../core/models/plugin.model';
 
@@ -50,6 +51,7 @@ export class OnboardingComponent implements OnInit {
     readonly sseService: SseService,
     private pluginService: PluginService,
     private projectService: ProjectService,
+    private confirmService: ConfirmService,
     private router: Router,
   ) {
     sseService.connect();
@@ -143,30 +145,54 @@ export class OnboardingComponent implements OnInit {
     });
   }
 
-  clearSelected(): void {
+  async clearSelected(): Promise<void> {
     const ids = [...this.selectedIds()];
     if (!ids.length) return;
     const label = ids.length + ' selected project' + (ids.length !== 1 ? 's' : '');
-    if (!confirm('Delete ' + label + '? This cannot be undone.')) return;
+    
+    const confirmed = await this.confirmService.confirm({
+      title: 'Delete Selected',
+      message: `Delete ${label}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      isDestructive: true
+    });
+    
+    if (!confirmed) return;
     this._deleteMany(ids, () => {
       this.selectionMode.set(false);
       this.selectedIds.set(new Set());
     });
   }
 
-  clearEmpty(): void {
+  async clearEmpty(): Promise<void> {
     const ids = this.emptyProjects().map(p => p.id);
     if (!ids.length) return;
     const label = ids.length + ' empty project' + (ids.length !== 1 ? 's' : '');
-    if (!confirm('Delete ' + label + '? This cannot be undone.')) return;
+    
+    const confirmed = await this.confirmService.confirm({
+      title: 'Delete Empty Projects',
+      message: `Delete ${label}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      isDestructive: true
+    });
+    
+    if (!confirmed) return;
     this._deleteMany(ids);
   }
 
-  clearAll(): void {
+  async clearAll(): Promise<void> {
     const all = this.projects();
     if (!all.length) return;
     const label = 'all ' + all.length + ' project' + (all.length !== 1 ? 's' : '');
-    if (!confirm('Delete ' + label + '? This cannot be undone.')) return;
+    
+    const confirmed = await this.confirmService.confirm({
+      title: 'Delete All Projects',
+      message: `Delete ${label}? This action is irreversible.`,
+      confirmLabel: 'Delete All',
+      isDestructive: true
+    });
+    
+    if (!confirmed) return;
     this._deleteMany(all.map(p => p.id));
   }
 
@@ -182,10 +208,18 @@ export class OnboardingComponent implements OnInit {
     });
   }
 
-  deleteProject(id: string): void {
+  async deleteProject(id: string): Promise<void> {
     const project = this.projects().find(p => p.id === id);
     if (!project) return;
-    if (!confirm('Delete "' + project.name + '"? This cannot be undone.')) return;
+    
+    const confirmed = await this.confirmService.confirm({
+      title: 'Delete Project',
+      message: `Are you sure you want to delete "${project.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      isDestructive: true
+    });
+    
+    if (!confirmed) return;
     this.projectService.deleteProject(id).subscribe({
       next: () => {
         this.projects.update(ps => ps.filter(p => p.id !== id));

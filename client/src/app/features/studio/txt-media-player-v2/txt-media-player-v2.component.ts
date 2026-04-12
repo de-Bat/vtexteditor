@@ -309,13 +309,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
           <!-- Edit History -->
           <div class="hdr-group hdr-divider">
-            <button class="hdr-btn" (click)="restoreAll()" title="Restore all removed words">
+            <button class="hdr-btn" (click)="restoreAll()" [disabled]="removedCount() === 0" title="Restore all removals">
               <span class="material-symbols-outlined">settings_backup_restore</span>
             </button>
-            <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Ctrl+Z)">
+            <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo (Control+Z)">
               <span class="material-symbols-outlined">undo</span>
             </button>
-            <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Ctrl+Shift+Z)">
+            <button class="hdr-btn" (click)="redo()" [disabled]="!canRedo()" title="Redo (Control+Shift+Z)">
               <span class="material-symbols-outlined">redo</span>
             </button>
           </div>
@@ -364,7 +364,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 <div class="menu-item-group">
                   <span class="menu-label">History</span>
                   <div class="hdr-group">
-                    <button class="hdr-btn" (click)="restoreAll()" title="Restore all">
+                    <button class="hdr-btn" (click)="restoreAll()" [disabled]="removedCount() === 0" title="Restore all">
                       <span class="material-symbols-outlined">settings_backup_restore</span>
                     </button>
                     <button class="hdr-btn" (click)="undo()" [disabled]="!canUndo()" title="Undo">
@@ -603,9 +603,22 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         <span class="material-symbols-outlined">track_changes</span>
       </button>
 
+      @if (highlightFillers()) {
+        <span class="status-chip status-indicator filler-hl-indicator" title="Filler Words Highlighted">
+          <span class="material-symbols-outlined" style="font-size:1rem;color:#f59e0b">visibility</span>
+          <span class="chip-label">Fillers</span>
+        </span>
+      }
+      @if (highlightSilence()) {
+        <span class="status-chip status-indicator silence-hl-indicator" title="Silence Gaps Highlighted">
+          <span class="material-symbols-outlined" style="font-size:1rem;color:#3b82f6">hourglass_empty</span>
+          <span class="chip-label">Silence</span>
+        </span>
+      }
+
       @if (jumpCutMode()) {
         <span class="status-chip status-mode" title="Jump Cut Mode Active">
-          <span class="chip-label">Jump Cut</span>
+          <span class="chip-label">Preview: Jump Cut</span>
         </span>
       }
     </div>

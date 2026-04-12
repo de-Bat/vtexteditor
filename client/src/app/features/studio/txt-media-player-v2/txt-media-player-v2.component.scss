@@ -442,6 +442,8 @@ audio {
   display: flex;
   flex-direction: column;
   gap: 0; // Controlled by row margins for animation
+  position: relative;
+  z-index: 100; // Ensure dropdowns and popovers overlap the body
 }
 
 /* Row 1 & 2 */
@@ -470,6 +472,7 @@ audio {
     transform: translateY(0);
     pointer-events: auto;
     margin-bottom: 4px;
+    overflow: visible; // Allow popovers from row 2 (if any)
   }
 
   &.selection-toolbar {
@@ -602,6 +605,28 @@ audio {
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--outline);
+
+    &.status-mode {
+      background: rgba(186, 158, 255, 0.1);
+      color: var(--primary);
+      border: 1px solid rgba(186, 158, 255, 0.2);
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 9px;
+      letter-spacing: 0.05em;
+    }
+
+    &.filler-hl-indicator {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    &.silence-hl-indicator {
+      background: rgba(59, 130, 246, 0.12);
+      color: #3b82f6;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
   }
 
   .si-row {
@@ -631,13 +656,25 @@ audio {
 .popover {
   position: absolute;
   top: calc(100% + 6px);
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 200;
   background: var(--surface-container-highest);
   border: 1px solid rgba(72, 71, 74, 0.4);
   border-radius: 12px;
   padding: 14px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+  }
 }
 
 /* Silence Control Dropdown */
@@ -1393,12 +1430,20 @@ audio {
   background: var(--surface-container-lowest);
   min-height: 40px;
   flex-shrink: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -ms-overflow-style: none; /* Edge/IE */
+  scrollbar-width: none; /* Firefox */
 
-  .spacer { flex: 1; }
+  &::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
+
+  .spacer { flex: 1; min-width: 12px; }
 }
 
 .status-chip {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1461,6 +1506,22 @@ audio {
   &.status-mode {
     color: var(--secondary);
     background: rgba(144, 147, 255, 0.08);
+  }
+
+  &.filler-hl-indicator {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    width: auto !important;
+    padding-right: 10px;
+  }
+
+  &.silence-hl-indicator {
+    background: rgba(59, 130, 246, 0.12);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    width: auto !important;
+    padding-right: 10px;
   }
 
   &.status-interactive {

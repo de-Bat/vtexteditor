@@ -44,7 +44,7 @@ export function buildPrompt(
     .map((s, i) => {
       const shortId = `S${String(i + 1).padStart(3, '0')}`;
       let text = s.text.trim();
-      
+
       // Label completely silent segments
       if (!text) text = '[Silence]';
 
@@ -56,7 +56,7 @@ export function buildPrompt(
           internalGaps.push(`(Pause ${gap.toFixed(1)}s)`);
         }
       }
-      
+
       if (internalGaps.length > 0) {
         // We just append a note to the LLM; we don't try to interleave it
         // perfectly to avoid confusing the JSON parser if it looks like multiple segments.
@@ -75,25 +75,115 @@ export function buildPrompt(
     ? `\nRespond with event titles in: ${config.language}\n`
     : `\nRespond with event titles in the same language as the transcription provided above.\n`;
 
-  const prompt = `You are helping reconstruct a detailed life story from an interview transcript.
+  const prompt = `You are reconstructing a life story from interview transcript segments.
 
-Below is the transcript, one segment per line, formatted as [ID] text:
+INPUT FORMAT:
+Each line is a segment:
+[ID] text
 
 ${lines}
 ${seedLine}${langLine}
-Instructions:
-1. Group these segments into granular narrative events (maximum ${config.maxEvents} events).
-2. Proactively search the entire transcript for related information. Collect relevant sentences from different parts of the interview into a single thematic event (e.g., if "Family" is discussed at the start and the end, group them together).
-3. Use highly specific, granular titles. Instead of broad chapters like "Childhood" or "Life Story", break it down into specific themes like "Family", "School", "Village", "Traditions", "Army", "First Job", "Personal Challenges", etc.
-4. Ensure each event sums up into a coherent, first-person story. Reorder segments within an event to ensure the narrative flows naturally, even if they were not spoken in that exact order.
-5. Each segment may appear in at most one event.
-6. INCLUDE ALL SEGMENTS. Do not edit the text, omit, or drop any segments. Place tangential moments in the most fitting event to preserve the entire timeline.
 
-Return ONLY a JSON array — no explanation, no markdown fences:
-[
-  { "title": "Event name", "segments": ["S001", "S002"] },
-  ...
-]`;
+--------------------------------
+HARD CONSTRAINTS (MUST FOLLOW)
+--------------------------------
+- Use ONLY the provided segment IDs (e.g., S001, S002)
+- DO NOT invent, modify, merge, or split segments
+- DO NOT create new IDs
+- Each segment ID may appear AT MOST ONCE
+- You MAY omit irrelevant segments
+- DO NOT reuse a segment in multiple events
+
+--------------------------------
+OBJECTIVE
+--------------------------------
+Group segments into distinct life events and present them as a coherent first-person narrative.
+
+--------------------------------
+EVENT RULES
+--------------------------------
+- Maximum ${config.maxEvents} events
+- Each event = ONE specific moment, experience, or theme
+- Prefer meaningful, coherent events over excessive fragmentation
+- Segments in an event may come from anywhere in the input
+- Maintain logical and narrative coherence
+
+--------------------------------
+EVENT GROUPING (ANTI-OVER-SPLITTING)
+--------------------------------
+- DO NOT over-divide events that belong to the same broader experience
+- If multiple segments describe different parts of a continuous or related experience,
+  group them into a SINGLE event
+- Example: early school memories + later school experiences → ONE event (e.g., "School Experience")
+- Only split into separate events when there is a clear shift in context, time, or life phase
+
+--------------------------------
+EVENT DURATION (SOFT CONSTRAINT)
+--------------------------------
+- Each event should typically represent ~10–15 minutes of real time
+- Prefer shorter, tightly scoped moments over long, continuous stretches
+- If an event clearly spans a longer period and cannot be meaningfully split,
+  you MAY keep it as a single event
+- Do NOT force artificial splits if it would break coherence or meaning
+
+--------------------------------
+SEGMENT HANDLING
+--------------------------------
+- You MAY reorder segments within an event
+- Preserve original meaning and wording
+- Only perform LIGHT CLEANUP:
+  - Remove filler words (um, uh, like, you know, etc.)
+  - Remove stutters and repetitions
+  - Remove [Silence] or pause markers unless meaningful
+- DO NOT paraphrase, summarize, or rewrite content
+
+--------------------------------
+TITLES
+--------------------------------
+- 2–6 words
+- Specific and descriptive (avoid vague phrases like "Early Life")
+${config.language && config.language !== 'Auto-detect'
+      ? `- Titles MUST be in ${config.language}`
+      : `- Titles MUST match the transcript language`
+    }
+
+--------------------------------
+OUTPUT FORMAT (STRICT)
+--------------------------------
+Return ONLY a valid JSON array.
+
+Each item MUST be:
+{
+  "title": "string",
+  "segments": [
+    { "id": "S001", "text": "string" }
+  ]
+}
+
+--------------------------------
+FORMAT RULES (ZERO TOLERANCE)
+--------------------------------
+- NO markdown
+- NO explanations
+- NO extra text
+- NO additional fields
+- NO missing fields
+- NO trailing commas
+- Keys MUST be exactly: "title", "segments", "id", "text"
+
+--------------------------------
+FINAL VALIDATION (REQUIRED)
+--------------------------------
+Before finishing, ensure:
+- Output is valid JSON
+- Top-level is an array
+- Each event has "title" and "segments"
+- Each segment has ONLY "id" and "text"
+- No duplicate segment IDs
+- All IDs exist in the input
+
+Now produce the result.
+`;
 
   return { prompt, shortIdMap };
 }
@@ -107,7 +197,7 @@ export function parseEvents(
   responseText: string,
   validSegmentIds: Set<string>,
   shortIdMap?: Map<string, string>,
-): Array<{ title: string; segments: string[] }> {
+): Array<{ title: string; segments: Array<{ id: string; text?: string }> }> {
   const cleaned = responseText.replace(/```(?:json)?|```/g, '').trim();
   const raw = JSON.parse(cleaned) as unknown;
   if (!Array.isArray(raw)) throw new Error('LLM response is not a JSON array');
@@ -123,11 +213,23 @@ export function parseEvents(
     .map(e => ({
       title: e.title,
       segments: (e.segments as unknown[])
-        .filter((id): id is string => typeof id === 'string')
+        .map(item => {
+          if (typeof item === 'string') return { id: item, text: undefined };
+          if (typeof item === 'object' && item !== null) {
+            const obj = item as Record<string, unknown>;
+            if (typeof obj['id'] === 'string') {
+              return { id: obj['id'], text: typeof obj['text'] === 'string' ? obj['text'] : undefined };
+            }
+          }
+          return null;
+        })
+        .filter((item): item is { id: string; text?: string } => item !== null)
         // Resolve short IDs (S001 …) back to real UUIDs when map is provided.
-        // Falls back to the raw ID so callers that pass real UUIDs still work.
-        .map(id => shortIdMap?.get(id) ?? id)
-        .filter(id => validSegmentIds.has(id)),
+        .map(item => ({
+          ...item,
+          id: shortIdMap?.get(item.id) ?? item.id,
+        }))
+        .filter(item => validSegmentIds.has(item.id)),
     }))
     .filter(e => e.segments.length > 0);
 }
@@ -155,7 +257,7 @@ export function buildCommitClips(
   const allSourceSegments = sourceClips
     .flatMap(c => c.segments)
     .sort((a, b) => a.startTime - b.startTime);
-  
+
   const sourceSegmentIndexMap = new Map<string, number>();
   allSourceSegments.forEach((s, i) => sourceSegmentIndexMap.set(s.id, i));
 
@@ -165,9 +267,11 @@ export function buildCommitClips(
       .map(ref => {
         const sourceSeg = segmentMap.get(ref.segmentId);
         if (!sourceSeg) return null;
+        const newSeg = { ...sourceSeg, id: uuidv4(), clipId: event.id };
+        const trimmedSeg = ref.text ? applyTrimming(newSeg, ref.text) : newSeg;
         return {
           sourceId: sourceSeg.id,
-          newSeg: { ...sourceSeg, id: uuidv4(), clipId: event.id },
+          newSeg: trimmedSeg,
         };
       })
       .filter((s): s is { sourceId: string; newSeg: Segment } => s !== null);
@@ -208,6 +312,7 @@ export function buildCommitClips(
       id: event.id,
       projectId,
       name: `${prefix}: ${event.title}`,
+      // Use the actual (possibly trimmed) startTime/endTime of the first/last segment
       startTime: acceptedSegments[0].startTime,
       endTime: acceptedSegments[acceptedSegments.length - 1].endTime,
       segments: acceptedSegments,
@@ -217,4 +322,45 @@ export function buildCommitClips(
   }
 
   return result;
+}
+
+/**
+ * Matches targetText against original segment words. Marks missing words as
+ * isRemoved: true and tightens segment boundaries to first/last kept words.
+ */
+function applyTrimming(seg: Segment, targetText: string): Segment {
+  const normalize = (t: string) => t.toLowerCase().replace(/[.,!?;:()\[\]"]/g, '').trim();
+  const targetWords = targetText.split(/\s+/).map(normalize).filter(Boolean);
+  if (targetWords.length === 0) return seg;
+
+  const originalWords = seg.words;
+  if (originalWords.length === 0) return seg;
+
+  const updatedWords = originalWords.map(w => ({ ...w, isRemoved: true }));
+  let firstKeptIdx = -1;
+  let lastKeptIdx = -1;
+  let targetIdx = 0;
+
+  // Greedy match: find target words in order within the original sequence.
+  // This preserves audio sync and prevents nonsensical jumping.
+  for (let i = 0; i < updatedWords.length; i++) {
+    const wNorm = normalize(updatedWords[i].text);
+    if (!wNorm) continue; // Skip silence/punctuation-only tokens if any
+
+    if (targetIdx < targetWords.length && wNorm === targetWords[targetIdx]) {
+      updatedWords[i].isRemoved = false;
+      if (firstKeptIdx === -1) firstKeptIdx = i;
+      lastKeptIdx = i;
+      targetIdx++;
+    }
+  }
+
+  if (firstKeptIdx !== -1) {
+    seg.words = updatedWords;
+    seg.startTime = updatedWords[firstKeptIdx].startTime;
+    seg.endTime = updatedWords[lastKeptIdx].endTime;
+    seg.text = targetText;
+  }
+
+  return seg;
 }

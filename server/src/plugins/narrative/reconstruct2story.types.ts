@@ -2,6 +2,7 @@ export interface StorySegmentRef {
   segmentId: string;
   clipId: string;
   accepted: boolean;  // default true; user can toggle to false
+  text?: string;      // cleaned/trimmed text from LLM
 }
 
 export interface StoryEvent {

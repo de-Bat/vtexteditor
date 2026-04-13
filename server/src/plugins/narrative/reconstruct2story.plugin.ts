@@ -49,7 +49,7 @@ export const reconstruct2storyPlugin: IPlugin = {
         type: 'number',
         title: 'Max Events',
         description: 'Maximum number of life chapters the LLM may propose.',
-        default: 10,
+        default: 25,
       },
       storyClipPrefix: {
         type: 'string',
@@ -74,7 +74,7 @@ export const reconstruct2storyPlugin: IPlugin = {
       throw new Error('reconstruct2story: no clips found. Run a transcription plugin first.');
     }
 
-    const maxEvents = cfg.maxEvents ?? 10;
+    const maxEvents = cfg.maxEvents ?? 25;
     const prefix = cfg.storyClipPrefix ?? 'Story';
     const timeoutMs = (cfg.timeoutSecs ?? 300) * 1000;
 
@@ -115,12 +115,13 @@ export const reconstruct2storyPlugin: IPlugin = {
     const events: StoryEvent[] = parsedEvents.map(e => ({
       id: uuidv4(),
       title: e.title,
-      segments: e.segments.map(compoundKey => {
+      segments: e.segments.map(item => {
         // compoundKey format: "clipId:segId"
+        const compoundKey = item.id;
         const colonIdx = compoundKey.indexOf(':');
         const clipId = compoundKey.slice(0, colonIdx);
         const segId = compoundKey.slice(colonIdx + 1);
-        return { segmentId: segId, clipId, accepted: true };
+        return { segmentId: segId, clipId, accepted: true, text: item.text };
       }),
     }));
 

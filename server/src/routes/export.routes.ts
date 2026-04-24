@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { exportService, ExportFormat } from '../services/export.service';
+import { ClipTransition, TRANSITION_EFFECTS } from '../models/clip-transition.model';
 
 export const exportRoutes = Router();
 
@@ -9,7 +10,7 @@ const ALLOWED_FORMATS: ExportFormat[] = ['video', 'text-plain', 'text-srt'];
 
 /** POST /api/export — start export job */
 exportRoutes.post('/', (req: Request, res: Response) => {
-  const { projectId, format, clipIds } = req.body as { projectId?: string; format?: string; clipIds?: string[] };
+  const { projectId, format, clipIds, transitions } = req.body as { projectId?: string; format?: string; clipIds?: string[]; transitions?: ClipTransition[] };
 
   if (!projectId) {
     res.status(400).json({ error: 'projectId is required' });
@@ -20,7 +21,31 @@ exportRoutes.post('/', (req: Request, res: Response) => {
     return;
   }
 
-  const jobId = exportService.start(projectId, format as ExportFormat, clipIds);
+  // Validate transitions if provided
+  if (transitions) {
+    if (!clipIds || clipIds.length < 2) {
+      res.status(400).json({ error: 'transitions require at least 2 clips' });
+      return;
+    }
+    if (transitions.length !== clipIds.length - 1) {
+      res.status(400).json({ error: `transitions count (${transitions.length}) must equal clipIds count - 1 (${clipIds.length - 1})` });
+      return;
+    }
+    for (const transition of transitions) {
+      if (!TRANSITION_EFFECTS.includes(transition.effect)) {
+        res.status(400).json({ error: `unknown transition effect: ${transition.effect}` });
+        return;
+      }
+      const fromIdx = clipIds.indexOf(transition.fromClipId);
+      const toIdx = clipIds.indexOf(transition.toClipId);
+      if (fromIdx === -1 || toIdx === -1 || toIdx !== fromIdx + 1) {
+        res.status(400).json({ error: `transition clipIds mismatch: ${transition.fromClipId} -> ${transition.toClipId}` });
+        return;
+      }
+    }
+  }
+
+  const jobId = exportService.start(projectId, format as ExportFormat, clipIds, transitions);
   res.status(202).json({ jobId });
 });
 

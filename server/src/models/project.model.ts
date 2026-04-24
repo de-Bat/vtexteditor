@@ -31,6 +31,7 @@ export interface MediaInfo {
   width?: number;
   height?: number;
   bitrate?: number;
+  sampleRate?: number;
 }
 
 export interface Project {

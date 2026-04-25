@@ -11,6 +11,7 @@ import { ensureDir } from '../utils/file.util';
 import { Word } from '../models/word.model';
 import { Segment } from '../models/segment.model';
 import { ClipTransition } from '../models/clip-transition.model';
+import { getBestVideoEncoder } from '../utils/ffmpeg.util';
 
 export type ExportFormat = 'video' | 'text-plain' | 'text-srt';
 
@@ -27,6 +28,7 @@ export interface ExportJob {
   startTime?: number;
   elapsedTime?: number;
   estimatedTotalTime?: number;
+  eta?: number;
 }
 
 const TAG = '[export]';
@@ -233,9 +235,10 @@ class ExportService {
       let lastLoggedProgress = -10;
       console.log(`${TAG} job ${job.id} starting ffmpeg...`);
       ffmpeg(inputPath)
+        .inputOptions('-hwaccel', 'auto')
         .outputOptions([
           '-filter_complex_script', filterScriptPath,
-          '-map', hasVideo ? '[vout]' : '0:v?', '-map', '[aout]', '-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart'
+          '-map', hasVideo ? '[vout]' : '0:v?', '-map', '[aout]', '-c:v', getBestVideoEncoder(), '-c:a', 'aac', '-movflags', '+faststart'
         ])
         .output(outPath)
         .on('progress', (p) => {
@@ -244,16 +247,18 @@ class ExportService {
             const now = Date.now();
             const elapsed = now - (job.startTime || now);
             const total = Math.round(elapsed / (p.percent / 100));
+            const eta = Math.max(0, total - elapsed);
             job.elapsedTime = elapsed;
             job.estimatedTotalTime = total;
+            job.eta = eta;
             const roundedPercent = Math.round(p.percent);
             if (roundedPercent >= lastLoggedProgress + 10) {
-              console.log(`${TAG} job ${job.id} progress: ${roundedPercent}% (elapsed: ${Math.round(elapsed / 1000)}s, est. total: ${Math.round(total / 1000)}s)`);
+              console.log(`${TAG} job ${job.id} progress: ${roundedPercent}% (elapsed: ${Math.round(elapsed / 1000)}s, ETA: ${Math.round(eta / 1000)}s)`);
               lastLoggedProgress = roundedPercent;
             }
             sseService.broadcast({
               type: 'export:progress',
-              data: { jobId: job.id, progress: roundedPercent, elapsedTime: elapsed, estimatedTotalTime: total },
+              data: { jobId: job.id, progress: roundedPercent, elapsedTime: elapsed, estimatedTotalTime: total, eta },
             });
           }
         })
@@ -371,9 +376,10 @@ class ExportService {
       console.log(`${TAG} job ${job.id} starting ffmpeg (transitions)...`);
 
       ffmpeg(inputPath)
+        .inputOptions('-hwaccel', 'auto')
         .outputOptions([
           '-filter_complex_script', filterScriptPath,
-          '-map', hasVideo ? '[vout]' : '0:v?', '-map', '[aout]', '-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart'
+          '-map', hasVideo ? '[vout]' : '0:v?', '-map', '[aout]', '-c:v', getBestVideoEncoder(), '-c:a', 'aac', '-movflags', '+faststart'
         ])
         .output(outPath)
         .on('progress', (p) => {
@@ -382,16 +388,18 @@ class ExportService {
             const now = Date.now();
             const elapsed = now - (job.startTime || now);
             const total = Math.round(elapsed / (p.percent / 100));
+            const eta = Math.max(0, total - elapsed);
             job.elapsedTime = elapsed;
             job.estimatedTotalTime = total;
+            job.eta = eta;
             const roundedPercent = Math.round(p.percent);
             if (roundedPercent >= lastLoggedProgress + 10) {
-              console.log(`${TAG} job ${job.id} progress: ${roundedPercent}% (elapsed: ${Math.round(elapsed / 1000)}s, est. total: ${Math.round(total / 1000)}s)`);
+              console.log(`${TAG} job ${job.id} (transitions) progress: ${roundedPercent}% (elapsed: ${Math.round(elapsed / 1000)}s, ETA: ${Math.round(eta / 1000)}s)`);
               lastLoggedProgress = roundedPercent;
             }
             sseService.broadcast({
               type: 'export:progress',
-              data: { jobId: job.id, progress: roundedPercent, elapsedTime: elapsed, estimatedTotalTime: total },
+              data: { jobId: job.id, progress: roundedPercent, elapsedTime: elapsed, estimatedTotalTime: total, eta },
             });
           }
         })

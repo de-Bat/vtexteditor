@@ -171,3 +171,34 @@ export function splitAudioTrack(
       .run();
   });
 }
+
+/** Detect available hardware encoders and return the best one, falling back to libx264. */
+let cachedBestEncoder: string | null = null;
+export function getBestVideoEncoder(): string {
+  if (cachedBestEncoder) return cachedBestEncoder;
+
+  // We use the same minimal env logic as resolveFfmpegPaths
+  const minEnv = { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' };
+  
+  try {
+    // We can't easily get the path set in fluent-ffmpeg, so we just try to run 'ffmpeg'
+    // which should be in the trimmed PATH we set in the IIFE.
+    const r = spawnSync('ffmpeg', ['-encoders'], { env: minEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const output = r.stdout ?? '';
+    
+    if (output.includes('h264_nvenc')) {
+      cachedBestEncoder = 'h264_nvenc';
+    } else if (output.includes('h264_amf')) {
+      cachedBestEncoder = 'h264_amf';
+    } else if (output.includes('h264_qsv')) {
+      cachedBestEncoder = 'h264_qsv';
+    } else {
+      cachedBestEncoder = 'libx264';
+    }
+  } catch (err) {
+    cachedBestEncoder = 'libx264';
+  }
+
+  console.log(`[VTS] selected video encoder: ${cachedBestEncoder}`);
+  return cachedBestEncoder;
+}

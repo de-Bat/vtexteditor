@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import { projectService } from './project.service';
 import { clipService } from './clip.service';
@@ -27,6 +28,8 @@ export interface ExportJob {
   elapsedTime?: number;
   estimatedTotalTime?: number;
 }
+
+const TAG = '[export]';
 
 class ExportService {
   private jobs = new Map<string, ExportJob>();
@@ -55,6 +58,7 @@ class ExportService {
     job.status = 'running';
 
     try {
+      console.log(`${TAG} Starting job ${jobId} for project ${job.projectId} format=${job.format}`);
       const project = projectService.get(job.projectId);
       if (!project) throw new Error(`Project ${job.projectId} not found`);
 
@@ -116,6 +120,9 @@ class ExportService {
     activeWords: Word[],
     _allWords: Word[],
   ): Promise<void> {
+    const project = projectService.get(job.projectId);
+    const hasVideo = project?.mediaType !== 'audio';
+
     // Branch to transition-aware export when transitions are configured
     if (job.transitions && job.transitions.length > 0 && job.clipIds && job.clipIds.length >= 2) {
       const clips = job.clipIds
@@ -139,9 +146,23 @@ class ExportService {
       const aFilters: string[] = [];
       const concatInputs: string[] = [];
 
+      let nextFadeIn: string | null = null;
+      let skipNext = false;
+
       kept.forEach(({ start, end, effectAfter }, i) => {
-        vFilters.push(`[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS[v${i}]`);
-        aFilters.push(`[0:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[a${i}]`);
+        if (skipNext) {
+          skipNext = false;
+          return;
+        }
+
+        let vFilter = hasVideo ? `[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS` : '';
+        let aFilter = `[0:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS`;
+
+        if (nextFadeIn) {
+          if (hasVideo) vFilter += `,fade=t=in:st=0:d=${nextFadeIn}`;
+          aFilter += `,afade=t=in:st=0:d=${nextFadeIn}`;
+          nextFadeIn = null;
+        }
 
         if (effectAfter && i < kept.length - 1) {
           const halfDur = (effectAfter.effectDuration / 2 / 1000).toFixed(4);
@@ -150,48 +171,72 @@ class ExportService {
 
           if (effectAfter.effectType === 'fade') {
             const fadeOutStart = Math.max(0, segDur - Number(halfDur));
-            vFilters[i] = `[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS,fade=t=out:st=${fadeOutStart}:d=${halfDur}[v${i}]`;
-            aFilters[i] = `[0:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS,afade=t=out:st=${fadeOutStart}:d=${halfDur}[a${i}]`;
-            const nextIdx = i + 1;
-            if (nextIdx < kept.length) {
-              const n = kept[nextIdx];
-              vFilters[nextIdx] = `[0:v]trim=start=${n.start}:end=${n.end},setpts=PTS-STARTPTS,fade=t=in:st=0:d=${halfDur}[v${nextIdx}]`;
-              aFilters[nextIdx] = `[0:a]atrim=start=${n.start}:end=${n.end},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=${halfDur}[a${nextIdx}]`;
+            if (hasVideo) {
+              vFilter += `,fade=t=out:st=${fadeOutStart}:d=${halfDur}[v${i}]`;
+              vFilters.push(vFilter);
             }
+            aFilter += `,afade=t=out:st=${fadeOutStart}:d=${halfDur}[a${i}]`;
+            aFilters.push(aFilter);
+            concatInputs.push(`${hasVideo ? `[v${i}]` : ''}[a${i}]`);
+            nextFadeIn = halfDur;
           } else if (effectAfter.effectType === 'cross-cut') {
-            const nextIdx = i + 1;
-            if (nextIdx < kept.length) {
-              const n = kept[nextIdx];
-              vFilters[i] = `[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS[v${i}_raw]`;
-              aFilters[i] = `[0:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[a${i}_raw]`;
-              vFilters[nextIdx] = `[0:v]trim=start=${n.start}:end=${n.end},setpts=PTS-STARTPTS[v${nextIdx}_raw]`;
-              aFilters[nextIdx] = `[0:a]atrim=start=${n.start}:end=${n.end},asetpts=PTS-STARTPTS[a${nextIdx}_raw]`;
-              const xfadeOffset = Math.max(0, (end - start) - Number(fullDur));
-              vFilters.push(`[v${i}_raw][v${nextIdx}_raw]xfade=transition=fade:duration=${fullDur}:offset=${xfadeOffset.toFixed(4)}[v_xf${i}]`);
-              aFilters.push(`[a${i}_raw][a${nextIdx}_raw]acrossfade=d=${fullDur}:c1=tri:c2=tri[a_xf${i}]`);
-              concatInputs.push(`[v_xf${i}][a_xf${i}]`);
-              kept[nextIdx]._skipConcat = true;
-              return;
+            const n = kept[i + 1];
+            if (hasVideo) {
+              vFilter += `[v${i}_raw]`;
+              vFilters.push(vFilter);
             }
+            aFilter += `[a${i}_raw]`;
+            aFilters.push(aFilter);
+
+            if (hasVideo) {
+              let nextVFilter = `[0:v]trim=start=${n.start}:end=${n.end},setpts=PTS-STARTPTS[v${i + 1}_raw]`;
+              vFilters.push(nextVFilter);
+            }
+            let nextAFilter = `[0:a]atrim=start=${n.start}:end=${n.end},asetpts=PTS-STARTPTS[a${i + 1}_raw]`;
+            aFilters.push(nextAFilter);
+
+            if (hasVideo) {
+              const xfadeOffset = Math.max(0, segDur - Number(fullDur));
+              vFilters.push(`[v${i}_raw][v${i + 1}_raw]xfade=transition=fade:duration=${fullDur}:offset=${xfadeOffset.toFixed(4)}[v_xf${i}]`);
+            }
+            aFilters.push(`[a${i}_raw][a${i + 1}_raw]acrossfade=d=${fullDur}:c1=tri:c2=tri[a_xf${i}]`);
+
+            concatInputs.push(`${hasVideo ? `[v_xf${i}]` : ''}[a_xf${i}]`);
+            skipNext = true;
           }
-        }
-        if (!kept[i]._skipConcat) {
-          concatInputs.push(`[v${i}][a${i}]`);
+        } else {
+          if (hasVideo) {
+            vFilter += `[v${i}]`;
+            vFilters.push(vFilter);
+          }
+          aFilter += `[a${i}]`;
+          aFilters.push(aFilter);
+          concatInputs.push(`${hasVideo ? `[v${i}]` : ''}[a${i}]`);
         }
       });
 
       const n = concatInputs.length;
+      const concatOutput = hasVideo ? '[vout][aout]' : '[aout]';
       const filterComplex = [
         ...vFilters,
         ...aFilters,
-        `${concatInputs.join('')}concat=n=${n}:v=1:a=1[vout][aout]`,
+        `${concatInputs.join('')}concat=n=${n}:v=${hasVideo ? 1 : 0}:a=1${concatOutput}`,
       ].join(';');
+
+      const filterScriptPath = path.join(os.tmpdir(), `vts-filter-${job.id}.txt`);
+      fs.writeFileSync(filterScriptPath, filterComplex, 'utf-8');
+      console.log(`${TAG} job ${job.id} filtergraph:`, filterComplex);
+      console.log(`${TAG} job ${job.id} filter script: ${filterScriptPath}`);
 
       job.startTime = Date.now();
       let lastProgress = 0;
+      let lastLoggedProgress = -10;
+      console.log(`${TAG} job ${job.id} starting ffmpeg...`);
       ffmpeg(inputPath)
-        .complexFilter(filterComplex)
-        .outputOptions(['-map [vout]', '-map [aout]', '-c:v libx264', '-c:a aac', '-movflags +faststart'])
+        .outputOptions([
+          '-filter_complex_script', filterScriptPath,
+          '-map', hasVideo ? '[vout]' : '0:v?', '-map', '[aout]', '-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart'
+        ])
         .output(outPath)
         .on('progress', (p) => {
           if (p.percent && p.percent - lastProgress >= 1) {
@@ -201,14 +246,28 @@ class ExportService {
             const total = Math.round(elapsed / (p.percent / 100));
             job.elapsedTime = elapsed;
             job.estimatedTotalTime = total;
+            const roundedPercent = Math.round(p.percent);
+            if (roundedPercent >= lastLoggedProgress + 10) {
+              console.log(`${TAG} job ${job.id} progress: ${roundedPercent}% (elapsed: ${Math.round(elapsed / 1000)}s, est. total: ${Math.round(total / 1000)}s)`);
+              lastLoggedProgress = roundedPercent;
+            }
             sseService.broadcast({
               type: 'export:progress',
-              data: { jobId: job.id, progress: Math.round(p.percent), elapsedTime: elapsed, estimatedTotalTime: total },
+              data: { jobId: job.id, progress: roundedPercent, elapsedTime: elapsed, estimatedTotalTime: total },
             });
           }
         })
-        .on('end', () => { job.outputPath = outPath; resolve(); })
-        .on('error', reject)
+        .on('end', () => { 
+          console.log(`${TAG} job ${job.id} completed successfully`);
+          fs.rmSync(filterScriptPath, { force: true }); 
+          job.outputPath = outPath; 
+          resolve(); 
+        })
+        .on('error', (err) => { 
+          console.error(`${TAG} job ${job.id} ffmpeg error:`, err.message);
+          fs.rmSync(filterScriptPath, { force: true }); 
+          reject(err); 
+        })
         .run();
     });
   }
@@ -267,31 +326,55 @@ class ExportService {
       const orderedClips = job.clipIds!.map(id => allClips.find(c => c.id === id)).filter(Boolean) as import('../models/clip.model').Clip[];
       if (orderedClips.length < 2) return reject(new Error('Need at least 2 clips for transitions'));
 
-      const clipStreams = orderedClips.map(clip => {
+      const clipStreams: any[] = [];
+      const activeTransitions: any[] = [];
+
+      orderedClips.forEach((clip, idx) => {
         const activeWords = clip.segments.flatMap(s => s.words).filter(w => !w.isRemoved);
         const kept = this.buildKeptSegmentsWithEffects(activeWords, [clip]);
-        return { clipId: clip.id, kept } as any;
+        if (kept.length > 0) {
+          clipStreams.push({ clipId: clip.id, kept });
+        }
       });
+
+      if (clipStreams.length < 2) return reject(new Error('Need at least 2 non-empty clips for transitions'));
+      
+      // Sync transitions with available clip streams
+      while (activeTransitions.length < clipStreams.length - 1) {
+        const idx = activeTransitions.length;
+        activeTransitions.push(job.transitions![idx] || { effect: 'hard-cut', durationMs: 0, pauseMs: 0 });
+      }
 
       const project = projectService.get(job.projectId);
       const width = project?.mediaInfo?.width ?? 1920;
       const height = project?.mediaInfo?.height ?? 1080;
       const sampleRate = project?.mediaInfo?.sampleRate ?? 44100;
+      const hasVideo = project?.mediaType !== 'audio';
 
       const filterComplex = this.buildTransitionFilterComplex(
         clipStreams,
-        job.transitions!,
+        activeTransitions,
         { width, height },
         sampleRate,
+        hasVideo
       );
+
+      const filterScriptPath = path.join(os.tmpdir(), `vts-filter-${job.id}.txt`);
+      fs.writeFileSync(filterScriptPath, filterComplex, 'utf-8');
+      console.log(`${TAG} job ${job.id} (transitions) filtergraph:`, filterComplex);
+      console.log(`${TAG} job ${job.id} (transitions) filter script: ${filterScriptPath}`);
 
       const outPath = path.join(this.exportsDir, `${job.id}.mp4`);
       job.startTime = Date.now();
       let lastProgress = 0;
+      let lastLoggedProgress = -10;
+      console.log(`${TAG} job ${job.id} starting ffmpeg (transitions)...`);
 
       ffmpeg(inputPath)
-        .complexFilter(filterComplex)
-        .outputOptions(['-map [vout]', '-map [aout]', '-c:v libx264', '-c:a aac', '-movflags +faststart'])
+        .outputOptions([
+          '-filter_complex_script', filterScriptPath,
+          '-map', hasVideo ? '[vout]' : '0:v?', '-map', '[aout]', '-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart'
+        ])
         .output(outPath)
         .on('progress', (p) => {
           if (p.percent && p.percent - lastProgress >= 1) {
@@ -301,14 +384,28 @@ class ExportService {
             const total = Math.round(elapsed / (p.percent / 100));
             job.elapsedTime = elapsed;
             job.estimatedTotalTime = total;
+            const roundedPercent = Math.round(p.percent);
+            if (roundedPercent >= lastLoggedProgress + 10) {
+              console.log(`${TAG} job ${job.id} progress: ${roundedPercent}% (elapsed: ${Math.round(elapsed / 1000)}s, est. total: ${Math.round(total / 1000)}s)`);
+              lastLoggedProgress = roundedPercent;
+            }
             sseService.broadcast({
               type: 'export:progress',
-              data: { jobId: job.id, progress: Math.round(p.percent), elapsedTime: elapsed, estimatedTotalTime: total },
+              data: { jobId: job.id, progress: roundedPercent, elapsedTime: elapsed, estimatedTotalTime: total },
             });
           }
         })
-        .on('end', () => { job.outputPath = outPath; resolve(); })
-        .on('error', reject)
+        .on('end', () => { 
+          console.log(`${TAG} job ${job.id} completed successfully`);
+          fs.rmSync(filterScriptPath, { force: true }); 
+          job.outputPath = outPath; 
+          resolve(); 
+        })
+        .on('error', (err) => { 
+          console.error(`${TAG} job ${job.id} ffmpeg error:`, err.message);
+          fs.rmSync(filterScriptPath, { force: true }); 
+          reject(err); 
+        })
         .run();
     });
   }
@@ -317,16 +414,15 @@ class ExportService {
     clipStreams: Array<{
       clipId: string;
       kept: Array<{ start: number; end: number; effectAfter?: { effectType: string; effectDuration: number }; _skipConcat?: boolean }>;
-      _xfadeConsumed?: boolean;
-      _fadeInApplied?: boolean;
     }>,
     transitions: ClipTransition[],
     resolution: { width: number; height: number },
     sampleRate: number,
+    hasVideo: boolean
   ): string {
     const vFilters: string[] = [];
     const aFilters: string[] = [];
-    const finalInputs: string[] = [];
+    const finalLabels: Array<{ v: string | null; a: string }> = [];
 
     // Step 1: Build per-clip internal concat
     clipStreams.forEach((cs, clipIdx) => {
@@ -335,104 +431,107 @@ class ExportService {
       const clipAInputs: string[] = [];
 
       kept.forEach(({ start, end }, segIdx) => {
-        const vLabel = `cv${clipIdx}_${segIdx}`;
-        const aLabel = `ca${clipIdx}_${segIdx}`;
-        vFilters.push(`[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS[${vLabel}]`);
+        const vLabel = kept.length === 1 ? `clip${clipIdx}_v` : `cv${clipIdx}_${segIdx}`;
+        const aLabel = kept.length === 1 ? `clip${clipIdx}_a` : `ca${clipIdx}_${segIdx}`;
+        
+        if (hasVideo) vFilters.push(`[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS[${vLabel}]`);
         aFilters.push(`[0:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[${aLabel}]`);
+        
         clipVInputs.push(`[${vLabel}]`);
         clipAInputs.push(`[${aLabel}]`);
       });
 
-      if (clipVInputs.length === 0) return;
-
-      if (clipVInputs.length === 1) {
-        const srcV = clipVInputs[0].slice(1, -1);
-        const srcA = clipAInputs[0].slice(1, -1);
-        vFilters[vFilters.length - 1] = vFilters[vFilters.length - 1].replace(`[${srcV}]`, `[clip${clipIdx}_v]`);
-        aFilters[aFilters.length - 1] = aFilters[aFilters.length - 1].replace(`[${srcA}]`, `[clip${clipIdx}_a]`);
-      } else {
+      if (clipVInputs.length > 1) {
         const n = clipVInputs.length;
-        vFilters.push(`${clipVInputs.join('')}concat=n=${n}:v=1:a=0[clip${clipIdx}_v]`);
+        if (hasVideo) vFilters.push(`${clipVInputs.join('')}concat=n=${n}:v=1:a=0[clip${clipIdx}_v]`);
         aFilters.push(`${clipAInputs.join('')}concat=n=${n}:v=0:a=1[clip${clipIdx}_a]`);
       }
     });
 
-    // Step 2: Apply inter-clip transitions
-    clipStreams.forEach((cs, clipIdx) => {
-      if (clipIdx >= transitions.length) {
-        // Last clip
-        finalInputs.push(`[clip${clipIdx}_v][clip${clipIdx}_a]`);
-        return;
+    // Step 2: Apply inter-clip transitions and collect final labels
+    // We track the "active" label for each clip's video and audio stream.
+    const activeV = clipStreams.map((_, i) => `clip${i}_v`);
+    const activeA = clipStreams.map((_, i) => `clip${i}_a`);
+    const consumed = new Array(clipStreams.length).fill(false);
+
+    for (let i = 0; i < clipStreams.length; i++) {
+      if (consumed[i]) continue;
+
+      // If this is the last clip or there are no more transitions, push what we have.
+      if (i >= transitions.length) {
+        finalLabels.push({ v: hasVideo ? activeV[i] : null, a: activeA[i] });
+        continue;
       }
 
-      const t = transitions[clipIdx];
-      const halfDur = (t.durationMs / 2 / 1000).toFixed(4);
-      const pauseSec = (t.pauseMs / 1000).toFixed(4);
-
+      const t = transitions[i];
       if (t.effect === 'hard-cut') {
-        finalInputs.push(`[clip${clipIdx}_v][clip${clipIdx}_a]`);
-        return;
+        finalLabels.push({ v: hasVideo ? activeV[i] : null, a: activeA[i] });
+        continue;
       }
 
       if (t.effect === 'cross-dissolve') {
         const fullDur = (t.durationMs / 1000).toFixed(4);
-        const clipDur = cs.kept.reduce((sum, s) => sum + (s.end - s.start), 0);
+        const clipDur = clipStreams[i].kept.reduce((sum, s) => sum + (s.end - s.start), 0);
         const offset = Math.max(0, clipDur - Number(fullDur));
-        vFilters.push(`[clip${clipIdx}_v][clip${clipIdx + 1}_v]xfade=transition=fade:duration=${fullDur}:offset=${offset.toFixed(4)}[xf${clipIdx}_v]`);
-        aFilters.push(`[clip${clipIdx}_a][clip${clipIdx + 1}_a]acrossfade=d=${fullDur}:c1=tri:c2=tri[xf${clipIdx}_a]`);
-        finalInputs.push(`[xf${clipIdx}_v][xf${clipIdx}_a]`);
-        clipStreams[clipIdx + 1]._xfadeConsumed = true;
-        return;
+        const outV = `xf${i}_v`;
+        const outA = `xf${i}_a`;
+
+        if (hasVideo) {
+          vFilters.push(`[${activeV[i]}][${activeV[i + 1]}]xfade=transition=fade:duration=${fullDur}:offset=${offset.toFixed(4)}[${outV}]`);
+        }
+        aFilters.push(`[${activeA[i]}][${activeA[i + 1]}]acrossfade=d=${fullDur}:c1=tri:c2=tri[${outA}]`);
+        
+        finalLabels.push({ v: hasVideo ? outV : null, a: outA });
+        consumed[i + 1] = true; // The next clip is consumed by this xfade
+        continue;
       }
 
       // fade-to-black, fade-to-white, dip-to-color
       const color = t.effect === 'dip-to-color' ? (t.color ?? '000000') :
                     t.effect === 'fade-to-white' ? 'white' : 'black';
       const { width, height } = resolution;
-      const clipDur = cs.kept.reduce((sum, s) => sum + (s.end - s.start), 0);
+      const halfDur = (t.durationMs / 2 / 1000).toFixed(4);
+      const pauseSec = (t.pauseMs / 1000).toFixed(4);
+      const clipDur = clipStreams[i].kept.reduce((sum, s) => sum + (s.end - s.start), 0);
       const fadeOutStart = Math.max(0, clipDur - Number(halfDur));
 
-      vFilters.push(`[clip${clipIdx}_v]fade=t=out:st=${fadeOutStart.toFixed(4)}:d=${halfDur}:color=${color}[clip${clipIdx}_fo]`);
-      aFilters.push(`[clip${clipIdx}_a]afade=t=out:st=${fadeOutStart.toFixed(4)}:d=${halfDur}[clip${clipIdx}_ao]`);
-      finalInputs.push(`[clip${clipIdx}_fo][clip${clipIdx}_ao]`);
+      // 1. Fade out current clip
+      const outV_fo = `clip${i}_fo`;
+      const outA_ao = `clip${i}_ao`;
+      if (hasVideo) vFilters.push(`[${activeV[i]}]fade=t=out:st=${fadeOutStart.toFixed(4)}:d=${halfDur}:color=${color}[${outV_fo}]`);
+      aFilters.push(`[${activeA[i]}]afade=t=out:st=${fadeOutStart.toFixed(4)}:d=${halfDur}[${outA_ao}]`);
+      finalLabels.push({ v: hasVideo ? outV_fo : null, a: outA_ao });
 
+      // 2. Add pause/pad if requested
       if (t.pauseMs > 0) {
-        vFilters.push(`color=c=${color}:s=${width}x${height}:d=${pauseSec}:r=25[pad${clipIdx}_v]`);
-        aFilters.push(`anullsrc=r=${sampleRate}:cl=stereo,atrim=0:${pauseSec}[pad${clipIdx}_a]`);
-        finalInputs.push(`[pad${clipIdx}_v][pad${clipIdx}_a]`);
+        const padV = `pad${i}_v`;
+        const padA = `pad${i}_a`;
+        if (hasVideo) vFilters.push(`color=c=${color}:s=${width}x${height}:d=${pauseSec}:r=25[${padV}]`);
+        aFilters.push(`anullsrc=r=${sampleRate}:cl=stereo,atrim=0:${pauseSec}[${padA}]`);
+        finalLabels.push({ v: hasVideo ? padV : null, a: padA });
       }
 
-      vFilters.push(`[clip${clipIdx + 1}_v]fade=t=in:st=0:d=${halfDur}:color=${color}[clip${clipIdx + 1}_fi]`);
-      aFilters.push(`[clip${clipIdx + 1}_a]afade=t=in:st=0:d=${halfDur}[clip${clipIdx + 1}_ai]`);
-      clipStreams[clipIdx + 1]._fadeInApplied = true;
-    });
-
-    // Step 3: Rebuild final input list accounting for xfade consumed and fade-in applied
-    const adjustedFinal: string[] = [];
-    clipStreams.forEach((cs, clipIdx) => {
-      if (cs._xfadeConsumed) return;
-      if (cs._fadeInApplied) {
-        adjustedFinal.push(`[clip${clipIdx}_fi][clip${clipIdx}_ai]`);
-      } else {
-        const existing = finalInputs.filter(f =>
-          f.includes(`clip${clipIdx}_v`) || f.includes(`clip${clipIdx}_fo`) ||
-          f.includes(`xf${clipIdx - 1}_v`) || f.includes(`pad${clipIdx - 1}_v`)
-        );
-        adjustedFinal.push(...existing);
-      }
-    });
-
-    // Step 4: Final concat
-    const allFilters = [...vFilters, ...aFilters];
-    const n = adjustedFinal.length;
-    if (n === 1) {
-      allFilters.push(`${adjustedFinal[0]}concat=n=1:v=1:a=1[vout][aout]`);
-    } else {
-      allFilters.push(`${adjustedFinal.join('')}concat=n=${n}:v=1:a=1[vout][aout]`);
+      // 3. Fade in NEXT clip and UPDATE its active label for the next iteration
+      const outV_fi = `clip${i + 1}_fi`;
+      const outA_ai = `clip${i + 1}_ai`;
+      if (hasVideo) vFilters.push(`[${activeV[i + 1]}]fade=t=in:st=0:d=${halfDur}:color=${color}[${outV_fi}]`);
+      aFilters.push(`[${activeA[i + 1]}]afade=t=in:st=0:d=${halfDur}[${outA_ai}]`);
+      
+      activeV[i + 1] = outV_fi;
+      activeA[i + 1] = outA_ai;
     }
+
+    // Step 3: Final concat
+    const allFilters = [...vFilters, ...aFilters];
+    const n = finalLabels.length;
+    const concatInputStr = finalLabels.map(l => (l.v ? `[${l.v}]` : '') + `[${l.a}]`).join('');
+    const concatOutput = hasVideo ? '[vout][aout]' : '[aout]';
+    
+    allFilters.push(`${concatInputStr}concat=n=${n}:v=${hasVideo ? 1 : 0}:a=1${concatOutput}`);
 
     return allFilters.join(';');
   }
+
 }
 
 export const exportService = new ExportService();

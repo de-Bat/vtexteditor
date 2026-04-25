@@ -28,6 +28,37 @@ import { v4 as uuidv4 } from 'uuid';
   console.log('[VTS] ffprobe path resolved:', JSON.stringify(ffprobePath));
   if (ffmpegPath)  ffmpeg.setFfmpegPath(ffmpegPath);
   if (ffprobePath) ffmpeg.setFfprobePath(ffprobePath);
+
+  // Windows CreateProcess env block limit is ~32 KB. fluent-ffmpeg passes
+  // process.env verbatim on every internal spawn. npm run scripts inject
+  // npm_package_* / npm_config_* vars that can push the block over the limit,
+  // causing ENAMETOOLONG. Strip known-bloat prefixes and trim PATH.
+  if (process.platform === 'win32') {
+    const sysRoot = process.env.SystemRoot ?? 'C:\\Windows';
+    for (const key of Object.keys(process.env)) {
+      if (/^(npm_|NVM_|CONDA_|VIRTUAL_ENV)/.test(key)) {
+        delete process.env[key];
+      }
+    }
+    process.env.PATH = [
+      ffmpegPath ? path.dirname(ffmpegPath) : '',
+      path.dirname(process.execPath),
+      path.join(sysRoot, 'System32'),
+      sysRoot,
+    ].filter(Boolean).join(';');
+    const envSize = Object.entries(process.env).reduce((n, [k, v]) => n + k.length + (v?.length ?? 0) + 2, 0);
+    console.log(`[VTS] env block trimmed to ~${envSize} bytes`);
+
+    // fluent-ffmpeg spawns `ffmpeg -encoders` to check for experimental codecs
+    // before every run. On Windows this spawn fails (ENAMETOOLONG) for reasons
+    // unrelated to env size. Our codecs (pcm_s16le, copy) are not experimental,
+    // so returning an empty encoder map is safe and skips the spawn entirely.
+    try {
+      const proto = Object.getPrototypeOf((ffmpeg as unknown as () => object)());
+      const noop = (cb: (err: null, encoders: Record<string, unknown>) => void) => cb(null, {});
+      proto.getAvailableEncoders = proto.availableEncoders = noop;
+    } catch (_) { /* non-fatal */ }
+  }
 })();
 
 /** One fixed-duration chunk produced by splitAudioTrack. */

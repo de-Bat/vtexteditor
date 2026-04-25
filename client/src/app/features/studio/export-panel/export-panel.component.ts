@@ -625,6 +625,31 @@ export class ExportPanelComponent {
         this.selectedClipIds.set(new Set([active]));
       }
     });
+
+    // Listen for SSE events to get real-time progress
+    effect(() => {
+      const event = this.sse.lastEvent();
+      if (!event) return;
+
+      const { type, data } = event;
+      // Only handle events for the current job
+      if (data['jobId'] !== this.jobId) return;
+
+      if (type === 'export:progress') {
+        if (data['progress'] != null) this.progress.set(data['progress'] as number);
+        if (data['elapsedTime'] != null) this.elapsedTime.set(data['elapsedTime'] as number);
+        if (data['estimatedTotalTime'] != null) this.estimatedTotalTime.set(data['estimatedTotalTime'] as number);
+      } else if (type === 'export:complete') {
+        this.clearPolling();
+        this.progress.set(100);
+        this.status.set('done');
+        this.downloadUrl.set(`/api/export/${this.jobId}/download`);
+      } else if (type === 'export:error') {
+        this.clearPolling();
+        this.status.set('error');
+        this.errorMsg.set((data['error'] as string) ?? 'Unknown export error');
+      }
+    });
   }
 
   toggleClipSelection(clipId: string): void {

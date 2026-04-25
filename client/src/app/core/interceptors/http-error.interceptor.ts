@@ -10,10 +10,12 @@ export const httpErrorInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((error: unknown) => {
       if (error instanceof HttpErrorResponse) {
         const serverMessage = typeof error.error === 'object' && error.error !== null ? (error.error as { error?: string }).error : undefined;
-        const message = serverMessage || error.message || 'Request failed.';
-        notifications.error(message);
+        const what = serverMessage || error.message || 'Request failed.';
+        const where = `[${req.method} ${req.urlWithParams}]`;
+        
+        notifications.error(`HTTP Error: ${what}\nAt: ${where} (Status: ${error.status})`);
       } else {
-        notifications.error('Unexpected error during request.');
+        notifications.error(`Unexpected error during request to ${req.urlWithParams}`);
       }
 
       return throwError(() => error);

@@ -3,6 +3,7 @@ import { pluginRegistry } from '../plugins/plugin-registry';
 import { pipelineService } from '../services/pipeline.service';
 import { projectService } from '../services/project.service';
 import { settingsService } from '../services/settings.service';
+import { InputResponse } from '../models/input-request.model';
 
 export const pluginRoutes = Router();
 
@@ -56,4 +57,20 @@ pluginRoutes.post('/pipeline/run', async (req: Request, res: Response) => {
     metadata: {},
   });
   res.status(202).json({ jobId });
+});
+
+/** POST /api/plugins/input/:requestId — submit user response to a pending input request */
+pluginRoutes.post('/input/:requestId', (req: Request, res: Response) => {
+  const requestId = req.params['requestId'] as string;
+  const response: InputResponse = {
+    requestId,
+    skipped: req.body.skipped ?? false,
+    values: req.body.values ?? {},
+  };
+  const resolved = pipelineService.resolveInput(requestId, response);
+  if (!resolved) {
+    res.status(404).json({ error: 'No pending input request with this ID' });
+    return;
+  }
+  res.json({ ok: true });
 });

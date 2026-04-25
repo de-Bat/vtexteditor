@@ -45,6 +45,9 @@ export type PipelineConfig = PipelineStep[];
               <div class="node-content">
                 <div class="node-header">
                   <span class="node-name">{{ getPlugin(step.pluginId)?.name ?? step.pluginId }}</span>
+                  @if (getPlugin(step.pluginId)?.requiresInteraction) {
+                    <span class="interactive-badge">Interactive</span>
+                  }
                   <div class="node-actions">
                     <button class="btn-sm" (click)="moveUp(i)" [disabled]="i === 0" title="Move Up">↑</button>
                     <button class="btn-sm" (click)="moveDown(i)" [disabled]="i === steps().length - 1" title="Move Down">↓</button>
@@ -167,6 +170,17 @@ export type PipelineConfig = PipelineStep[];
     }
     
     .node-name { font-size: 0.85rem; font-weight: 600; color: var(--color-text); }
+
+    .interactive-badge {
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      background: rgba(255, 193, 7, 0.15);
+      color: #ffc107;
+    }
     
     .node-actions { display: flex; gap: 0.2rem; }
     .btn-sm {

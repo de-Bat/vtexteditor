@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PipelineContext } from '../models/pipeline-context.model';
+import { InputRequest, InputResponse } from '../models/input-request.model';
 import { MediaInfo } from '../models/project.model';
 import { pluginRegistry } from '../plugins/plugin-registry';
 import { projectService } from './project.service';
@@ -18,6 +19,30 @@ interface PipelineStartParams {
 }
 
 class PipelineService {
+  private pendingInputs = new Map<string, {
+    request: InputRequest;
+    resolve: (r: InputResponse) => void;
+  }>();
+
+  /** Resolve a pending input request from the client POST. Returns false if requestId unknown. */
+  resolveInput(requestId: string, response: InputResponse): boolean {
+    const pending = this.pendingInputs.get(requestId);
+    if (!pending) return false;
+    this.pendingInputs.delete(requestId);
+    sseService.broadcast({
+      type: 'plugin:input-received',
+      data: { requestId, pluginId: pending.request.pluginId },
+    });
+    pending.resolve(response);
+    return true;
+  }
+
+  /** Return the first pending InputRequest (for re-broadcast on SSE reconnect). */
+  getPendingInput(): InputRequest | null {
+    const first = this.pendingInputs.values().next().value;
+    return first?.request ?? null;
+  }
+
   /** Start an async pipeline execution. Returns a job ID immediately. */
   async start(params: PipelineStartParams): Promise<string> {
     const jobId = uuidv4();
@@ -25,6 +50,11 @@ class PipelineService {
     // Run the pipeline asynchronously
     setImmediate(() => this.run(jobId, params).catch((err) => {
       console.error(`${TAG} Unhandled error:`, err);
+      // Resolve any pending input requests so plugins don't hang forever
+      for (const [id, pending] of this.pendingInputs) {
+        pending.resolve({ requestId: id, skipped: true, values: {} });
+      }
+      this.pendingInputs.clear();
       sseService.broadcast({
         type: 'pipeline:error',
         data: { jobId, error: String(err) },
@@ -50,8 +80,8 @@ class PipelineService {
       clips: [],
       metadata: params.metadata,
       cache: pipelineCacheService,
-      // Initially no progress reporter until we start the loop
       reportProgress: () => {},
+      requestInput: () => Promise.resolve({ requestId: '', skipped: true, values: {} }),
     };
 
     const startTime = Date.now();
@@ -133,6 +163,16 @@ class PipelineService {
         },
       });
 
+      ctx.requestInput = (partial) => new Promise<InputResponse>((resolve) => {
+        const requestId = uuidv4();
+        const fullRequest: InputRequest = { ...partial, requestId, pluginId: step.pluginId };
+        this.pendingInputs.set(requestId, { request: fullRequest, resolve });
+        sseService.broadcast({
+          type: 'plugin:input-requested',
+          data: { ...fullRequest, waitingForInput: true },
+        });
+      });
+
       ctx = await plugin.execute(ctx);
 
       const endProgress = Math.round(((i + 1) / totalSteps) * 100);
@@ -171,3 +211,14 @@ class PipelineService {
 }
 
 export const pipelineService = new PipelineService();
+
+// Re-broadcast any pending input request to newly connected SSE clients
+sseService.onClientConnect((sendToClient) => {
+  const pending = pipelineService.getPendingInput();
+  if (pending) {
+    sendToClient({
+      type: 'plugin:input-requested',
+      data: { ...pending, waitingForInput: true },
+    });
+  }
+});

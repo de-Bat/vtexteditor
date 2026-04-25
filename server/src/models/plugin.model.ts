@@ -14,6 +14,8 @@ export interface PluginMeta {
   configSchema: Record<string, unknown>;
   /** Whether this plugin ships an Angular UI component */
   hasUI: boolean;
+  /** Hint: this plugin may pause execution to ask the user for input */
+  requiresInteraction?: boolean;
   /**
    * Maps configSchema property names to app setting keys.
    * The plugin list endpoint injects current setting values as schema defaults

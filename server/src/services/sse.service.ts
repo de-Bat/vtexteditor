@@ -7,15 +7,25 @@ export type SseEventType =
   | 'pipeline:error'
   | 'export:progress'
   | 'export:complete'
-  | 'export:error';
+  | 'export:error'
+  | 'plugin:input-requested'
+  | 'plugin:input-received';
 
 export interface SseEvent {
   type: SseEventType;
   data: Record<string, unknown>;
 }
 
+type ConnectCallback = (sendToClient: (event: SseEvent) => void) => void;
+
 class SseService extends EventEmitter {
   private clients = new Set<Response>();
+  private connectCallbacks: ConnectCallback[] = [];
+
+  /** Register a callback invoked for each new SSE client connection. */
+  onClientConnect(cb: ConnectCallback): void {
+    this.connectCallbacks.push(cb);
+  }
 
   addClient(res: Response): void {
     this.clients.add(res);
@@ -41,6 +51,13 @@ class SseService extends EventEmitter {
     res.on('close', () => clearInterval(heartbeat));
 
     this.addClient(res);
+
+    const sendToClient = (event: SseEvent) => {
+      res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
+    };
+    for (const cb of this.connectCallbacks) {
+      cb(sendToClient);
+    }
   }
 }
 

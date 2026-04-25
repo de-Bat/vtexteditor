@@ -2,7 +2,9 @@ import { Component, input, computed, Output, EventEmitter, inject, signal, effec
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { SseEvent } from '../../../core/services/sse.service';
-import { PipelineStep } from '../../../core/models/plugin.model';
+import { PipelineStep, InputRequest, InputResponse } from '../../../core/models/plugin.model';
+import { PluginService } from '../../../core/services/plugin.service';
+import { PluginInputFormComponent } from '../plugin-input-form/plugin-input-form.component';
 
 export type ProcessingStatus = 'idle' | 'running' | 'done' | 'error';
 export type StepStatus = 'done' | 'running' | 'pending';
@@ -10,7 +12,7 @@ export type StepStatus = 'done' | 'running' | 'pending';
 @Component({
   selector: 'app-processing-progress',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, PluginInputFormComponent],
   template: `
     <div class="processing-flow">
       <!-- Global Pipeline Header -->
@@ -72,6 +74,14 @@ export type StepStatus = 'done' | 'running' | 'pending';
               </div>
               
               @if (getStepStatus(step.pluginId, i) === 'running') {
+                @if (waitingForInput() && pendingInput(); as req) {
+                  <div class="waiting-badge" aria-live="polite">Waiting for input</div>
+                  <app-plugin-input-form
+                    [request]="req"
+                    (submitted)="onInputSubmitted($event)"
+                    (skipped)="onInputSkipped($event)"
+                  />
+                } @else {
                   <div class="progress-details">
                     <div class="bar-row">
                       <div class="bar">
@@ -81,6 +91,7 @@ export type StepStatus = 'done' | 'running' | 'pending';
                     </div>
                   </div>
                   <p class="msg" [innerHTML]="coloredMessage()"></p>
+                }
               }
             </div>
           </div>
@@ -183,6 +194,19 @@ export type StepStatus = 'done' | 'running' | 'pending';
     .global-bar { height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
     .bar-fill { height: 100%; background: var(--color-accent); transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
 
+    .waiting-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      background: rgba(255, 193, 7, 0.15);
+      color: #ffc107;
+      margin-bottom: 0.5rem;
+    }
+
     .duration-tag, .active-tag {
       font-size: 0.75rem;
       font-family: 'JetBrains Mono', monospace;
@@ -256,9 +280,14 @@ export type StepStatus = 'done' | 'running' | 'pending';
 })
 export class ProcessingProgressComponent implements OnDestroy {
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly pluginService = inject(PluginService);
+
   readonly event = input<SseEvent | null>(null);
   readonly steps = input<PipelineStep[]>([]);
   @Output() readonly back = new EventEmitter<void>();
+
+  readonly pendingInput = signal<InputRequest | null>(null);
+  readonly waitingForInput = signal(false);
 
   private readonly _stepDurations = signal<Record<string, number>>({});
   private readonly _currentPluginStartTime = signal<number>(0);
@@ -269,10 +298,22 @@ export class ProcessingProgressComponent implements OnDestroy {
     effect(() => {
       const ev = this.event();
       if (!ev) return;
-      
+
+      if (ev.type === 'plugin:input-requested') {
+        this.pendingInput.set(ev.data as unknown as InputRequest);
+        this.waitingForInput.set(true);
+        return;
+      }
+
+      if (ev.type === 'plugin:input-received') {
+        this.pendingInput.set(null);
+        this.waitingForInput.set(false);
+        return;
+      }
+
       const pluginId = ev.data?.['pluginId'] as string;
       const pluginElapsed = ev.data?.['pluginElapsedTime'] as number;
-      
+
       if (pluginId && pluginElapsed !== undefined) {
         // Update individual durations.
         // We only care about the highest value we've seen for a plugin
@@ -286,7 +327,8 @@ export class ProcessingProgressComponent implements OnDestroy {
 
     effect(() => {
       const s = this.status();
-      if (s === 'running') {
+      const waiting = this.waitingForInput();
+      if (s === 'running' && !waiting) {
         if (!this._timerId) {
           this._timerId = setInterval(() => {
             this._ticker.set(Date.now());
@@ -422,6 +464,20 @@ export class ProcessingProgressComponent implements OnDestroy {
     if (est <= 0 || elapsed <= 0) return 0;
     return Math.max(0, est - elapsed);
   });
+
+  onInputSubmitted(response: InputResponse): void {
+    this.pluginService.submitInput(response.requestId, {
+      skipped: false,
+      values: response.values,
+    }).subscribe();
+  }
+
+  onInputSkipped(response: InputResponse): void {
+    this.pluginService.submitInput(response.requestId, {
+      skipped: true,
+      values: {},
+    }).subscribe();
+  }
 
   formatTime(ms: number): string {
     const totalSeconds = Math.floor(ms / 1000);

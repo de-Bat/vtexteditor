@@ -21,4 +21,8 @@ export class PluginService {
   runPipeline(projectId: string, steps: PipelineStep[]): Observable<PipelineRunResult> {
     return this.api.post<PipelineRunResult>('/plugins/pipeline/run', { projectId, steps });
   }
+
+  submitInput(requestId: string, response: { skipped: boolean; values: Record<string, unknown> }): Observable<{ ok: boolean }> {
+    return this.api.post<{ ok: boolean }>(`/plugins/input/${requestId}`, response);
+  }
 }

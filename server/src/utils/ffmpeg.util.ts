@@ -1,9 +1,34 @@
 import os from 'os';
 import path from 'path';
+import { spawnSync } from 'child_process';
 import ffmpeg, { FfprobeData } from 'fluent-ffmpeg';
 import { MediaInfo } from '../models/project.model';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+
+// Resolve ffmpeg/ffprobe paths and cache them before any spawn occurs.
+// We use spawnSync with a minimal env so the env block never exceeds Windows
+// CreateProcess limits (32 767 bytes) even when process.env.PATH is huge.
+(function resolveFfmpegPaths() {
+  const minEnv = { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' };
+
+  function findBinary(name: string): string {
+    if (process.platform === 'win32') {
+      const whereExe = path.join(minEnv.SystemRoot, 'System32', 'where.exe');
+      const r = spawnSync(whereExe, [name], { env: minEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      return (r.stdout ?? '').toString().trim().split(/\r?\n/)[0] ?? '';
+    }
+    const r = spawnSync('/usr/bin/which', [name], { env: minEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return (r.stdout ?? '').toString().trim();
+  }
+
+  const ffmpegPath  = process.env.FFMPEG_PATH  || findBinary('ffmpeg');
+  const ffprobePath = process.env.FFPROBE_PATH || findBinary('ffprobe');
+  console.log('[VTS] ffmpeg path resolved:', JSON.stringify(ffmpegPath));
+  console.log('[VTS] ffprobe path resolved:', JSON.stringify(ffprobePath));
+  if (ffmpegPath)  ffmpeg.setFfmpegPath(ffmpegPath);
+  if (ffprobePath) ffmpeg.setFfprobePath(ffprobePath);
+})();
 
 /** One fixed-duration chunk produced by splitAudioTrack. */
 export interface AudioChunk {

@@ -1,4 +1,7 @@
 import { Injectable, OnDestroy, signal } from '@angular/core';
+import { Observable, of, timer } from 'rxjs';
+import { map, tap } from 'rxjs/operators';
+import { CutRegion } from '../../../core/models/cut-region.model';
 
 @Injectable({ providedIn: 'root' })
 export class EffectPlayerService implements OnDestroy {
@@ -110,5 +113,35 @@ export class EffectPlayerService implements OnDestroy {
   ngOnDestroy(): void {
     this.detach();
     if (this.flashTimer) clearTimeout(this.flashTimer);
+  }
+
+  /**
+   * High-level orchestration of a cut effect. Returns an observable that completes 
+   * when the effect is finished and it's safe to seek to the end of the region.
+   */
+  playEffect(region: CutRegion): Observable<void> {
+    const dur = region.effectDuration ?? 300;
+
+    if (region.effectType === 'hard-cut') {
+      return of(undefined); // Seek immediately
+    }
+
+    if (region.effectType === 'fade') {
+      this.startFadeOut(dur);
+      return timer(dur).pipe(
+        tap(() => this.resetAll()),
+        map(() => undefined)
+      );
+    }
+
+    if (region.effectType === 'cross-cut') {
+      this.triggerCrossCutFlash();
+      this.startAudioCrossfade(dur);
+      return timer(dur).pipe(
+        map(() => undefined)
+      );
+    }
+
+    return of(undefined);
   }
 }

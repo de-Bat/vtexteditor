@@ -86,7 +86,7 @@ export class CutRegionService {
     return { clip: newClip, entry: { kind: 'restore', regionsBefore, regionsAfter } };
   }
 
-  setEffectType(clip: Clip, regionId: string, effectType: EffectType): { clip: Clip; entry: CutHistoryEntry } {
+  updateRegionEffect(clip: Clip, regionId: string, effectType: EffectType): { clip: Clip; entry: CutHistoryEntry } {
     const region = clip.cutRegions.find((r) => r.id === regionId);
     if (!region) return { clip, entry: { kind: 'edit-effect', regionId, before: {}, after: {} } };
     const before: Partial<CutRegion> = { effectType: region.effectType, effectTypeOverridden: region.effectTypeOverridden };
@@ -95,7 +95,7 @@ export class CutRegionService {
     return { clip: newClip, entry: { kind: 'edit-effect', regionId, before, after } };
   }
 
-  setDuration(clip: Clip, regionId: string, ms: number): { clip: Clip; entry: CutHistoryEntry } {
+  updateRegionDuration(clip: Clip, regionId: string, ms: number): { clip: Clip; entry: CutHistoryEntry } {
     const region = clip.cutRegions.find((r) => r.id === regionId);
     if (!region) return { clip, entry: { kind: 'edit-effect', regionId, before: {}, after: {} } };
     const clamped = Math.max(150, Math.min(500, ms));
@@ -114,12 +114,42 @@ export class CutRegionService {
     return { clip: this.patchRegion(clip, regionId, after), entry: { kind: 'edit-effect', regionId, before, after } };
   }
 
-  resetEffectType(clip: Clip, regionId: string, defaultEffectType: EffectType): { clip: Clip; entry: CutHistoryEntry } {
+  resetRegionEffect(clip: Clip, regionId: string, defaultEffectType: EffectType): { clip: Clip; entry: CutHistoryEntry } {
     const region = clip.cutRegions.find((r) => r.id === regionId);
     if (!region) return { clip, entry: { kind: 'edit-effect', regionId, before: {}, after: {} } };
     const before: Partial<CutRegion> = { effectType: region.effectType, effectTypeOverridden: region.effectTypeOverridden };
     const after: Partial<CutRegion> = { effectType: defaultEffectType, effectTypeOverridden: false };
     return { clip: this.patchRegion(clip, regionId, after), entry: { kind: 'edit-effect', regionId, before, after } };
+  }
+
+  /**
+   * Automatically detect and cut filler words and/or long silence gaps.
+   */
+  smartCut(clip: Clip, fillers: string[], minSilenceSec: number, defaultEffect: EffectType): { clip: Clip; entry: CutHistoryEntry } {
+    const fillerSet = new Set(fillers.map(f => f.toLowerCase()));
+    const wordIdsToCut = new Set<string>();
+
+    for (const seg of clip.segments) {
+      // 1. Fillers
+      for (const w of seg.words) {
+        const text = w.text.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
+        if (fillerSet.has(text)) wordIdsToCut.add(w.id);
+      }
+
+      // 2. Silence gaps (internal to segment)
+      const visibleWords = seg.words.filter(w => !w.isRemoved);
+      for (let i = 1; i < visibleWords.length; i++) {
+        const gap = visibleWords[i].startTime - visibleWords[i-1].endTime;
+        if (gap >= minSilenceSec) {
+          // We can't "cut" a gap that has no words in it using the word-based cut() 
+          // without creating time-based regions. For now, we only cut words.
+          // In a more advanced version, we'd add time-based CutRegions here.
+        }
+      }
+    }
+
+    if (wordIdsToCut.size === 0) return { clip, entry: { kind: 'restore', regionsBefore: [], regionsAfter: [] } };
+    return this.cut(clip, Array.from(wordIdsToCut), defaultEffect);
   }
 
   /** Update all non-overridden regions to the new default effect type. No history — this is a preference. */

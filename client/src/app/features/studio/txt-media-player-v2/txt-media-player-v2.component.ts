@@ -9,6 +9,7 @@ import {
   input,
   output,
   signal,
+  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Clip } from '../../../core/models/clip.model';
@@ -77,151 +78,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
     SegmentMetadataPanelComponent
   ],
   template: `
-<div class="player-v2" [class.rtl]="isRtl()">
+<div class="player-v2" [class.rtl]="isRtl()" [class.resizing]="isResizing()">
   
-  <!-- ═══════════ Left: Video Preview + Timeline ═══════════ -->
-  <section class="preview-section">
-
-    <!-- Video Frame -->
-    <div class="preview-area">
-      <div class="video-frame"
-        #videoFrameEl
-        (mouseenter)="showOverlay.set(true)"
-        (mouseleave)="showOverlay.set(false)">
-
-        @if (isVideo()) {
-          <video
-            #mediaEl
-            class="video-el"
-            [src]="mediaUrl()"
-            preload="metadata"
-            [style.opacity]="effectPlayer.videoOpacity()"
-            [style.filter]="effectPlayer.videoFilter()"
-          ></video>
-        } @else {
-          <audio #mediaEl [src]="mediaUrl()" preload="metadata"></audio>
-          <div class="audio-placeholder"
-            [style.opacity]="effectPlayer.videoOpacity()"
-            [style.filter]="effectPlayer.videoFilter()">
-            <span class="material-symbols-outlined audio-icon">headphones</span>
-            <span class="audio-label">Audio Only</span>
-          </div>
-        }
-
-        <!-- Hover overlay -->
-        <div class="video-overlay" [class.visible]="showOverlay()">
-          <div class="overlay-row">
-            <div class="overlay-left">
-              <button class="overlay-play" (click)="togglePlay()">
-                <span class="material-symbols-outlined"
-                  style="font-variation-settings:'FILL' 1; font-size:2.25rem">
-                  {{ playing() ? 'pause' : 'play_arrow' }}
-                </span>
-              </button>
-              <div class="overlay-time">
-                <span class="timecode-lg">{{ formatTimeLong(relativeTime()) }} / {{ formatTimeLong(clipDuration()) }}</span>
-                <span class="scene-label">{{ activeSegmentLabel() }}</span>
-              </div>
-            </div>
-            <div class="overlay-right">
-              <button class="overlay-icon-btn" (click)="toggleMute()" [title]="volume() === 0 ? 'Unmute' : 'Mute'">
-                <span class="material-symbols-outlined">{{ volumeIcon() }}</span>
-              </button>
-              <button class="overlay-icon-btn" (click)="toggleFullscreen()" title="Fullscreen">
-                <span class="material-symbols-outlined">fullscreen</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Current word caption -->
-        @if (currentWord(); as cw) {
-          <div class="word-caption" [class.is-edited]="cw.isEdited">{{ cw.text }}</div>
-        }
-      </div>
-    </div>
-
-    <!-- Timeline Panel -->
-    <div class="timeline-panel">
-      <div class="timeline-header">
-        <div class="timeline-header-left">
-          <span class="material-symbols-outlined tl-icon">reorder</span>
-          <span class="tl-label">Timeline</span>
-        </div>
-        <div class="timeline-header-right">
-          <span class="tl-meta">{{ mediaInfoLabel() }}</span>
-          @if (jumpCutMode()) {
-            <div class="rec-indicator">
-              <div class="rec-dot"></div>
-              <span class="rec-text">Jump Cut</span>
-            </div>
-          }
-          <select class="speed-select" [value]="playbackRate()" (change)="setPlaybackRate($any($event.target).value)">
-            @for (rate of playbackRates; track rate) {
-              <option [value]="rate">{{ rate }}x</option>
-            }
-          </select>
-        </div>
-      </div>
-      <div class="timeline-track-container">
-        <div class="ruler">
-          @for (mark of rulerMarks(); track mark.percent) {
-            <span class="ruler-tick" [style.left.%]="mark.percent">
-              <span class="ruler-label">{{ mark.label }}</span>
-            </span>
-          }
-        </div>
-        <div class="timeline-track" (click)="onTimelineClick($event)">
-        <div class="track-blocks">
-          @for (item of trackItems(); track $index) {
-            @if (item.kind === 'segment') {
-              <div class="track-block"
-                [style.left.%]="item.leftPercent"
-                [style.width.%]="item.widthPercent"
-                [style.background]="SEGMENT_PALETTE[item.colorIndex % SEGMENT_PALETTE.length].track"
-                [style.border-left-color]="SEGMENT_PALETTE[item.colorIndex % SEGMENT_PALETTE.length].border"
-              ></div>
-            } @else {
-              <div class="track-gap"
-                [style.left.%]="item.leftPercent"
-                [style.width.%]="item.widthPercent"></div>
-            }
-          }
-          <!-- Cut region overlays -->
-          @for (overlay of cutRegionOverlays(); track overlay.regionId) {
-            <div class="cut-region-overlay cut-region-overlay--{{ overlay.effectType }}"
-              [style.left.%]="overlay.leftPercent"
-              [style.width.%]="overlay.widthPercent"
-              [title]="overlay.effectType"
-              aria-hidden="true">
-            </div>
-          }
-        </div>
-        <div class="playhead" [style.left.%]="progress()">
-          <div class="playhead-dot"></div>
-        </div>
-      </div>
-    </div>
-    </div>
-  </section>
-
-  <!-- Metadata Panel Section (Column 2) - Positions between player and transcript -->
-  <div class="metadata-panel-side" [class.opened]="metadataPanelOpen()">
-    <div class="side-label" (click)="metadataPanelToggle.emit()"><span>METADATA</span></div>
-    <div class="panel-content">
-      @if (metadataPanelOpen()) {
-        <app-segment-metadata-panel
-          [segmentId]="selectedSegmentId()"
-          [clips]="[clip()]"
-        />
-      }
-    </div>
-  </div>
-
-  <!-- ═══════════ Right: Transcript Panel ═══════════ -->
+  <!-- ═══════════ Left/Right: Transcript Panel ═══════════ -->
   <section class="transcript-section" 
     [class.opened]="isTranscriptOpen()"
-    [class.metadata-mode]="metadataPanelOpen()">
+    [class.metadata-mode]="metadataPanelOpen()"
+    [style.width.px]="isTranscriptOpen() ? transcriptWidth() : 36">
 
     <!-- Vertical side label -->
     <div class="side-label" (click)="isTranscriptOpen.set(!isTranscriptOpen())"><span>TRANSCRIPT</span></div>
@@ -672,14 +535,159 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         </span>
       }
     </div>
-
-      @if (shouldVirtualize()) {
-        <div class="v-spacer" [style.height.px]="virtualPaddingBottom()"></div>
-      }
     </div>
   </section>
-  
-  <!-- Export Panel Section -->
+
+  <!-- Transcript Resizer -->
+  @if (isTranscriptOpen()) {
+    <div class="resizer transcript-resizer" (mousedown)="startResizing('transcript', $event)"></div>
+  }
+
+  <!-- Metadata Panel Section (Column 2) - Positions between player and transcript -->
+  <div class="metadata-panel-side" 
+    [class.opened]="metadataPanelOpen()"
+    [style.width.px]="metadataPanelOpen() ? metadataWidth() : 36">
+    <div class="side-label" (click)="metadataPanelToggle.emit()"><span>METADATA</span></div>
+    <div class="panel-content">
+      @if (metadataPanelOpen()) {
+        <app-segment-metadata-panel
+          [segmentId]="selectedSegmentId()"
+          [clips]="[clip()]"
+        />
+      }
+    </div>
+  </div>
+
+  <!-- Metadata Resizer -->
+  @if (metadataPanelOpen()) {
+    <div class="resizer metadata-resizer" (mousedown)="startResizing('metadata', $event)"></div>
+  }
+
+  <!-- ═══════════ Right/Left: Video Preview + Timeline ═══════════ -->
+  <section class="preview-section">
+
+    <!-- Video Frame -->
+    <div class="preview-area">
+      <div class="video-frame"
+        #videoFrameEl
+        (mouseenter)="showOverlay.set(true)"
+        (mouseleave)="showOverlay.set(false)">
+
+        @if (isVideo()) {
+          <video
+            #mediaEl
+            class="video-el"
+            [src]="mediaUrl()"
+            preload="metadata"
+            [style.opacity]="effectPlayer.videoOpacity()"
+            [style.filter]="effectPlayer.videoFilter()"
+          ></video>
+        } @else {
+          <audio #mediaEl [src]="mediaUrl()" preload="metadata"></audio>
+          <div class="audio-placeholder"
+            [style.opacity]="effectPlayer.videoOpacity()"
+            [style.filter]="effectPlayer.videoFilter()">
+            <span class="material-symbols-outlined audio-icon">headphones</span>
+            <span class="audio-label">Audio Only</span>
+          </div>
+        }
+
+        <!-- Hover overlay -->
+        <div class="video-overlay" [class.visible]="showOverlay()">
+          <div class="overlay-row">
+            <div class="overlay-left">
+              <button class="overlay-play" (click)="togglePlay()">
+                <span class="material-symbols-outlined"
+                  style="font-variation-settings:'FILL' 1; font-size:2.25rem">
+                  {{ playing() ? 'pause' : 'play_arrow' }}
+                </span>
+              </button>
+              <div class="overlay-time">
+                <span class="timecode-lg">{{ formatTimeLong(relativeTime()) }} / {{ formatTimeLong(clipDuration()) }}</span>
+                <span class="scene-label">{{ activeSegmentLabel() }}</span>
+              </div>
+            </div>
+            <div class="overlay-right">
+              <button class="overlay-icon-btn" (click)="toggleMute()" [title]="volume() === 0 ? 'Unmute' : 'Mute'">
+                <span class="material-symbols-outlined">{{ volumeIcon() }}</span>
+              </button>
+              <button class="overlay-icon-btn" (click)="toggleFullscreen()" title="Fullscreen">
+                <span class="material-symbols-outlined">fullscreen</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Current word caption -->
+        @if (currentWord(); as cw) {
+          <div class="word-caption" [class.is-edited]="cw.isEdited">{{ cw.text }}</div>
+        }
+      </div>
+    </div>
+
+    <!-- Timeline Panel -->
+    <div class="timeline-panel">
+      <div class="timeline-header">
+        <div class="timeline-header-left">
+          <span class="material-symbols-outlined tl-icon">reorder</span>
+          <span class="tl-label">Timeline</span>
+        </div>
+        <div class="timeline-header-right">
+          <span class="tl-meta">{{ mediaInfoLabel() }}</span>
+          @if (jumpCutMode()) {
+            <div class="rec-indicator">
+              <div class="rec-dot"></div>
+              <span class="rec-text">Jump Cut</span>
+            </div>
+          }
+          <select class="speed-select" [value]="playbackRate()" (change)="setPlaybackRate($any($event.target).value)">
+            @for (rate of playbackRates; track rate) {
+              <option [value]="rate">{{ rate }}x</option>
+            }
+          </select>
+        </div>
+      </div>
+      <div class="timeline-track-container">
+        <div class="ruler">
+          @for (mark of rulerMarks(); track mark.percent) {
+            <span class="ruler-tick" [style.left.%]="mark.percent">
+              <span class="ruler-label">{{ mark.label }}</span>
+            </span>
+          }
+        </div>
+        <div class="timeline-track" (click)="onTimelineClick($event)">
+        <div class="track-blocks">
+          @for (item of trackItems(); track $index) {
+            @if (item.kind === 'segment') {
+              <div class="track-block"
+                [style.left.%]="item.leftPercent"
+                [style.width.%]="item.widthPercent"
+                [style.background]="SEGMENT_PALETTE[item.colorIndex % SEGMENT_PALETTE.length].track"
+                [style.border-left-color]="SEGMENT_PALETTE[item.colorIndex % SEGMENT_PALETTE.length].border"
+              ></div>
+            } @else {
+              <div class="track-gap"
+                [style.left.%]="item.leftPercent"
+                [style.width.%]="item.widthPercent"></div>
+            }
+          }
+          <!-- Cut region overlays -->
+          @for (overlay of cutRegionOverlays(); track overlay.regionId) {
+            <div class="cut-region-overlay cut-region-overlay--{{ overlay.effectType }}"
+              [style.left.%]="overlay.leftPercent"
+              [style.width.%]="overlay.widthPercent"
+              [title]="overlay.effectType"
+              aria-hidden="true">
+            </div>
+          }
+        </div>
+        <div class="playhead" [style.left.%]="progress()">
+          <div class="playhead-dot"></div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
 </div>
   `,
   styleUrl: './txt-media-player-v2.component.scss'
@@ -761,6 +769,13 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /** Whether the responsive "More" menu is open; mutual exclusion with silence/smart-cut */
   readonly moreMenuOpen = signal(false);
   readonly isTranscriptOpen = signal(true);
+  
+  // Resizing signals
+  readonly metadataWidth = signal(380);
+  readonly transcriptWidth = signal(420);
+  readonly isResizing = signal(false);
+  private isResizingMetadata = false;
+  private isResizingTranscript = false;
 
   /** Checks if any word in the clip has been manually text-edited */
   readonly isTranscriptEdited = computed(() => {
@@ -1306,8 +1321,63 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.moreMenuOpen.set(false);
   }
 
-  onSegmentClick(segId: string): void {
-    this.selectedSegmentId.set(segId);
+  onSegmentClick(id: string): void {
+    this.selectedSegmentId.set(id);
+  }
+
+  /* ── Resizing Logic ─────────────────────────────────── */
+
+  startResizing(panel: 'metadata' | 'transcript', event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isResizing.set(true);
+    if (panel === 'metadata') {
+      this.isResizingMetadata = true;
+    } else {
+      this.isResizingTranscript = true;
+    }
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }
+
+  @HostListener('window:mousemove', ['$event'])
+  onMouseMove(event: MouseEvent): void {
+    if (!this.isResizingMetadata && !this.isResizingTranscript) return;
+
+    if (this.isResizingTranscript) {
+      if (this.isRtl()) {
+        const width = window.innerWidth - event.clientX;
+        this.transcriptWidth.set(Math.max(200, Math.min(width, 800)));
+      } else {
+        const rect = this.transcriptElRef.nativeElement.getBoundingClientRect();
+        const newWidth = event.clientX - rect.left + 18;
+        this.transcriptWidth.set(Math.max(200, Math.min(newWidth, 800)));
+      }
+    } else if (this.isResizingMetadata) {
+      if (this.isRtl()) {
+        const transcriptWidth = this.isTranscriptOpen() ? this.transcriptWidth() : 36;
+        const width = window.innerWidth - event.clientX - transcriptWidth;
+        this.metadataWidth.set(Math.max(200, Math.min(width, 800)));
+      } else {
+        const transcriptWidth = this.isTranscriptOpen() ? this.transcriptWidth() : 36;
+        const rect = this.transcriptElRef.nativeElement.parentElement?.getBoundingClientRect();
+        if (rect) {
+          const width = event.clientX - rect.left - transcriptWidth + 18;
+          this.metadataWidth.set(Math.max(200, Math.min(width, 800)));
+        }
+      }
+    }
+  }
+
+  @HostListener('window:mouseup')
+  onMouseUp(): void {
+    if (this.isResizingMetadata || this.isResizingTranscript) {
+      this.isResizingMetadata = false;
+      this.isResizingTranscript = false;
+      this.isResizing.set(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
   }
 
   toggleMute(): void {
@@ -1350,7 +1420,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onWordClick(word: Word, event: MouseEvent): void {
-    // Drag just finished — the click that fires after mouseup must not collapse selection
     if (this.justCompletedDrag) {
       this.justCompletedDrag = false;
       return;
@@ -1381,18 +1450,16 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   onWordMouseDown(word: Word, event: MouseEvent): void {
     if (this.editMode() || this.metadataPanelOpen()) return;
-    if (event.button !== 0) return; // left button only
+    if (event.button !== 0) return;
     this.dragSelectAnchorId = word.id;
     this.isDragAppendMode = event.ctrlKey || event.metaKey;
     this.dragSelectBaselineIds = this.isDragAppendMode ? [...this.selectedWordIds()] : [];
-    // Don't set isDragSelecting yet — wait until the pointer actually moves to a different word
   }
 
   onWordMouseEnter(word: Word): void {
     if (this.editMode() || this.metadataPanelOpen()) return;
     if (!this.dragSelectAnchorId) return;
     if (word.id === this.dragSelectAnchorId) return;
-    // First time we enter a different word — commit to drag-select mode
     if (!this.isDragSelecting()) {
       this.isDragSelecting.set(true);
       this.selectionAnchorWordId.set(this.dragSelectAnchorId);
@@ -1408,15 +1475,12 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   private endDragSelect(): void {
     if (this.isDragSelecting()) {
-      // Seek to first selected word so playhead jumps to the selection start
       const firstId = this.selectedWordIds()[0];
       if (firstId) {
         const word = this.findWordById(firstId);
         if (word && !word.isRemoved) this.mediaPlayer.seek(word.startTime);
       }
-      // Flag consumed by onWordClick to block the click that fires right after mouseup
       this.justCompletedDrag = true;
-      // Safety: reset flag after a short delay if it wasn't swallowed by onWordClick
       setTimeout(() => this.justCompletedDrag = false, 100);
     }
     this.dragSelectAnchorId = null;
@@ -1427,7 +1491,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     return this.selectedWordIdSet().has(wordId);
   }
 
-  /** @deprecated — use highlightedWordId() in template; kept for imperative code */
   isHighlighted(word: Word): boolean {
     return word.id === this.highlightedWordId();
   }
@@ -1465,11 +1528,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     const viewItem = this.segmentViewItems()[segIdx];
     if (viewItem && this.transcriptElRef) {
       const container = this.transcriptElRef.nativeElement;
-
-      // 1. First scroll to segment to ensure it's rendered by virtualization
       container.scrollTo({ top: viewItem.top, behavior: 'auto' });
-
-      // 2. Then precisely scroll the word into the center of the viewport
       setTimeout(() => {
         const wordEl = container.querySelector(`[id="${wordId}"]`) as HTMLElement;
         if (wordEl) {
@@ -1479,12 +1538,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     }
   }
 
-  /** @deprecated — use activeSegmentId() in template; kept for imperative code */
   isActiveSegment(seg: Segment): boolean {
     return seg.id === this.activeSegmentId();
   }
 
-  /** Build inline flow items for a segment: words interleaved with time markers and silence chips. */
   buildFlowItems(seg: Segment): FlowItem[] {
     const words = seg.words;
     if (!words.length) return [];
@@ -1494,7 +1551,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     for (let i = 0; i < words.length; i++) {
       const w = words[i];
 
-      // Time marker — when this word crosses a time-interval boundary
       if (w.startTime >= nextTimeMark) {
         items.push({
           kind: 'time',
@@ -1503,11 +1559,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
           id: `t-${seg.id}-${nextTimeMark}`,
         });
         nextTimeMark += INLINE_TIME_INTERVAL_SEC;
-        // Skip any additional boundaries this word may cross
         while (nextTimeMark <= w.startTime) nextTimeMark += INLINE_TIME_INTERVAL_SEC;
       }
 
-      // Silence chip — gap between previous word's end and this word's start
       if (i > 0) {
         const gapStart = words[i - 1].endTime;
         const gapEnd = w.startTime;
@@ -1580,12 +1634,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.autoFollow.set(false);
   }
 
-  /** Return pixel width for a silence chip — sqrt scale for proportional sizing, clamped to [24, 120]. */
   silenceChipWidth(duration: number): number {
     return Math.min(120, Math.max(24, Math.round(Math.sqrt(duration) * 55)));
   }
 
-  /* ── Time Formatting ─────────────────────────────────── */
   formatTimeLong(seconds: number): string {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -1599,14 +1651,12 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     return `${pad(m)}:${pad(s)}`;
   }
 
-  /* ── Private ─────────────────────────────────────────── */
   undo(): void {
     const entry = this.editHistory.undo();
     if (!entry) return;
     const newClip = this.cutRegionService.applyUndo(this.clip(), entry);
     this.clipService.applyLocalUpdate(newClip);
-    this.editVersion.update((v) => v + 1);
-    this.scheduleCutRegionSave();
+    this.editVersion.update(v => v + 1);
   }
 
   redo(): void {
@@ -1614,263 +1664,126 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (!entry) return;
     const newClip = this.cutRegionService.applyRedo(this.clip(), entry);
     this.clipService.applyLocalUpdate(newClip);
-    this.editVersion.update((v) => v + 1);
-    this.scheduleCutRegionSave();
+    this.editVersion.update(v => v + 1);
   }
 
-  toggleFiller(word: string): void {
-    this.selectedFillers.update(set => {
-      const next = new Set(set);
-      next.has(word) ? next.delete(word) : next.add(word);
-      return next;
-    });
+  clearSelection(event: MouseEvent): void {
+    if (this.editMode() || this.metadataPanelOpen()) return;
+    this.selectedWordIds.set([]);
+    this.selectionAnchorWordId.set(null);
   }
 
-  /**
-   * Universal menu toggler to enforce mutual exclusion.
-   * menuName can be 'silence', 'smartCut', or 'more'.
-   */
-  toggleMenu(menuName: 'silence' | 'smartCut' | 'more'): void {
-    // Current states
-    const sil = this.silenceControlOpen();
-    const sc = this.smartCutOpen();
-    const more = this.moreMenuOpen();
+  toggleMenu(menu: 'smartCut' | 'silence' | 'more'): void {
+    if (menu === 'smartCut') {
+      this.smartCutOpen.set(!this.smartCutOpen());
+      this.silenceControlOpen.set(false);
+      this.moreMenuOpen.set(false);
+    } else if (menu === 'silence') {
+      this.silenceControlOpen.set(!this.silenceControlOpen());
+      this.smartCutOpen.set(false);
+      this.moreMenuOpen.set(false);
+    } else {
+      this.moreMenuOpen.set(!this.moreMenuOpen());
+      this.smartCutOpen.set(false);
+      this.silenceControlOpen.set(false);
+    }
+  }
 
-    // Reset all
-    this.silenceControlOpen.set(false);
+  toggleFiller(fw: string): void {
+    const current = new Set(this.selectedFillers());
+    if (current.has(fw)) current.delete(fw);
+    else current.add(fw);
+    this.selectedFillers.set(current);
+  }
+
+  applySmartCut(): void {
+    const fillers = Array.from(this.selectedFillers()) as string[];
+    const minSilence = this.silenceIntervalSec();
+    const result = this.cutRegionService.smartCut(this.clip(), fillers, minSilence, this.defaultEffectType());
+    this.applyCutRegionChange(result);
     this.smartCutOpen.set(false);
     this.moreMenuOpen.set(false);
-
-    // Toggle target
-    if (menuName === 'silence') this.silenceControlOpen.set(!sil);
-    if (menuName === 'smartCut') this.smartCutOpen.set(!sc);
-    if (menuName === 'more') this.moreMenuOpen.set(!more);
   }
 
-  onWordTextBlur(word: Word, event: FocusEvent): void {
-    const el = event.target as HTMLElement;
-    const newText = el.innerText.trim();
-    if (newText !== word.text) {
-      word.text = newText;
-      word.isEdited = true;
-      this.editVersion.update(v => v + 1);
-      // We don't have a specific "text edit" save yet, but this triggers the periodic cutRegionSave
-      // which actually saves the whole clip segments if implemented that way.
-      // In this app, it seems we might need to call updateSegments if it exists.
-      this.scheduleCutRegionSave();
-    }
+  setDefaultEffect(type: EffectType): void {
+    this.defaultEffectType.set(type);
   }
 
   onRemovedWordClick(word: Word, event: MouseEvent): void {
     event.stopPropagation();
     if (this.editMode()) return;
-    this.effectPopoverWordId.update((current) => (current === word.id ? null : word.id));
-    this.durationEditRegionId.set(null);
-  }
-
-  closeEffectPopover(): void {
-    this.effectPopoverWordId.set(null);
-    this.durationEditRegionId.set(null);
-  }
-
-  setDefaultEffect(type: EffectType): void {
-    this.defaultEffectType.set(type);
-    const updated = this.cutRegionService.applyDefaultEffectType(this.clip(), type);
-    this.clipService.applyLocalUpdate(updated);
-    this.editVersion.update((v) => v + 1);
-    this.scheduleCutRegionSave();
+    if (this.effectPopoverWordId() === word.id) {
+      this.effectPopoverWordId.set(null);
+    } else {
+      this.effectPopoverWordId.set(word.id);
+    }
   }
 
   setRegionEffect(regionId: string, type: EffectType): void {
-    this.applyCutRegionChange(this.cutRegionService.setEffectType(this.clip(), regionId, type));
+    const result = this.cutRegionService.updateRegionEffect(this.clip(), regionId, type);
+    this.applyCutRegionChange(result);
   }
 
-  setRegionDuration(regionId: string, ms: number): void {
-    this.applyCutRegionChange(this.cutRegionService.setDuration(this.clip(), regionId, ms));
-    this.durationEditRegionId.set(null);
+  setRegionDuration(regionId: string, duration: number): void {
+    const result = this.cutRegionService.updateRegionDuration(this.clip(), regionId, duration);
+    this.applyCutRegionChange(result);
   }
 
   resetRegionEffect(regionId: string): void {
-    this.applyCutRegionChange(
-      this.cutRegionService.resetEffectType(this.clip(), regionId, this.defaultEffectType())
-    );
-    const { clip: c2 } = this.cutRegionService.resetDuration(this.clip(), regionId);
-    this.clipService.applyLocalUpdate(c2);
-    this.editVersion.update((v) => v + 1);
-    this.scheduleCutRegionSave();
-    this.closeEffectPopover();
+    const result = this.cutRegionService.resetRegionEffect(this.clip(), regionId, this.defaultEffectType());
+    this.applyCutRegionChange(result);
   }
 
-  clearSelection(event: MouseEvent): void {
-    if (this.editMode()) return;
-    if (this.isDragSelecting() || this.justCompletedDrag) return; 
-    const target = event.target as HTMLElement;
-    if (!target.closest('.filler-badge')) {
-      this.closeEffectPopover();
-    }
-    if (target.classList.contains('transcript-body') ||
-        target.classList.contains('word-flow') ||
-        target.classList.contains('seg-content')) {
-      this.selectedWordIds.set([]);
-      this.selectionAnchorWordId.set(null);
-      this.selectedSegmentId.set(null);
+  onWordTextBlur(word: Word, event: FocusEvent): void {
+    if (!this.editMode()) return;
+    const el = event.target as HTMLElement;
+    const newText = el.innerText.trim();
+    if (newText === word.text) return;
+    
+    const newClip = { ...this.clip() };
+    const words = newClip.segments.flatMap(s => s.words);
+    const target = words.find(w => w.id === word.id);
+    if (target) {
+      target.text = newText;
+      target.isEdited = true;
+      this.clipService.applyLocalUpdate(newClip);
+      this.editVersion.update(v => v + 1);
+      this.clipService.updateWordStates(newClip.id, [{ id: target.id, text: target.text, isEdited: true }]).subscribe();
     }
   }
 
-  applySmartCut(): void {
-    const fillers = this.selectedFillers();
-    const interval = this.silenceIntervalSec();
-    const wordIds: string[] = [];
-    for (const seg of this.clip().segments) {
-      for (let i = 0; i < seg.words.length; i++) {
-        const w = seg.words[i];
-        if (w.isRemoved) continue;
-        if (fillers.size && fillers.has(w.text.toLowerCase())) { wordIds.push(w.id); continue; }
-        if (i < seg.words.length - 1) {
-          const gap = seg.words[i + 1].startTime - w.endTime;
-          if (gap >= interval) wordIds.push(w.id);
-        }
-      }
-    }
-    if (wordIds.length) {
-      this.applyCutRegionChange(this.cutRegionService.cut(this.clip(), wordIds, this.defaultEffectType()));
-    }
-    this.smartCutOpen.set(false);
+  private applyCutRegionChange(result: { clip: Clip; entry: CutHistoryEntry }): void {
+    this.clipService.applyLocalUpdate(result.clip);
+    this.editHistory.record(result.entry);
+    this.editVersion.update(v => v + 1);
+    this.saveCutRegions();
   }
 
-  isFillerWord(word: Word): boolean {
-    if (!this.highlightFillers()) return false;
-    return this.selectedFillers().has(word.text.toLowerCase());
-  }
-
-  private applyCutRegionChange({ clip, entry }: { clip: Clip; entry: CutHistoryEntry }): void {
-    this.clipService.applyLocalUpdate(clip);
-    this.editHistory.record(entry);
-    this.editVersion.update((v) => v + 1);
-    this.scheduleCutRegionSave();
-  }
-
-  private scheduleCutRegionSave(): void {
+  private saveCutRegions(): void {
     if (this.cutRegionSaveTimer) clearTimeout(this.cutRegionSaveTimer);
     this.cutRegionSaveTimer = setTimeout(() => {
-      const c = this.clip();
-      
-      // Save cut regions
-      this.clipService.updateCutRegions(c.id, c.cutRegions ?? []).subscribe({ error: console.error });
-      
-      // Save edited word texts
-      const editedWordUpdates = c.segments.flatMap(s => 
-        s.words.filter(w => w.isEdited).map(w => ({ id: w.id, text: w.text, isEdited: true }))
-      );
-      if (editedWordUpdates.length > 0) {
-        this.clipService.updateWordStates(c.id, editedWordUpdates).subscribe({ error: console.error });
-      }
-
-      this.cutRegionSaveTimer = null;
-    }, 800);
+      const clip = this.clip();
+      this.clipService.updateCutRegions(clip.id, clip.cutRegions ?? []).subscribe();
+    }, 1000);
   }
 
-  private applyJumpCut(currentTime: number): void {
-    if (this.effectInProgress()) return;
-
-    const clip = this.clip();
-    const segments = clip.segments;
-    const EPSILON = 0.08;
-
-    // 1. Check time-based cut regions (gaps without words)
-    for (const region of clip.cutRegions || []) {
-      if (region.startTime !== undefined && region.endTime !== undefined) {
-        if (currentTime >= region.startTime - EPSILON && currentTime < region.endTime - EPSILON) {
-          this.performJump(region.endTime, region);
-          return;
-        }
-      }
-    }
-
-    // 2. Check word-based cut regions (as before)
-    let startIdx = Math.max(0, this.lastActiveSegmentIdx);
-    if (startIdx < segments.length && currentTime < segments[startIdx].startTime) startIdx = 0;
-
-    for (let i = startIdx; i < segments.length; i++) {
-      const seg = segments[i];
-      if (seg.startTime > currentTime + 1) break;
-
-      for (const word of seg.words) {
-        if (!word.isRemoved) continue;
-        if (currentTime < word.startTime - EPSILON || currentTime >= word.endTime - EPSILON) continue;
-
-        const nextStart = this.findNextActiveWordStart(word.endTime);
-        if (nextStart === null) { this.enforceSegmentBounds(currentTime); return; }
-        if (Math.abs(nextStart - currentTime) <= EPSILON) return;
-
-        const region = this.wordIdToRegion().get(word.id);
-        this.performJump(nextStart, region);
-        return;
-      }
-    }
+  public isFillerWord(word: Word): boolean {
+    if (!this.highlightFillers()) return false;
+    const t = word.text.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
+    return FILLER_WORDS_EN.includes(t) || FILLER_WORDS_HE.includes(t);
   }
 
-  private performJump(targetTime: number, region?: CutRegion): void {
-    const effectType = region?.effectType ?? 'hard-cut';
-    const effectDuration = region?.effectDuration ?? 200;
-    const halfMs = effectDuration / 2;
-
-    if (effectType === 'hard-cut') {
-      this.mediaPlayer.seek(targetTime);
-    } else if (effectType === 'fade') {
-      this.effectInProgress.set(true);
-      this.effectPlayer.startFadeOut(halfMs);
-      setTimeout(() => {
-        this.mediaPlayer.seek(targetTime);
-        this.effectPlayer.startFadeIn(halfMs);
-        setTimeout(() => this.effectInProgress.set(false), halfMs + 50);
-      }, halfMs);
-    } else if (effectType === 'cross-cut') {
-      this.effectInProgress.set(true);
-      this.effectPlayer.triggerCrossCutFlash();
-      this.mediaPlayer.seek(targetTime);
-      this.effectPlayer.startAudioCrossfade(effectDuration);
-      setTimeout(() => this.effectInProgress.set(false), effectDuration + 50);
-    }
+  private getWordRange(id1: string, id2: string): string[] {
+    const words = this.clip().segments.flatMap(s => s.words);
+    let idx1 = words.findIndex(w => w.id === id1);
+    let idx2 = words.findIndex(w => w.id === id2);
+    if (idx1 === -1 || idx2 === -1) return [];
+    if (idx1 > idx2) [idx1, idx2] = [idx2, idx1];
+    return words.slice(idx1, idx2 + 1).map(w => w.id);
   }
 
-  private enforceSegmentBounds(currentTime: number): void {
-    const segments = this.clip().segments;
-    if (!segments.length) return;
-    const last = segments[segments.length - 1];
-    if (currentTime >= last.endTime) this.mediaPlayer.pause();
-  }
-
-  private get lastActiveSegmentIdx(): number {
-    const id = this.activeSegmentId();
-    if (!id) return 0;
-    return Math.max(0, this.clip().segments.findIndex(s => s.id === id));
-  }
-
-  private findNextActiveWordStart(afterTime: number): number | null {
-    for (const seg of this.clip().segments) {
-      for (const word of seg.words) {
-        if (!word.isRemoved && word.startTime >= afterTime) return word.startTime;
-      }
-    }
-    return null;
-  }
-
-  private findWordById(wordId: string): Word | null {
-    for (const seg of this.clip().segments) {
-      for (const word of seg.words) {
-        if (word.id === wordId) return word;
-      }
-    }
-    return null;
-  }
-
-  private getWordRange(anchorId: string, targetId: string): string[] {
-    const ids = this.clip().segments.flatMap(s => s.words.map(w => w.id));
-    const a = ids.indexOf(anchorId);
-    const b = ids.indexOf(targetId);
-    if (a === -1 || b === -1) return [targetId];
-    return ids.slice(Math.min(a, b), Math.max(a, b) + 1);
+  private findWordById(id: string): Word | null {
+    return this.clip().segments.flatMap(s => s.words).find(w => w.id === id) || null;
   }
 
   private findActiveSegmentIndex(): number {
@@ -1879,39 +1792,56 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     return this.clip().segments.findIndex(s => s.id === id);
   }
 
+  private applyJumpCut(t: number): void {
+    const clip = this.clip();
+    const regions = clip.cutRegions ?? [];
+    for (const r of regions) {
+      const start = r.startTime ?? Math.min(...r.wordIds.map(id => this.findWordById(id)?.startTime ?? 0));
+      const end = r.endTime ?? Math.max(...r.wordIds.map(id => this.findWordById(id)?.endTime ?? 0));
+      if (t >= start && t < end) {
+        if (r.effectType === 'hard-cut') {
+          this.mediaPlayer.seek(end);
+          return;
+        }
+        if (!this.effectInProgress()) {
+          this.effectInProgress.set(true);
+          this.effectPlayer.playEffect(r).subscribe({
+            complete: () => {
+              this.effectInProgress.set(false);
+              this.mediaPlayer.seek(end);
+            }
+          });
+        }
+      }
+    }
+  }
+
   private scrollToCurrentWord(): void {
-    if (!this.autoFollow()) return;
-    if (!this.transcriptElRef) return;
+    if (!this.autoFollow() || !this.transcriptElRef) return;
     const container = this.transcriptElRef.nativeElement;
-    this.measureTranscriptViewport();
-
-    this.suppressScrollDetection = true;
-    setTimeout(() => { this.suppressScrollDetection = false; }, 600);
-
-    // If playback is in a silence gap, scroll to the silence chip
-    const silence = this.activeSilence();
-    if (silence) {
-      const silenceEl = container.querySelector(`.inline-silence[id="${silence.id}"]`) as HTMLElement | null
-        || Array.from(container.querySelectorAll('.inline-silence')).find((el: any) => el.title === silence.id) as HTMLElement | null;
-      if (silenceEl) {
+    const wordId = this.highlightedWordId();
+    if (wordId) {
+      const el = container.querySelector(`[id="${wordId}"]`) as HTMLElement;
+      if (el) {
         const cRect = container.getBoundingClientRect();
-        const eRect = silenceEl.getBoundingClientRect();
+        const eRect = el.getBoundingClientRect();
         if (eRect.top < cRect.top || eRect.bottom > cRect.bottom) {
-          silenceEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+      }
+      return;
+    }
+    const sil = this.activeSilence();
+    if (sil) {
+      const highlighted = container.querySelector('.silence-playing') as HTMLElement;
+      if (highlighted) {
+        const cRect = container.getBoundingClientRect();
+        const eRect = highlighted.getBoundingClientRect();
+        if (eRect.top < cRect.top || eRect.bottom > cRect.bottom) {
+          highlighted.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }
         return;
       }
-    }
-
-    // Otherwise, scroll to the highlighted word
-    const highlighted = container.querySelector('.word.highlighted') as HTMLElement | null;
-    if (highlighted) {
-      const cRect = container.getBoundingClientRect();
-      const eRect = highlighted.getBoundingClientRect();
-      if (eRect.top < cRect.top || eRect.bottom > cRect.bottom) {
-        highlighted.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-      return;
     }
     if (!this.shouldVirtualize()) return;
     const idx = this.findActiveSegmentIndex();
@@ -1948,7 +1878,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     return ((ct - seg.startTime) / dur) * 100;
   }
 }
-
 
 function pad(n: number): string {
   return n.toString().padStart(2, '0');

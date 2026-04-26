@@ -1,4 +1,4 @@
-import { Component, OnInit, output, signal } from '@angular/core';
+import { Component, OnInit, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AppSettings, SETTING_META, SettingKey, SettingsService } from '../../../core/services/settings.service';
@@ -13,7 +13,9 @@ import { AppSettings, SETTING_META, SettingKey, SettingsService } from '../../..
 export class SettingsPanelComponent implements OnInit {
   readonly closed = output<void>();
 
-  readonly keys = Object.keys(SETTING_META) as SettingKey[];
+  /** Keys to render as generic text/secret inputs (excludes ones with special UI). */
+  readonly specialKeys = new Set<SettingKey>(['DEFAULT_EDIT_MODE']);
+  readonly inputKeys = (Object.keys(SETTING_META) as SettingKey[]).filter(k => !this.specialKeys.has(k));
   readonly meta = SETTING_META;
 
   readonly loading = signal(true);
@@ -25,12 +27,14 @@ export class SettingsPanelComponent implements OnInit {
   draft: Record<string, string> = {};
   revealed: Record<string, boolean> = {};
 
+  readonly settings = inject(SettingsService);
+
   constructor(private settingsService: SettingsService) {}
 
   ngOnInit(): void {
     this.settingsService.load().subscribe({
       next: (settings: AppSettings) => {
-        for (const key of this.keys) {
+        for (const key of this.inputKeys) {
           this.draft[key] = settings[key] ?? '';
         }
         this.loading.set(false);
@@ -42,13 +46,16 @@ export class SettingsPanelComponent implements OnInit {
     });
   }
 
+  setEditMode(mode: 'live' | 'apply'): void {
+    this.settings.saveDefaultEditMode(mode);
+  }
+
   save(): void {
     this.saving.set(true);
     this.saved.set(false);
     this.error.set(null);
-    // Send all fields; server treats empty string as "delete"
     const payload: AppSettings = {};
-    for (const key of this.keys) {
+    for (const key of this.inputKeys) {
       payload[key] = this.draft[key] ?? '';
     }
     this.settingsService.save(payload).subscribe({

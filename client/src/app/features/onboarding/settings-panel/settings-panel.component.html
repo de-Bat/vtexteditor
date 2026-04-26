@@ -14,8 +14,27 @@
     @if (loading()) {
       <div class="state-msg">Loading&hellip;</div>
     } @else {
+      <!-- Default Edit Mode special row -->
+      <div class="form-field">
+        <label class="field-label">{{ meta['DEFAULT_EDIT_MODE'].label }}</label>
+        <p class="field-desc">{{ meta['DEFAULT_EDIT_MODE'].description }}</p>
+        <div class="edit-mode-row">
+          <button class="mode-toggle-btn" [class.active]="settings.defaultEditMode() === 'live'"
+            (click)="setEditMode('live')" type="button">
+            Live
+          </button>
+          <button class="mode-toggle-btn" [class.active]="settings.defaultEditMode() === 'apply'"
+            (click)="setEditMode('apply')" type="button">
+            Apply
+          </button>
+          <span class="mode-hint">
+            {{ settings.defaultEditMode() === 'apply' ? 'Changes are staged until you click Apply' : 'Changes apply immediately' }}
+          </span>
+        </div>
+      </div>
+
       <form (ngSubmit)="save()" autocomplete="off">
-        @for (key of keys; track key) {
+        @for (key of inputKeys; track key) {
           <div class="form-field">
             <label [for]="'s-' + key" class="field-label">{{ meta[key].label }}</label>
             <p class="field-desc">{{ meta[key].description }}</p>

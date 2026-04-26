@@ -1080,7 +1080,7 @@ audio {
   position: relative;
   padding-right: 40px;
   margin-bottom: 24px;
-  overflow: hidden;
+  overflow: visible; /* must be visible so effect-popover can float above */
 
   &.active {
     background: rgba(25, 25, 28, 0.3);
@@ -1101,6 +1101,9 @@ audio {
     z-index: 0;
     transition: width 100ms linear;
     border-right: 1px solid rgba(186, 158, 255, 0.08);
+    /* Clip only the trail bar, not the whole block */
+    overflow: hidden;
+    border-radius: 0 4px 4px 0;
 
     .seg-block.active & {
        background: rgba(186, 158, 255, 0.07);
@@ -1759,11 +1762,13 @@ audio {
 
 .effect-popover {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);   /* opens downward — stays inside scroll container */
   left: 50%;
   transform: translateX(-50%);
-  z-index: 100;
-  min-width: 180px;
+  z-index: 200;
+  min-width: 220px;
+  width: max-content;
+  max-width: 280px;
   background: rgba(36, 36, 39, 0.97);
   backdrop-filter: blur(12px);
   border-radius: 8px;
@@ -1778,6 +1783,7 @@ audio {
 
 .ep-pills {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   background: rgba(44, 44, 47, 0.6);
   border-radius: 6px;
@@ -2054,5 +2060,164 @@ audio {
   .side-label {
     border-left: none;
     border-right: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* ── Live / Apply Mode Toggle ───────────────────────── */
+.edit-mode-toggle {
+  display: flex;
+  gap: 2px;
+  background: rgba(44, 44, 47, 0.7);
+  border-radius: 6px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mode-pill {
+  padding: 3px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(246, 243, 245, 0.45);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+
+  &:hover { color: var(--primary, #ba9eff); }
+
+  &.active {
+    background: rgba(186, 158, 255, 0.18);
+    color: var(--primary, #ba9eff);
+  }
+}
+
+/* ── Pending visual indicators ───────────────────────── */
+.filler-badge.pending-add {
+  border-style: dashed;
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(251, 191, 36, 0.05);
+
+  .filler-text { color: #f59e0b; }
+}
+
+.word.pending-text {
+  text-decoration: underline dashed #f59e0b;
+  text-underline-offset: 3px;
+  color: #f59e0b;
+}
+
+/* Fix effect-dot for fade-in type */
+.effect-dot--fade-in { background: var(--primary, #ba9eff); }
+
+/* ── Floating Apply Pill ────────────────────────────── */
+.apply-pill-wrap {
+  position: absolute;
+  bottom: 48px; /* sits above the status bar */
+  right: 16px;
+  z-index: 200;
+}
+
+.apply-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #f59e0b;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background 150ms, box-shadow 150ms, transform 150ms;
+
+  .material-symbols-outlined { font-size: 16px; }
+
+  &:hover {
+    background: rgba(251, 191, 36, 0.22);
+    box-shadow: 0 0 16px rgba(251, 191, 36, 0.25);
+    transform: translateY(-1px);
+  }
+
+  &.pulse {
+    animation: apply-pulse 2.2s infinite ease-in-out;
+  }
+}
+
+@keyframes apply-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+  50%       { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.2); }
+}
+
+/* ── Apply Menu Popover ─────────────────────────────── */
+.apply-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  background: rgba(28, 28, 31, 0.97);
+  backdrop-filter: blur(12px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.apply-menu-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(246, 243, 245, 0.35);
+  padding: 4px 6px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 2px;
+}
+
+.apply-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(246, 243, 245, 0.75);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms, color 150ms;
+
+  .material-symbols-outlined { font-size: 16px; }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--on-surface, #f6f3f5);
+  }
+
+  &.apply-all {
+    color: #34d399;
+    font-weight: 700;
+    &:hover { background: rgba(52, 211, 153, 0.08); }
+  }
+
+  &.discard-btn {
+    color: rgba(255, 110, 132, 0.7);
+    &:hover { background: rgba(255, 110, 132, 0.07); color: var(--error, #ff6e84); }
   }
 }

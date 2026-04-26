@@ -20,6 +20,7 @@ import { StoryReviewPanelComponent } from './story-review-panel/story-review-pan
 import { StoryApiService } from './story-review-panel/story-api.service';
 import { Clip } from '../../core/models/clip.model';
 import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.model';
+import { SettingsService } from '../../core/services/settings.service';
 
 @Component({
   selector: 'app-studio',
@@ -378,10 +379,13 @@ export class StudioComponent implements OnInit {
     readonly clipService: ClipService,
     readonly projectService: ProjectService,
     private sseService: SseService,
+    private settingsService: SettingsService,
   ) {}
 
   ngOnInit(): void {
     this.sseService.connect();
+    // Load settings first so defaultEditMode signal is populated before clips render
+    this.settingsService.load().subscribe({ error: () => {} });
     this.projectService.load().subscribe({
       next: (project) => this.checkForProposal(project?.id),
     });

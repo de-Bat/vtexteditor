@@ -1,15 +1,16 @@
 import {
   AfterViewInit,
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
   OnDestroy,
   ViewChild,
   computed,
   effect,
+  inject,
   input,
   output,
   signal,
-  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Clip } from '../../../core/models/clip.model';
@@ -24,6 +25,9 @@ import { EffectPlayerService } from '../txt-media-player/effect-player.service';
 import { CutRegion, EffectType } from '../../../core/models/cut-region.model';
 import { KeyboardShortcutsService } from '../txt-media-player/keyboard-shortcuts.service';
 import { SegmentMetadataPanelComponent } from '../segment-metadata-panel/segment-metadata-panel.component';
+import { SettingsService } from '../../../core/services/settings.service';
+import { PendingEditsService } from '../txt-media-player/pending-edits.service';
+
 
 /* ── Palette & Constants ────────────────────────────────────── */
 
@@ -73,10 +77,15 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 @Component({
   selector: 'app-txt-media-player-v2',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, 
     SegmentMetadataPanelComponent
   ],
+  host: {
+    '(window:mousemove)': 'onMouseMove($event)',
+    '(window:mouseup)': 'onMouseUp()',
+  },
   template: `
 <div class="player-v2" [class.rtl]="isRtl()" [class.resizing]="isResizing()">
   
@@ -141,9 +150,21 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         @if (!searchExpanded()) {
           <!-- Tools visible when search is NOT expanded -->
           <div class="hdr-group">
+            <!-- Live / Apply mode toggle -->
+            <div class="edit-mode-toggle" role="group" aria-label="Editing mode">
+              <button class="mode-pill"
+                [class.active]="editingMode() === 'live'"
+                (click)="setEditingMode('live')"
+                title="Live: changes apply immediately">Live</button>
+              <button class="mode-pill"
+                [class.active]="editingMode() === 'apply'"
+                (click)="setEditingMode('apply')"
+                title="Apply: changes are staged until you click Apply">Apply</button>
+            </div>
+
             <!-- Mode control -->
-            <button class="hdr-btn" [class.active]="editMode()" (click)="editMode.set(!editMode())" [disabled]="metadataPanelOpen()" title="Toggle Edit Mode (E)">
-              <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
+            <button class="hdr-btn" [class.active]="textEditMode()" (click)="textEditMode.set(!textEditMode())" [disabled]="metadataPanelOpen()" title="Toggle Edit Mode (E)">
+              <span class="material-symbols-outlined">{{ textEditMode() ? 'edit_off' : 'edit' }}</span>
             </button>
 
             <!-- Smart Cut -->
@@ -228,9 +249,9 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
               <div class="more-menu-dropdown popover">
                 <div class="menu-item-group">
                   <span class="menu-label">Editor Mode</span>
-                  <button class="hdr-btn w-full" [class.active]="editMode()" (click)="editMode.set(!editMode())" [disabled]="metadataPanelOpen()" style="justify-content:flex-start; width:100%; gap:8px; padding:0 8px">
-                    <span class="material-symbols-outlined">{{ editMode() ? 'edit_off' : 'edit' }}</span>
-                    <span>{{ editMode() ? 'Disable Edit Mode' : 'Enable Edit Mode' }}</span>
+                  <button class="hdr-btn w-full" [class.active]="textEditMode()" (click)="textEditMode.set(!textEditMode())" [disabled]="metadataPanelOpen()" style="justify-content:flex-start; width:100%; gap:8px; padding:0 8px">
+                    <span class="material-symbols-outlined">{{ textEditMode() ? 'edit_off' : 'edit' }}</span>
+                    <span>{{ textEditMode() ? 'Disable Edit Mode' : 'Enable Edit Mode' }}</span>
                   </button>
                 </div>
 
@@ -310,6 +331,10 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             (click)="setDefaultEffect('cross-cut')" title="Cross-Cut">
             <span class="material-symbols-outlined" style="font-size:1rem">shuffle</span>
           </button>
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'smart'"
+            (click)="setDefaultEffect('smart')" title="Smart (auto)">
+            <span class="material-symbols-outlined" style="font-size:1rem">auto_awesome</span>
+          </button>
         </div>
       </div>
     </div>
@@ -384,6 +409,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.is-edited]="fi.word.isEdited"
                     [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     [class.popover-open]="effectPopoverWordId() === fi.word.id"
+                    [class.pending-add]="region?.pending && region?.pendingKind === 'add'"
                     (click)="onRemovedWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)">
 
@@ -392,7 +418,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     }
 
                     <span class="filler-text"
-                      [attr.contenteditable]="editMode() ? 'plaintext-only' : 'false'" spellcheck="false"
+                      [attr.contenteditable]="textEditMode() ? 'plaintext-only' : 'false'" spellcheck="false"
                       (click)="$event.stopPropagation()"
                       (blur)="onWordTextBlur(fi.word, $event)"
                     >{{ fi.word.text }}</span>
@@ -410,6 +436,8 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                               (click)="setRegionEffect(region.id, 'fade-in')">Fade In</button>
                             <button class="ep-pill" [class.active]="region.effectType === 'cross-cut'"
                               (click)="setRegionEffect(region.id, 'cross-cut')">Cross</button>
+                            <button class="ep-pill" [class.active]="region.effectType === 'smart'"
+                              (click)="setRegionEffect(region.id, 'smart')">Smart</button>
                           </div>
                         </div>
                         @if (region.effectType !== 'clear-cut') {
@@ -445,14 +473,15 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.search-match]="searchMatchIdSet().has(fi.word.id)"
                     [class.search-match-active]="fi.word.id === activeSearchMatchId()"
                     [class.filler-hl]="isFillerWord(fi.word)"
+                    [class.pending-text]="!!fi.word.pendingText"
                     (mousedown)="onWordMouseDown(fi.word, $event)"
                     (mouseenter)="onWordMouseEnter(fi.word)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)"
                     (blur)="onWordTextBlur(fi.word, $event)"
-                    [attr.contenteditable]="editMode() ? 'plaintext-only' : 'false'"
-                    [title]="editMode() ? 'Click to edit' : 'Double-click to remove'"
-                  >{{ fi.word.text }}</span>
+                    [attr.contenteditable]="textEditMode() ? 'plaintext-only' : 'false'"
+                    [title]="fi.word.pendingText ? 'Original: ' + fi.word.text : (textEditMode() ? 'Click to edit' : 'Double-click to remove')"
+                  >{{ fi.word.pendingText ?? fi.word.text }}</span>
                 }
               }
             </div>
@@ -535,6 +564,40 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         </span>
       }
     </div>
+
+    <!-- Floating Apply Pill (Apply mode with pending edits) -->
+    @if (editingMode() === 'apply' && pendingEdits.hasPending(clip())) {
+      <div class="apply-pill-wrap" [class.apply-menu-open]="applyMenuOpen()">
+        <div class="apply-pill" [class.pulse]="pendingEdits.hasPending(clip())"
+          (click)="applyMenuOpen.set(!applyMenuOpen())">
+          <span class="material-symbols-outlined">pending_actions</span>
+          <span>{{ pendingEdits.pendingCount(clip()).total }} pending</span>
+        </div>
+        @if (applyMenuOpen()) {
+          <div class="apply-menu popover" (click)="$event.stopPropagation()">
+            <div class="apply-menu-title">Staged Edits</div>
+            <button class="apply-menu-btn apply-all" (click)="applyPending()">
+              <span class="material-symbols-outlined">check_circle</span>
+              Apply All
+            </button>
+            @if (selectedCount() > 0) {
+              <button class="apply-menu-btn" (click)="applySelected()">
+                <span class="material-symbols-outlined">check</span>
+                Apply Selected ({{ selectedCount() }})
+              </button>
+              <button class="apply-menu-btn discard-btn" (click)="discardSelected()">
+                <span class="material-symbols-outlined">remove_done</span>
+                Discard Selected
+              </button>
+            }
+            <button class="apply-menu-btn discard-btn" (click)="discardPending()">
+              <span class="material-symbols-outlined">cancel</span>
+              Discard All
+            </button>
+          </div>
+        }
+      </div>
+    }
     </div>
   </section>
 
@@ -719,7 +782,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Local Signals ───────────────────────────────────── */
   readonly autoFollow = signal(true);
-  readonly editMode = signal(false);
+  readonly textEditMode = signal(false);
   readonly jumpCutMode = signal(false);
   readonly showOverlay = signal(false);
   readonly searchQuery = signal('');
@@ -769,6 +832,13 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /** Whether the responsive "More" menu is open; mutual exclusion with silence/smart-cut */
   readonly moreMenuOpen = signal(false);
   readonly isTranscriptOpen = signal(true);
+
+  /** Live/Apply mode: null = use settings default. */
+  readonly editModeOverride = signal<'live' | 'apply' | null>(null);
+  readonly editingMode = computed<'live' | 'apply'>(() =>
+    this.editModeOverride() ?? this.settings.defaultEditMode()
+  );
+  readonly applyMenuOpen = signal(false);
   
   // Resizing signals
   readonly metadataWidth = signal(380);
@@ -791,6 +861,37 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       for (const wid of region.wordIds) map.set(wid, region);
     }
     return map;
+  });
+
+  /**
+   * In Live mode, the intervals that must be skipped during playback
+   * (all committed/effective cut regions, derived from isRemoved words).
+   * Each entry is { start, end } in absolute video seconds.
+   */
+  readonly liveSkipIntervals = computed<Array<{ start: number; end: number }>>(() => {
+    this.editVersion();
+    if (this.editingMode() !== 'live') return [];
+    const clip = this.clip();
+    const intervals: Array<{ start: number; end: number }> = [];
+    for (const region of clip.cutRegions ?? []) {
+      // Only skip committed / pending-add regions (not pending-remove which are being restored)
+      if (region.pending && region.pendingKind === 'remove') continue;
+      let start: number;
+      let end: number;
+      if (region.startTime !== undefined && region.endTime !== undefined) {
+        start = region.startTime;
+        end = region.endTime;
+      } else {
+        const wordMap = new Map<string, Word>();
+        for (const seg of clip.segments) for (const w of seg.words) wordMap.set(w.id, w);
+        const times = region.wordIds.map(id => wordMap.get(id)).filter((w): w is Word => !!w);
+        if (!times.length) continue;
+        start = Math.min(...times.map(w => w.startTime));
+        end = Math.max(...times.map(w => w.endTime));
+      }
+      if (end > start) intervals.push({ start, end });
+    }
+    return intervals;
   });
 
   /** Pending cut-region save timer (mirrors existing saveTimer pattern). */
@@ -1231,6 +1332,18 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.mediaPlayer.seek(clip.endTime);
     }
 
+    // Live-mode cut skip: instantly jump over any removed region
+    if (this.playing() && this.editingMode() === 'live') {
+      const intervals = this.liveSkipIntervals();
+      for (const { start, end } of intervals) {
+        // Hit: playhead is inside a cut region → jump to its end
+        if (t >= start && t < end) {
+          this.mediaPlayer.seek(end);
+          return;
+        }
+      }
+    }
+
     if (this.jumpCutMode() && this.playing()) this.applyJumpCut(t);
     this.scrollToCurrentWord();
   });
@@ -1244,6 +1357,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.mediaPlayer.seek(clip.startTime);
     }
   }, { allowSignalWrites: true });
+
+  /* ── Private injected services ──────────────────────── */
+  readonly settings = inject(SettingsService);
+  readonly pendingEdits = inject(PendingEditsService);
 
   /* ── Constructor ─────────────────────────────────────── */
   constructor(
@@ -1283,6 +1400,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // Auto-apply any pending edits before leaving
+    if (this.pendingEdits.hasPending(this.clip())) {
+      this.pendingEdits.applyAll(this.clip()).subscribe();
+    }
     this.effectPlayer.resetAll();
     if (this.cutRegionSaveTimer) clearTimeout(this.cutRegionSaveTimer);
     this.mediaPlayer.detachElement();
@@ -1340,7 +1461,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     document.body.style.userSelect = 'none';
   }
 
-  @HostListener('window:mousemove', ['$event'])
   onMouseMove(event: MouseEvent): void {
     if (!this.isResizingMetadata && !this.isResizingTranscript) return;
 
@@ -1369,7 +1489,6 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     }
   }
 
-  @HostListener('window:mouseup')
   onMouseUp(): void {
     if (this.isResizingMetadata || this.isResizingTranscript) {
       this.isResizingMetadata = false;
@@ -1424,7 +1543,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.justCompletedDrag = false;
       return;
     }
-    if (this.editMode() || this.metadataPanelOpen()) return;
+    if (this.textEditMode() || this.metadataPanelOpen()) return;
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
       this.selectedWordIds.set(range);
@@ -1446,10 +1565,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.selectionAnchorWordId.set(word.id);
     this.selectedWordIds.set([word.id]);
     if (!word.isRemoved) this.mediaPlayer.seek(word.startTime);
+    this.effectPopoverWordId.set(null);
   }
 
   onWordMouseDown(word: Word, event: MouseEvent): void {
-    if (this.editMode() || this.metadataPanelOpen()) return;
+    if (this.textEditMode() || this.metadataPanelOpen()) return;
     if (event.button !== 0) return;
     this.dragSelectAnchorId = word.id;
     this.isDragAppendMode = event.ctrlKey || event.metaKey;
@@ -1457,7 +1577,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onWordMouseEnter(word: Word): void {
-    if (this.editMode() || this.metadataPanelOpen()) return;
+    if (this.textEditMode() || this.metadataPanelOpen()) return;
     if (!this.dragSelectAnchorId) return;
     if (word.id === this.dragSelectAnchorId) return;
     if (!this.isDragSelecting()) {
@@ -1585,26 +1705,29 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   toggleRemove(word: Word): void {
-    if (this.editMode()) return;
+    if (this.textEditMode()) return;
+    const pending = this.editingMode() === 'apply';
     if (word.isRemoved) {
-      this.applyCutRegionChange(this.cutRegionService.restore(this.clip(), [word.id]));
+      this.applyCutRegionChange(this.cutRegionService.restore(this.clip(), [word.id], pending));
     } else {
-      this.applyCutRegionChange(this.cutRegionService.cut(this.clip(), [word.id], this.defaultEffectType()));
+      this.applyCutRegionChange(this.cutRegionService.cut(this.clip(), [word.id], this.defaultEffectType(), pending));
     }
   }
 
   removeSelected(): void {
     if (!this.selectedWordIds().length) return;
+    const pending = this.editingMode() === 'apply';
     this.applyCutRegionChange(
-      this.cutRegionService.cut(this.clip(), this.selectedWordIds(), this.defaultEffectType())
+      this.cutRegionService.cut(this.clip(), this.selectedWordIds(), this.defaultEffectType(), pending)
     );
     this.selectedWordIds.set([]);
   }
 
   restoreSelected(): void {
     if (!this.selectedWordIds().length) return;
+    const pending = this.editingMode() === 'apply';
     this.applyCutRegionChange(
-      this.cutRegionService.restore(this.clip(), this.selectedWordIds())
+      this.cutRegionService.restore(this.clip(), this.selectedWordIds(), pending)
     );
     this.selectedWordIds.set([]);
   }
@@ -1668,9 +1791,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   clearSelection(event: MouseEvent): void {
-    if (this.editMode() || this.metadataPanelOpen()) return;
+    if (this.textEditMode() || this.metadataPanelOpen()) return;
     this.selectedWordIds.set([]);
     this.selectionAnchorWordId.set(null);
+    this.effectPopoverWordId.set(null);
   }
 
   toggleMenu(menu: 'smartCut' | 'silence' | 'more'): void {
@@ -1711,7 +1835,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   onRemovedWordClick(word: Word, event: MouseEvent): void {
     event.stopPropagation();
-    if (this.editMode()) return;
+    if (this.textEditMode()) return;
     if (this.effectPopoverWordId() === word.id) {
       this.effectPopoverWordId.set(null);
     } else {
@@ -1734,12 +1858,85 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.applyCutRegionChange(result);
   }
 
+  applyPending(): void {
+    const clip = this.clip();
+    if (!this.pendingEdits.hasPending(clip)) return;
+    const clipBefore = clip;
+    this.pendingEdits.applyAll(clip).subscribe(appliedClip => {
+      this.clipService.applyLocalUpdate(appliedClip);
+      this.editHistory.record({ kind: 'apply-batch', clipBefore, clipAfter: appliedClip });
+      this.editVersion.update(v => v + 1);
+      this.applyMenuOpen.set(false);
+      this.effectPopoverWordId.set(null);
+    });
+  }
+
+  discardPending(): void {
+    const clip = this.clip();
+    const count = this.pendingEdits.pendingCount(clip).total;
+    if (count > 5 && !confirm(`Discard all ${count} pending edits?`)) return;
+    const discarded = this.pendingEdits.discardAll(clip);
+    this.clipService.applyLocalUpdate(discarded);
+    this.editVersion.update(v => v + 1);
+    this.applyMenuOpen.set(false);
+    this.effectPopoverWordId.set(null);
+  }
+
+  applySelected(): void {
+    const ids = this.selectedWordIds();
+    if (!ids.length) return;
+    const clip = this.clip();
+    const clipBefore = clip;
+    this.pendingEdits.applySelection(clip, ids).subscribe(appliedClip => {
+      this.clipService.applyLocalUpdate(appliedClip);
+      this.editHistory.record({ kind: 'apply-batch', clipBefore, clipAfter: appliedClip });
+      this.editVersion.update(v => v + 1);
+      this.applyMenuOpen.set(false);
+      this.effectPopoverWordId.set(null);
+    });
+  }
+
+  discardSelected(): void {
+    const ids = this.selectedWordIds();
+    if (!ids.length) return;
+    const discarded = this.pendingEdits.discardSelection(this.clip(), ids);
+    this.clipService.applyLocalUpdate(discarded);
+    this.editVersion.update(v => v + 1);
+    this.applyMenuOpen.set(false);
+    this.effectPopoverWordId.set(null);
+  }
+
+  setEditingMode(mode: 'live' | 'apply'): void {
+    const current = this.editingMode();
+    if (current === mode) return;
+    if (current === 'apply' && this.pendingEdits.hasPending(this.clip())) {
+      this.applyPending(); // auto-apply then switch
+    }
+    this.editModeOverride.set(mode);
+    // Persist the preference so it survives page refresh
+    this.settings.saveDefaultEditMode(mode);
+    this.effectPopoverWordId.set(null);
+  }
+
   onWordTextBlur(word: Word, event: FocusEvent): void {
-    if (!this.editMode()) return;
+    if (!this.textEditMode()) return;
     const el = event.target as HTMLElement;
     const newText = el.innerText.trim();
+
+    if (this.editingMode() === 'apply') {
+      if (newText === word.text || newText === word.pendingText) return;
+      const newClip = { ...this.clip() };
+      const target = newClip.segments.flatMap(s => s.words).find(w => w.id === word.id);
+      if (target) {
+        target.pendingText = newText;
+        this.clipService.applyLocalUpdate(newClip);
+        this.editVersion.update(v => v + 1);
+      }
+      return;
+    }
+
+    // Live mode
     if (newText === word.text) return;
-    
     const newClip = { ...this.clip() };
     const words = newClip.segments.flatMap(s => s.words);
     const target = words.find(w => w.id === word.id);
@@ -1756,7 +1953,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.clipService.applyLocalUpdate(result.clip);
     this.editHistory.record(result.entry);
     this.editVersion.update(v => v + 1);
-    this.saveCutRegions();
+    if (this.editingMode() === 'live') {
+      this.saveCutRegions();
+    }
+    this.effectPopoverWordId.set(null);
   }
 
   private saveCutRegions(): void {
@@ -1805,7 +2005,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         }
         if (!this.effectInProgress()) {
           this.effectInProgress.set(true);
-          this.effectPlayer.playEffect(r).subscribe({
+          this.effectPlayer.playEffect(r, this.clip()).subscribe({
             complete: () => {
               this.effectInProgress.set(false);
               this.mediaPlayer.seek(end);

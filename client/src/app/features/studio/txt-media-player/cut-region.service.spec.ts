@@ -83,7 +83,7 @@ describe('CutRegionService', () => {
     });
   });
 
-  describe('setEffectType()', () => {
+  describe('updateRegionEffect()', () => {
     it('updates effectType and marks as overridden', () => {
       const clip = makeClip([{ id: 'w0' }, { id: 'w1' }]);
       const { clip: cut } = svc.cut(clip, ['w1'], 'clear-cut');
@@ -127,6 +127,73 @@ describe('CutRegionService', () => {
       const redone = svc.applyRedo(undone, entry);
       expect(redone.cutRegions.length).toBe(1);
       expect(redone.segments[0].words[1].isRemoved).toBe(true);
+    });
+  });
+
+  describe('pending cut / restore', () => {
+    it('cut with pending=true creates a pending-add region, not committed', () => {
+      const clip = makeClip([{ id: 'w0' }, { id: 'w1' }, { id: 'w2' }]);
+      const { clip: result } = svc.cut(clip, ['w1'], 'clear-cut', true);
+      expect(result.cutRegions.length).toBe(1);
+      expect(result.cutRegions[0].pending).toBe(true);
+      expect(result.cutRegions[0].pendingKind).toBe('add');
+      expect(result.segments[0].words[1].isRemoved).toBe(true);
+    });
+
+    it('pending-add does not merge with committed region', () => {
+      const clip = makeClip([{ id: 'w0' }, { id: 'w1' }, { id: 'w2' }, { id: 'w3' }]);
+      const { clip: c1 } = svc.cut(clip, ['w1'], 'clear-cut', false);     // committed
+      const { clip: c2 } = svc.cut(c1, ['w2'], 'clear-cut', true);        // pending
+      expect(c2.cutRegions.length).toBe(2);
+      const committed = c2.cutRegions.find(r => !r.pending);
+      const pending = c2.cutRegions.find(r => r.pending);
+      expect(committed!.wordIds).toEqual(['w1']);
+      expect(pending!.wordIds).toEqual(['w2']);
+    });
+
+    it('pending restore of committed region creates pending-remove', () => {
+      const clip = makeClip([{ id: 'w0' }, { id: 'w1' }, { id: 'w2' }]);
+      const { clip: cut } = svc.cut(clip, ['w1'], 'clear-cut', false);
+      const committedId = cut.cutRegions[0].id;
+      const { clip: restored } = svc.restore(cut, ['w1'], true);
+      // committed region still present
+      expect(restored.cutRegions.find(r => r.id === committedId)).toBeTruthy();
+      // pending-remove entry created
+      const pendingRemove = restored.cutRegions.find(r => r.pending && r.pendingKind === 'remove');
+      expect(pendingRemove).toBeTruthy();
+      expect(pendingRemove!.pendingTargetId).toBe(committedId);
+      // word appears restored in effective view
+      expect(restored.segments[0].words[1].isRemoved).toBe(false);
+    });
+
+    it('pending restore of pending-add region shrinks it', () => {
+      const clip = makeClip([{ id: 'w0' }, { id: 'w1' }, { id: 'w2' }, { id: 'w3' }]);
+      const { clip: c1 } = svc.cut(clip, ['w1', 'w2'], 'clear-cut', true);
+      const { clip: c2 } = svc.restore(c1, ['w1'], true);
+      const pendingAdd = c2.cutRegions.find(r => r.pending && r.pendingKind === 'add');
+      expect(pendingAdd!.wordIds).toEqual(['w2']);
+      expect(c2.cutRegions.length).toBe(1); // no pending-remove created
+    });
+
+    it('syncIsRemoved: (committed ∪ pendingAdds) \\ pendingRemoves', () => {
+      const clip = makeClip([{ id: 'w0' }, { id: 'w1' }, { id: 'w2' }, { id: 'w3' }]);
+      const { clip: c1 } = svc.cut(clip, ['w0', 'w1'], 'clear-cut', false); // committed: w0, w1
+      const committedId = c1.cutRegions[0].id;
+      // pending-add w3
+      const { clip: c2 } = svc.cut(c1, ['w3'], 'clear-cut', true);
+      // pending-remove w0 from committed
+      const c3 = svc.syncIsRemoved({
+        ...c2,
+        cutRegions: [
+          ...c2.cutRegions,
+          { id: 'pr1', wordIds: ['w0'], effectType: 'clear-cut', effectTypeOverridden: false,
+            effectDuration: 0, durationFixed: false, pending: true, pendingKind: 'remove', pendingTargetId: committedId },
+        ],
+      });
+      expect(c3.segments[0].words[0].isRemoved).toBe(false); // w0 restored by pending-remove
+      expect(c3.segments[0].words[1].isRemoved).toBe(true);  // w1 still committed
+      expect(c3.segments[0].words[2].isRemoved).toBe(false); // w2 never cut
+      expect(c3.segments[0].words[3].isRemoved).toBe(true);  // w3 pending-add
     });
   });
 });

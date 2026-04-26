@@ -4,20 +4,27 @@ import { Word } from '../../../core/models/word.model';
 import { CutRegion, EffectType } from '../../../core/models/cut-region.model';
 
 export type CutHistoryEntry =
-  | { kind: 'cut';       regionAfter: CutRegion; regionsBefore: CutRegion[] }
-  | { kind: 'restore';   regionsBefore: CutRegion[]; regionsAfter: CutRegion[] }
-  | { kind: 'edit-effect'; regionId: string; before: Partial<CutRegion>; after: Partial<CutRegion> };
+  | { kind: 'cut';         regionAfter: CutRegion; regionsBefore: CutRegion[] }
+  | { kind: 'restore';     regionsBefore: CutRegion[]; regionsAfter: CutRegion[] }
+  | { kind: 'edit-effect'; regionId: string; before: Partial<CutRegion>; after: Partial<CutRegion> }
+  | { kind: 'apply-batch'; clipBefore: Clip; clipAfter: Clip };
 
 @Injectable({ providedIn: 'root' })
 export class CutRegionService {
 
   /** Mark wordIds as removed. Merges with adjacent existing regions. */
-  cut(clip: Clip, wordIds: string[], defaultEffectType: EffectType): { clip: Clip; entry: CutHistoryEntry } {
+  cut(clip: Clip, wordIds: string[], defaultEffectType: EffectType, pending = false): { clip: Clip; entry: CutHistoryEntry } {
     const allWords = this.allWords(clip);
     const allIds = allWords.map((w) => w.id);
 
+    // In pending mode: only merge adjacent pending-add regions.
+    // In live mode: merge all adjacent committed regions (existing behavior).
+    const candidateRegions = pending
+      ? (clip.cutRegions ?? []).filter(r => r.pending && r.pendingKind === 'add')
+      : (clip.cutRegions ?? []).filter(r => !r.pending);
+
     // Find existing regions adjacent to or overlapping the selection
-    const touched = (clip.cutRegions ?? []).filter((r) => {
+    const touched = candidateRegions.filter((r) => {
       const rMin = Math.min(...r.wordIds.map((id) => allIds.indexOf(id)));
       const rMax = Math.max(...r.wordIds.map((id) => allIds.indexOf(id)));
       const sMin = Math.min(...wordIds.map((id) => allIds.indexOf(id)));
@@ -41,6 +48,7 @@ export class CutRegionService {
       effectTypeOverridden: isOverridden,
       effectDuration: this.autoEffectDuration(removedMs),
       durationFixed: false,
+      ...(pending ? { pending: true as const, pendingKind: 'add' as const } : {}),
     };
 
     const remaining = (clip.cutRegions ?? []).filter((r) => !touched.includes(r));
@@ -50,7 +58,9 @@ export class CutRegionService {
   }
 
   /** Restore wordIds back to active. Shrinks or removes affected regions. */
-  restore(clip: Clip, wordIds: string[]): { clip: Clip; entry: CutHistoryEntry } {
+  restore(clip: Clip, wordIds: string[], pending = false): { clip: Clip; entry: CutHistoryEntry } {
+    if (pending) return this.pendingRestore(clip, wordIds);
+
     const wordIdSet = new Set(wordIds);
     const allWords = this.allWords(clip);
     const allIds = allWords.map((w) => w.id);
@@ -84,6 +94,58 @@ export class CutRegionService {
 
     const newClip = this.syncIsRemoved({ ...clip, cutRegions: regionsAfter });
     return { clip: newClip, entry: { kind: 'restore', regionsBefore, regionsAfter } };
+  }
+
+  private pendingRestore(clip: Clip, wordIds: string[]): { clip: Clip; entry: CutHistoryEntry } {
+    const wordIdSet = new Set(wordIds);
+    const allWords = this.allWords(clip);
+    const allIds = allWords.map(w => w.id);
+    const regionsBefore: CutRegion[] = [];
+    const newRegions: CutRegion[] = [];
+
+    for (const region of (clip.cutRegions ?? [])) {
+      if (!region.wordIds.some(id => wordIdSet.has(id))) {
+        newRegions.push(region);
+        continue;
+      }
+      regionsBefore.push(region);
+
+      if (region.pending && region.pendingKind === 'add') {
+        const remaining = region.wordIds.filter(id => !wordIdSet.has(id));
+        if (!remaining.length) continue;
+        const groups = this.groupContiguous(remaining.map(id => allIds.indexOf(id)));
+        for (let i = 0; i < groups.length; i++) {
+          const groupWordIds = groups[i].map(idx => allIds[idx]);
+          newRegions.push({
+            ...region,
+            id: i === 0 ? region.id : crypto.randomUUID(),
+            wordIds: groupWordIds,
+            effectDuration: this.autoEffectDuration(this.removedDurationMs(allWords, groupWordIds)),
+            durationFixed: false,
+          });
+        }
+      } else if (!region.pending) {
+        // Keep committed region; add pending-remove for intersecting words
+        newRegions.push(region);
+        const intersection = region.wordIds.filter(id => wordIdSet.has(id));
+        newRegions.push({
+          id: crypto.randomUUID(),
+          wordIds: intersection,
+          effectType: region.effectType,
+          effectTypeOverridden: false,
+          effectDuration: 0,
+          durationFixed: false,
+          pending: true,
+          pendingKind: 'remove',
+          pendingTargetId: region.id,
+        });
+      } else {
+        newRegions.push(region);
+      }
+    }
+
+    const newClip = this.syncIsRemoved({ ...clip, cutRegions: newRegions });
+    return { clip: newClip, entry: { kind: 'restore', regionsBefore, regionsAfter: newRegions } };
   }
 
   updateRegionEffect(clip: Clip, regionId: string, effectType: EffectType): { clip: Clip; entry: CutHistoryEntry } {
@@ -141,9 +203,8 @@ export class CutRegionService {
       for (let i = 1; i < visibleWords.length; i++) {
         const gap = visibleWords[i].startTime - visibleWords[i-1].endTime;
         if (gap >= minSilenceSec) {
-          // We can't "cut" a gap that has no words in it using the word-based cut() 
+          // We can't "cut" a gap that has no words in it using the word-based cut()
           // without creating time-based regions. For now, we only cut words.
-          // In a more advanced version, we'd add time-based CutRegions here.
         }
       }
     }
@@ -177,6 +238,8 @@ export class CutRegionService {
       }
       case 'edit-effect':
         return this.patchRegion(clip, entry.regionId, entry.before);
+      case 'apply-batch':
+        return entry.clipBefore;
     }
   }
 
@@ -194,6 +257,8 @@ export class CutRegionService {
       }
       case 'edit-effect':
         return this.patchRegion(clip, entry.regionId, entry.after);
+      case 'apply-batch':
+        return entry.clipAfter;
     }
   }
 
@@ -202,12 +267,28 @@ export class CutRegionService {
   }
 
   syncIsRemoved(clip: Clip): Clip {
-    const removedIds = new Set((clip.cutRegions ?? []).flatMap((r) => r.wordIds));
+    const committed = new Set<string>();
+    const pendingAdded = new Set<string>();
+    const pendingRemoved = new Set<string>();
+
+    for (const r of (clip.cutRegions ?? [])) {
+      if (!r.pending) {
+        r.wordIds.forEach(id => committed.add(id));
+      } else if (r.pendingKind === 'add') {
+        r.wordIds.forEach(id => pendingAdded.add(id));
+      } else if (r.pendingKind === 'remove') {
+        r.wordIds.forEach(id => pendingRemoved.add(id));
+      }
+    }
+
+    const isRemoved = (id: string) =>
+      (committed.has(id) || pendingAdded.has(id)) && !pendingRemoved.has(id);
+
     return {
       ...clip,
-      segments: clip.segments.map((seg) => ({
+      segments: clip.segments.map(seg => ({
         ...seg,
-        words: seg.words.map((w) => ({ ...w, isRemoved: removedIds.has(w.id) })),
+        words: seg.words.map(w => ({ ...w, isRemoved: isRemoved(w.id) })),
       })),
     };
   }

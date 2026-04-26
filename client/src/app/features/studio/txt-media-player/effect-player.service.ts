@@ -1,7 +1,9 @@
-import { Injectable, OnDestroy, signal } from '@angular/core';
+import { Injectable, OnDestroy, inject, signal } from '@angular/core';
 import { Observable, of, timer } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { CutRegion } from '../../../core/models/cut-region.model';
+import { Clip } from '../../../core/models/clip.model';
+import { SmartEffectService } from './smart-effect.service';
 
 @Injectable({ providedIn: 'root' })
 export class EffectPlayerService implements OnDestroy {
@@ -9,6 +11,8 @@ export class EffectPlayerService implements OnDestroy {
   readonly videoOpacity = signal(1);
   /** CSS filter string; drives brightness flash on cross-cut */
   readonly videoFilter = signal('none');
+
+  private readonly smartEffect = inject(SmartEffectService);
 
   private audioCtx: AudioContext | null = null;
   private gainNode: GainNode | null = null;
@@ -116,17 +120,25 @@ export class EffectPlayerService implements OnDestroy {
   }
 
   /**
-   * High-level orchestration of a cut effect. Returns an observable that completes 
+   * High-level orchestration of a cut effect. Returns an observable that completes
    * when the effect is finished and it's safe to seek to the end of the region.
    */
-  playEffect(region: CutRegion): Observable<void> {
-    const dur = region.effectDuration ?? 300;
+  playEffect(region: CutRegion, clip?: Clip): Observable<void> {
+    let effectType = region.effectType;
+    let dur = region.effectDuration ?? 300;
 
-    if (region.effectType === 'clear-cut') {
+    if (effectType === 'smart' && clip) {
+      const resolved = this.smartEffect.resolve(clip, region);
+      effectType = resolved.effectType;
+      dur = resolved.durationMs;
+      region.resolvedEffectType = resolved.effectType;
+    }
+
+    if (effectType === 'clear-cut') {
       return of(undefined); // Seek immediately
     }
 
-    if (region.effectType === 'fade-in') {
+    if (effectType === 'fade-in') {
       this.startFadeOut(dur);
       return timer(dur).pipe(
         tap(() => this.resetAll()),
@@ -134,7 +146,7 @@ export class EffectPlayerService implements OnDestroy {
       );
     }
 
-    if (region.effectType === 'cross-cut') {
+    if (effectType === 'cross-cut') {
       this.triggerCrossCutFlash();
       this.startAudioCrossfade(dur);
       return timer(dur).pipe(

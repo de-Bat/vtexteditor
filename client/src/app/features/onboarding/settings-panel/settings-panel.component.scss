@@ -158,3 +158,37 @@
   border: 1px solid var(--color-border);
   &:hover { background: var(--color-hover); }
 }
+
+/* ── Edit Mode Toggle Row ──── */
+.edit-mode-row {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+
+.mode-toggle-btn {
+  padding: .35rem .9rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-muted);
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+
+  &:hover { border-color: var(--color-accent); color: var(--color-text); }
+
+  &.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #fff;
+  }
+}
+
+.mode-hint {
+  font-size: .75rem;
+  color: var(--color-muted);
+  font-style: italic;
+}

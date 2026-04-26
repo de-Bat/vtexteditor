@@ -298,12 +298,12 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
         <!-- Effect Pills (Default selection effect) -->
         <div class="effect-pills-wrap">
-          <button class="effect-pill" [class.active]="defaultEffectType() === 'hard-cut'"
-            (click)="setDefaultEffect('hard-cut')" title="Hard Cut">
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'clear-cut'"
+            (click)="setDefaultEffect('clear-cut')" title="Clear Cut">
             <span class="material-symbols-outlined" style="font-size:1rem">content_cut</span>
           </button>
-          <button class="effect-pill" [class.active]="defaultEffectType() === 'fade'"
-            (click)="setDefaultEffect('fade')" title="Fade">
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'fade-in'"
+            (click)="setDefaultEffect('fade-in')" title="Fade In">
             <span class="material-symbols-outlined" style="font-size:1rem">blur_on</span>
           </button>
           <button class="effect-pill" [class.active]="defaultEffectType() === 'cross-cut'"
@@ -387,7 +387,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     (click)="onRemovedWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)">
 
-                    @if (region?.effectTypeOverridden && region?.effectType !== 'hard-cut') {
+                    @if (region?.effectTypeOverridden && region?.effectType !== 'clear-cut') {
                       <span class="effect-dot effect-dot--{{ region!.effectType }}" aria-hidden="true"></span>
                     }
 
@@ -404,15 +404,15 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                       <div class="effect-popover" role="dialog" aria-label="Cut effect options" (click)="$event.stopPropagation()">
                         <div class="ep-row">
                           <div class="ep-pills" role="group" aria-label="Effect type">
-                            <button class="ep-pill" [class.active]="region.effectType === 'hard-cut'"
-                              (click)="setRegionEffect(region.id, 'hard-cut')">Hard Cut</button>
-                            <button class="ep-pill" [class.active]="region.effectType === 'fade'"
-                              (click)="setRegionEffect(region.id, 'fade')">Fade</button>
+                            <button class="ep-pill" [class.active]="region.effectType === 'clear-cut'"
+                              (click)="setRegionEffect(region.id, 'clear-cut')">Clear Cut</button>
+                            <button class="ep-pill" [class.active]="region.effectType === 'fade-in'"
+                              (click)="setRegionEffect(region.id, 'fade-in')">Fade In</button>
                             <button class="ep-pill" [class.active]="region.effectType === 'cross-cut'"
                               (click)="setRegionEffect(region.id, 'cross-cut')">Cross</button>
                           </div>
                         </div>
-                        @if (region.effectType !== 'hard-cut') {
+                        @if (region.effectType !== 'clear-cut') {
                           <div class="ep-row ep-dur-row">
                             <span class="ep-dur-label">Duration</span>
                             @if (durationEditRegionId() === region.id) {
@@ -764,7 +764,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly selectedFillers = signal<Set<string>>(new Set());
 
   /** Global default effect type — new regions inherit this. */
-  readonly defaultEffectType = signal<EffectType>('hard-cut');
+  readonly defaultEffectType = signal<EffectType>('clear-cut');
 
   /** Whether the responsive "More" menu is open; mutual exclusion with silence/smart-cut */
   readonly moreMenuOpen = signal(false);
@@ -1799,7 +1799,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       const start = r.startTime ?? Math.min(...r.wordIds.map(id => this.findWordById(id)?.startTime ?? 0));
       const end = r.endTime ?? Math.max(...r.wordIds.map(id => this.findWordById(id)?.endTime ?? 0));
       if (t >= start && t < end) {
-        if (r.effectType === 'hard-cut') {
+        if (r.effectType === 'clear-cut') {
           this.mediaPlayer.seek(end);
           return;
         }

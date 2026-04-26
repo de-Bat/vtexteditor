@@ -2,8 +2,9 @@ export interface Word {
   id: string;
   segmentId: string;
   text: string;
-  startTime: number; // seconds (float)
+  startTime: number;
   endTime: number;
   isRemoved: boolean;
   isEdited?: boolean;
+  pendingText?: string;
 }

@@ -1,7 +1,7 @@
 import { Segment } from './segment.model';
 import { MetadataEntry } from './segment-metadata.model';
 
-export type EffectType = 'hard-cut' | 'fade' | 'cross-cut';
+export type EffectType = 'clear-cut' | 'fade-in' | 'cross-cut' | 'smart';
 
 export interface CutRegion {
   id: string;

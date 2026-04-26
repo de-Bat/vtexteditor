@@ -3,7 +3,7 @@ import { CutHistoryEntry } from './cut-region.service';
 import { CutRegion } from '../../../core/models/cut-region.model';
 
 function makeRegion(id: string, wordIds: string[]): CutRegion {
-  return { id, wordIds, effectType: 'hard-cut', effectTypeOverridden: false, effectDuration: 200, durationFixed: false };
+  return { id, wordIds, effectType: 'clear-cut', effectTypeOverridden: false, effectDuration: 200, durationFixed: false };
 }
 
 describe('EditHistoryService', () => {

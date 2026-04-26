@@ -1,12 +1,16 @@
-export type EffectType = 'hard-cut' | 'fade' | 'cross-cut';
+export type EffectType = 'clear-cut' | 'fade-in' | 'cross-cut' | 'smart';
 
 export interface CutRegion {
-  id: string;                   // crypto.randomUUID()
-  wordIds: string[];            // ordered IDs of removed words (contiguous span within clip)
-  startTime?: number;           // Optional: for gaps without words
-  endTime?: number;             // Optional: for gaps without words
+  id: string;
+  wordIds: string[];
+  startTime?: number;
+  endTime?: number;
   effectType: EffectType;
-  effectTypeOverridden: boolean; // true = user explicitly set; false = inherits global default
-  effectDuration: number;       // ms; auto-calculated unless durationFixed
-  durationFixed: boolean;       // true = user pinned, skip auto-recalc
+  effectTypeOverridden: boolean;
+  effectDuration: number;
+  durationFixed: boolean;
+  pending?: boolean;
+  pendingKind?: 'add' | 'remove';
+  pendingTargetId?: string;
+  resolvedEffectType?: Exclude<EffectType, 'smart'>;
 }

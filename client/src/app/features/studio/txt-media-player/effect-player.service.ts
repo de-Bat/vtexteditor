@@ -122,11 +122,11 @@ export class EffectPlayerService implements OnDestroy {
   playEffect(region: CutRegion): Observable<void> {
     const dur = region.effectDuration ?? 300;
 
-    if (region.effectType === 'hard-cut') {
+    if (region.effectType === 'clear-cut') {
       return of(undefined); // Seek immediately
     }
 
-    if (region.effectType === 'fade') {
+    if (region.effectType === 'fade-in') {
       this.startFadeOut(dur);
       return timer(dur).pipe(
         tap(() => this.resetAll()),

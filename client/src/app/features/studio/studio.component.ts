@@ -85,15 +85,18 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
 
       <main class="studio-body">
         <aside class="clip-panel" [class.open]="isSidebarOpen()">
-          @if (isLoadingClips()) {
-            <div class="clip-loading">Loading clips...</div>
-          } @else {
-            <app-clip-list
-              [clips]="clipService.clips()"
-              [activeClipId]="activeClip()?.id ?? null"
-              (clipSelected)="selectClip($event)"
-            />
-          }
+          <div class="clip-panel-content">
+            @if (isLoadingClips()) {
+              <div class="clip-loading">Loading clips...</div>
+            } @else {
+              <app-clip-list
+                [clips]="clipService.clips()"
+                [activeClipId]="activeClip()?.id ?? null"
+                (clipSelected)="selectClip($event)"
+              />
+            }
+          </div>
+          <div class="clip-side-label"><span>CLIPS</span></div>
         </aside>
         <div class="clip-backdrop" [class.visible]="isSidebarOpen()" (click)="closeSidebar()"></div>
 
@@ -204,8 +207,44 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
       width: 280px;
       flex-shrink: 0;
       border-right: 1px solid var(--color-border);
-      overflow-y: auto;
       background: var(--color-surface);
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
+    .clip-panel-content {
+      flex: 1;
+      overflow-y: auto;
+      &::-webkit-scrollbar {
+        width: 6px;
+      }
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: var(--color-surface-alt);
+        border-radius: 10px;
+      }
+    }
+    .clip-side-label {
+      width: 32px;
+      background: var(--color-surface-alt);
+      border-left: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+
+      span {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        font-family: 'Space Grotesk', 'Inter', sans-serif;
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        font-weight: 700;
+        color: var(--color-muted);
+        opacity: 0.7;
+      }
     }
     .clip-loading {
       color: var(--color-muted);

@@ -41,7 +41,7 @@ import { Clip } from '../../../core/models/clip.model';
     </div>
   `,
   styles: [`
-    .clip-list { display: flex; flex-direction: column; height: 100%; }
+    .clip-list { display: flex; flex-direction: column; }
     .clip-list-header {
       display: flex;
       align-items: center;

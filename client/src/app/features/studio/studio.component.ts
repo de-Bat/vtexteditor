@@ -17,7 +17,6 @@ import { TxtMediaPlayerV2Component } from './txt-media-player-v2/txt-media-playe
 import { ExportPanelComponent } from './export-panel/export-panel.component';
 import { StoryReviewPanelComponent } from './story-review-panel/story-review-panel.component';
 import { StoryApiService } from './story-review-panel/story-api.service';
-import { SmartEditDialogComponent, SmartEditDialogData } from './smart-edit-dialog/smart-edit-dialog.component';
 import { Clip } from '../../core/models/clip.model';
 import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.model';
 
@@ -63,15 +62,7 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
             <span>Export</span>
           </button>
 
-          <button
-            class="export-toggle-btn"
-            (click)="openSmartEdit()"
-            [disabled]="!canSmartEdit()"
-            title="Smart Edit — stitch clips with transitions"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-            <span>Smart Edit</span>
-          </button>
+
         </nav>
       </header>
 
@@ -284,7 +275,7 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
       opacity: 0;
       transition: width .3s cubic-bezier(0.4, 0, 0.2, 1), opacity .2s ease, visibility .3s;
       &.open {
-        width: 250px;
+        width: 350px;
         visibility: visible;
         opacity: 1;
       }
@@ -360,12 +351,7 @@ export class StudioComponent implements OnInit {
   private dialog = inject(Dialog);
   private storyApi = inject(StoryApiService);
 
-  readonly canSmartEdit = computed(() => {
-    const clips = this.clipService.clips();
-    if (clips.length >= 2) return true;
-    if (clips.length === 1 && clips[0].cutRegions?.length > 0) return true;
-    return false;
-  });
+
 
   readonly segmentTexts = computed((): Record<string, string | undefined> => {
     const texts: Record<string, string | undefined> = {};
@@ -411,14 +397,7 @@ export class StudioComponent implements OnInit {
     this.showReviewPanel.set(true);
   }
 
-  openSmartEdit(): void {
-    const project = this.projectService.project();
-    if (!project) return;
-    const clips = this.clipService.clips();
-    this.dialog.open<void, SmartEditDialogData>(SmartEditDialogComponent, {
-      data: { projectId: project.id, clips },
-    });
-  }
+
 
   onCommit(events: StoryEvent[]): void {
     const projectId = this.projectService.project()?.id;

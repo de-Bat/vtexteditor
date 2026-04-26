@@ -1,20 +1,29 @@
-import { Component, computed, input, output, signal, effect, inject } from '@angular/core';
+import { Component, computed, input, output, signal, effect, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Clip } from '../../../core/models/clip.model';
 import { ApiService } from '../../../core/services/api.service';
 import { SseService } from '../../../core/services/sse.service';
+import {
+  ClipTransition,
+  TransitionEffect,
+  TRANSITION_EFFECTS,
+  TRANSITION_LABELS,
+} from '../../../core/models/clip-transition.model';
 
 type ExportFormat = 'video' | 'text-plain' | 'text-srt';
 type ExportScope = 'current' | 'selected' | 'all';
 type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
+type ExportTab = 'simple' | 'smart';
 
 @Component({
   selector: 'app-export-panel',
   standalone: true,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, FormsModule],
   template: `
-    <div class="export-panel">
+    <div class="export-panel" [class.tab-smart]="activeTab() === 'smart'">
       <!-- Vertical side label -->
       <div class="export-side-label"><span>EXPORT</span></div>
 
@@ -36,7 +45,7 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
           <div class="ep-header-actions">
             <button
               class="btn-export"
-              [disabled]="status() === 'pending'"
+              [disabled]="status() === 'pending' || (activeTab() === 'smart' && availableClips().length < 2)"
               (click)="startExport()"
             >
               @if (status() === 'pending') {
@@ -44,78 +53,182 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
                 <span>Running…</span>
               } @else {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
-                <span>Start</span>
+                <span>{{ activeTab() === 'smart' ? 'Export Video' : 'Start' }}</span>
               }
             </button>
             <button class="btn-close" (click)="close.emit()" aria-label="Close Export Panel">×</button>
           </div>
         </div>
 
+        <!-- ── Tabs ── -->
+        <div class="ep-tabs">
+          <button 
+            class="tab-btn" 
+            [class.active]="activeTab() === 'simple'" 
+            (click)="activeTab.set('simple')"
+          >
+            Simple
+          </button>
+          <button 
+            class="tab-btn" 
+            [class.active]="activeTab() === 'smart'" 
+            (click)="activeTab.set('smart')"
+          >
+            Smart Edit
+          </button>
+        </div>
+
         <!-- ── Middle Content (Scrollable) ── -->
         <div class="ep-scroll-area">
 
-          <!-- ── Range Selection (Scope) ── -->
-          <div class="ep-section">
-            <div class="ep-section-label">Source Range</div>
-            <div class="scope-grid">
-              @for (s of scopes; track s.value) {
-                <button
-                  class="scope-btn"
-                  [class.active]="exportScope() === s.value"
-                  [disabled]="status() === 'pending'"
-                  (click)="exportScope.set(s.value)"
-                >
-                  <span class="sb-icon" [innerHTML]="getTrustedIconForScope(s.value)"></span>
-                  <span class="sb-label">{{ s.label }}</span>
-                </button>
-              }
-            </div>
-
-            @if (exportScope() === 'selected') {
-              <div class="clip-selector fade-in">
-                @for (clip of availableClips(); track clip.id) {
-                  <label class="clip-checkbox-row">
-                    <input
-                      type="checkbox"
-                      [checked]="selectedClipIds().has(clip.id)"
-                      (change)="toggleClipSelection(clip.id)"
+          @if (activeTab() === 'simple') {
+            <!-- ── Simple Export Tab Content ── -->
+            <div class="tab-content fade-in">
+              <!-- ── Range Selection (Scope) ── -->
+              <div class="ep-section">
+                <div class="ep-section-label">Source Range</div>
+                <div class="scope-grid">
+                  @for (s of scopes; track s.value) {
+                    <button
+                      class="scope-btn"
+                      [class.active]="exportScope() === s.value"
                       [disabled]="status() === 'pending'"
-                    />
-                    <span class="ccr-label">{{ clip.name }}</span>
-                    <span class="ccr-meta">{{ (clip.endTime - clip.startTime).toFixed(0) }}s</span>
-                  </label>
-                }
-                @if (availableClips().length === 0) {
-                  <div class="empty-selection">No clips found</div>
+                      (click)="exportScope.set(s.value)"
+                    >
+                      <span class="sb-icon" [innerHTML]="getTrustedIconForScope(s.value)"></span>
+                      <span class="sb-label">{{ s.label }}</span>
+                    </button>
+                  }
+                </div>
+
+                @if (exportScope() === 'selected') {
+                  <div class="clip-selector fade-in">
+                    @for (clip of availableClips(); track clip.id) {
+                      <label class="clip-checkbox-row">
+                        <input
+                          type="checkbox"
+                          [checked]="selectedClipIds().has(clip.id)"
+                          (change)="toggleClipSelection(clip.id)"
+                          [disabled]="status() === 'pending'"
+                        />
+                        <span class="ccr-label">{{ clip.name }}</span>
+                        <span class="ccr-meta">{{ (clip.endTime - clip.startTime).toFixed(0) }}s</span>
+                      </label>
+                    }
+                    @if (availableClips().length === 0) {
+                      <div class="empty-selection">No clips found</div>
+                    }
+                  </div>
                 }
               </div>
-            }
-          </div>
 
-          <!-- ── Format selector ── -->
-          <div class="ep-section">
-            <div class="ep-section-label">Output Format</div>
-            <div class="format-grid">
-              @for (opt of formats; track opt.value) {
-                <button
-                  class="format-card"
-                  [class.selected]="selectedFormat() === opt.value"
-                  [disabled]="status() === 'pending'"
-                  (click)="selectedFormat.set(opt.value)"
-                  [attr.aria-pressed]="selectedFormat() === opt.value"
-                  [attr.data-format]="opt.value"
-                >
-                  <span class="fc-icon" [innerHTML]="getTrustedIcon(opt.value)"></span>
-                  <div class="fc-content">
-                    <span class="fc-label">{{ opt.label }}</span>
-                    <span class="fc-desc">{{ opt.desc }}</span>
-                  </div>
-                </button>
-              }
+              <!-- ── Format selector ── -->
+              <div class="ep-section">
+                <div class="ep-section-label">Output Format</div>
+                <div class="format-grid">
+                  @for (opt of formats; track opt.value) {
+                    <button
+                      class="format-card"
+                      [class.selected]="selectedFormat() === opt.value"
+                      [disabled]="status() === 'pending'"
+                      (click)="selectedFormat.set(opt.value)"
+                      [attr.aria-pressed]="selectedFormat() === opt.value"
+                      [attr.data-format]="opt.value"
+                    >
+                      <span class="fc-icon" [innerHTML]="getTrustedIcon(opt.value)"></span>
+                      <div class="fc-content">
+                        <span class="fc-label">{{ opt.label }}</span>
+                        <span class="fc-desc">{{ opt.desc }}</span>
+                      </div>
+                    </button>
+                  }
+                </div>
+              </div>
             </div>
-          </div>
+          } @else {
+            <!-- ── Smart Edit Tab Content ── -->
+            <div class="tab-content fade-in">
+              <div class="ep-section">
+                <div class="ep-section-label">Sequence & Transitions</div>
+                <div class="se-list">
+                  @for (clip of availableClips(); track clip.id; let i = $index) {
+                    <div class="se-clip-row">
+                      <span class="se-clip-name">{{ clip.name }}</span>
+                      <span class="se-clip-duration">{{ formatDuration(clipDurations()[i] * 1000) }}</span>
+                    </div>
 
-          <!-- ── Processing flow ── -->
+                    @if (i < availableClips().length - 1) {
+                      <div class="se-transition-row">
+                        <div class="se-transition-line"></div>
+                        <div class="se-transition-controls">
+                          <label class="se-field">
+                            <span class="se-field-label">Effect</span>
+                            <select
+                              [value]="transitions()[i].effect"
+                              (change)="updateTransition(i, 'effect', $any($event.target).value)"
+                              [disabled]="status() === 'pending'"
+                            >
+                              @for (eff of effects; track eff) {
+                                <option [value]="eff">{{ effectLabels[eff] }}</option>
+                              }
+                            </select>
+                          </label>
+
+                          @if (transitions()[i].effect !== 'hard-cut') {
+                            <div class="se-field-group">
+                              <label class="se-field">
+                                <span class="se-field-label">Dur (ms)</span>
+                                <input
+                                  type="number"
+                                  [value]="transitions()[i].durationMs"
+                                  (input)="updateTransition(i, 'durationMs', clamp($any($event.target).valueAsNumber))"
+                                  min="0" max="10000" step="100"
+                                  [disabled]="status() === 'pending'"
+                                />
+                              </label>
+
+                              @if (transitions()[i].effect !== 'cross-dissolve') {
+                                <label class="se-field">
+                                  <span class="se-field-label">Pause (ms)</span>
+                                  <input
+                                    type="number"
+                                    [value]="transitions()[i].pauseMs"
+                                    (input)="updateTransition(i, 'pauseMs', clamp($any($event.target).valueAsNumber))"
+                                    min="0" max="10000" step="100"
+                                    [disabled]="status() === 'pending'"
+                                  />
+                                </label>
+                              }
+
+                              @if (transitions()[i].effect === 'dip-to-color') {
+                                <label class="se-field">
+                                  <span class="se-field-label">Color</span>
+                                  <input
+                                    type="color"
+                                    [value]="transitions()[i].color ?? '#000000'"
+                                    (input)="updateTransition(i, 'color', $any($event.target).value)"
+                                    [disabled]="status() === 'pending'"
+                                  />
+                                </label>
+                              }
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+                  }
+                  @if (availableClips().length === 0) {
+                    <div class="empty-selection">Add clips to the project first</div>
+                  }
+                </div>
+                <div class="se-summary">
+                   <span>Estimated duration: {{ formatDuration(estimatedDuration() * 1000) }}</span>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- ── Processing flow (Shared) ── -->
           @if (status() !== 'idle') {
             <div class="ep-section ep-flow">
               <div class="ep-section-label">Pipeline</div>
@@ -182,6 +295,7 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       width: 100%;
       height: 100%;
       overflow: hidden;
+      transition: width 0.3s ease;
     }
 
     /* ── Side Label ── */
@@ -250,6 +364,35 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       height: 24px;
       border-radius: 4px;
       &:hover { background: var(--color-surface-alt); color: var(--color-text); }
+    }
+
+    /* ── Tabs ── */
+    .ep-tabs {
+      display: flex;
+      background: var(--color-surface-alt);
+      padding: 2px;
+      border-bottom: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      flex: 1;
+      border: none;
+      background: none;
+      padding: .45rem;
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--color-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all .2s;
+      &.active {
+        background: var(--color-surface);
+        color: var(--color-accent);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      &:hover:not(.active) { color: var(--color-text); }
     }
     
     .ep-status-chip {
@@ -372,7 +515,6 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
       color: #fff;
     }
 
-    /* Format Specific Colors */
     .format-card[data-format="video"].selected .fc-icon {
       background: #3b82f6;
       box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
@@ -563,6 +705,87 @@ type ExportStatus = 'idle' | 'pending' | 'done' | 'error';
     .ccr-meta { font-size: .62rem; color: var(--color-muted); }
     .empty-selection { padding: .7rem; text-align: center; font-size: .68rem; color: var(--color-muted); font-style: italic; }
 
+    /* ── Smart Edit Styles ── */
+    .se-list {
+      display: flex;
+      flex-direction: column;
+      gap: .25rem;
+    }
+    .se-clip-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .4rem .6rem;
+      background: var(--color-surface-alt);
+      border-radius: 6px;
+      border: 1px solid var(--color-border);
+    }
+    .se-clip-name { font-size: .72rem; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .se-clip-duration { font-size: .65rem; color: var(--color-muted); font-family: 'JetBrains Mono', monospace; }
+
+    .se-transition-row {
+      display: flex;
+      gap: .6rem;
+      padding-left: .75rem;
+    }
+    .se-transition-line {
+      width: 2px;
+      background: var(--color-border);
+      border-radius: 1px;
+      opacity: 0.5;
+    }
+    .se-transition-controls {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+      padding: .4rem 0;
+    }
+    .se-field-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      padding: .4rem;
+      background: var(--color-surface-alt);
+      border-radius: 6px;
+      border: 1px dashed var(--color-border);
+    }
+    .se-field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .se-field-label {
+      font-size: .55rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--color-muted);
+    }
+    .se-field select, .se-field input {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      padding: .25rem .4rem;
+      font-size: .68rem;
+      color: var(--color-text);
+      &:focus { outline: none; border-color: var(--color-accent); }
+    }
+    .se-field select { min-width: 110px; }
+    .se-field input[type="number"] { width: 65px; }
+    .se-field input[type="color"] { width: 28px; height: 24px; padding: 1px; cursor: pointer; }
+
+    .se-summary {
+      margin-top: .8rem;
+      padding: .5rem;
+      background: var(--color-accent-subtle);
+      border-radius: 6px;
+      font-size: .65rem;
+      font-weight: 600;
+      color: var(--color-accent);
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
     .fade-in { animation: fadeIn .2s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -583,6 +806,8 @@ export class ExportPanelComponent {
   readonly availableClips = input<Clip[]>([]);
   readonly close = output<void>();
 
+  readonly activeTab = signal<ExportTab>('simple');
+
   readonly formats = [
     { value: 'video'      as ExportFormat, label: 'Video (MP4)',    desc: 'Removed words cut from media' },
     { value: 'text-plain' as ExportFormat, label: 'Plain Text',     desc: 'Active words as plain text'   },
@@ -597,6 +822,11 @@ export class ExportPanelComponent {
 
   readonly exportScope = signal<ExportScope>('all');
   readonly selectedClipIds = signal<Set<string>>(new Set());
+
+  // Smart Edit Data
+  readonly effects = TRANSITION_EFFECTS;
+  readonly effectLabels = TRANSITION_LABELS;
+  readonly transitions = signal<ClipTransition[]>([]);
 
   readonly flowSteps = [
     { id: 'queue',   label: 'Queued'     },
@@ -626,6 +856,37 @@ export class ExportPanelComponent {
       }
     });
 
+    // Initialize transitions when availableClips changes
+    effect(() => {
+      const clips = this.availableClips();
+      if (clips.length < 2) {
+        this.transitions.set([]);
+        return;
+      }
+      
+      this.transitions.update(current => {
+        const next: ClipTransition[] = [];
+        for (let i = 0; i < clips.length - 1; i++) {
+          const fromId = clips[i].id;
+          const toId = clips[i+1].id;
+          const existing = current.find(t => t.fromClipId === fromId && t.toClipId === toId);
+          if (existing) {
+            next.push(existing);
+          } else {
+            next.push({
+              id: crypto.randomUUID(),
+              fromClipId: fromId,
+              toClipId: toId,
+              effect: 'hard-cut',
+              durationMs: 0,
+              pauseMs: 0
+            });
+          }
+        }
+        return next;
+      });
+    }, { allowSignalWrites: true });
+
     // Listen for SSE events to get real-time progress
     effect(() => {
       const event = this.sse.lastEvent();
@@ -650,6 +911,42 @@ export class ExportPanelComponent {
         this.errorMsg.set((data['error'] as string) ?? 'Unknown export error');
       }
     });
+  }
+
+  readonly clipDurations = computed(() =>
+    this.availableClips().map(clip => {
+      const activeWords = clip.segments.flatMap(s => s.words).filter(w => !w.isRemoved);
+      if (!activeWords.length) return 0;
+      const sorted = [...activeWords].sort((a, b) => a.startTime - b.startTime);
+      return sorted[sorted.length - 1].endTime - sorted[0].startTime;
+    })
+  );
+
+  readonly estimatedDuration = computed(() => {
+    const clipTotal = this.clipDurations().reduce((s, d) => s + d, 0);
+    const transTotal = this.transitions().reduce((s, t) => s + t.durationMs + t.pauseMs, 0) / 1000;
+    return clipTotal + transTotal;
+  });
+
+  updateTransition(index: number, field: string, value: unknown): void {
+    this.transitions.update(list => {
+      const updated = [...list];
+      updated[index] = { ...updated[index], [field]: value };
+      if (field === 'effect' && value === 'hard-cut') {
+        updated[index].durationMs = 0;
+        updated[index].pauseMs = 0;
+      }
+      if (field === 'effect' && value !== 'hard-cut' && updated[index].durationMs === 0) {
+        updated[index].durationMs = 1000;
+        updated[index].pauseMs = value === 'cross-dissolve' ? 0 : 1000;
+      }
+      return updated;
+    });
+  }
+
+  clamp(value: number): number {
+    if (isNaN(value)) return 0;
+    return Math.max(0, Math.min(10000, value));
   }
 
   toggleClipSelection(clipId: string): void {
@@ -738,11 +1035,19 @@ export class ExportPanelComponent {
     this.progress.set(0);
     this.errorMsg.set('');
 
-    this.api.post<{ jobId: string }>('/export', {
+    const body: any = {
       projectId: this.projectId(),
-      format: this.selectedFormat(),
-      clipIds: this.getClipIdsForExport(),
-    }).subscribe({
+      format: this.activeTab() === 'smart' ? 'video' : this.selectedFormat(),
+    };
+
+    if (this.activeTab() === 'smart') {
+      body.clipIds = this.availableClips().map(c => c.id);
+      body.transitions = this.transitions();
+    } else {
+      body.clipIds = this.getClipIdsForExport();
+    }
+
+    this.api.post<{ jobId: string }>('/export', body).subscribe({
       next: ({ jobId }) => {
         this.jobId = jobId;
         this.startPolling();
@@ -795,14 +1100,21 @@ export class ExportPanelComponent {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
 
+  formatDuration(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
   private getClipIdsForExport(): string[] | undefined {
     const scope = this.exportScope();
     if (scope === 'all') return undefined; // Server handles undefined as all
-    if (scope === 'current') {
-      const active = this.activeClipId();
-      return active ? [active] : [];
+    if (scope === 'current') return this.activeClipId() ? [this.activeClipId()!] : undefined;
+    if (scope === 'selected') {
+      const ids = Array.from(this.selectedClipIds());
+      return ids.length > 0 ? ids : undefined;
     }
-    return Array.from(this.selectedClipIds());
+    return undefined;
   }
 }
-

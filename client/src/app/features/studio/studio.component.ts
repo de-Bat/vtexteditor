@@ -5,6 +5,7 @@ import {
   computed,
   inject,
   signal,
+  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -74,12 +75,13 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
         </div>
       }
 
-      <main class="studio-body" [class.rtl-layout]="isRtl()">
+      <main class="studio-body" [class.rtl-layout]="isRtl()" [class.resizing]="isResizing()">
         
-        <!-- Sidebar: Clips (Order 1 in LTR, 2 in RTL) -->
+        <!-- Sidebar: Clips (Order 1 in LTR, 3 in RTL) -->
         <aside class="side-panel-wrapper clips-wrapper" 
           [class.opened]="isSidebarOpen()"
-          [style.order]="isRtl() ? 2 : 1">
+          [style.order]="isRtl() ? 3 : 1"
+          [style.width.px]="isSidebarOpen() ? leftSidebarWidth() : 36">
           <div class="side-label" (click)="toggleSidebar()"><span>CLIPS</span></div>
           <div class="panel-content">
             @if (isLoadingClips()) {
@@ -94,8 +96,17 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
           </div>
         </aside>
 
-        <!-- Player Panel (Order 2 in LTR, 3 in RTL) -->
-        <section class="player-panel" [style.order]="isRtl() ? 3 : 2">
+        <!-- Left Resizer (Clips) -->
+        @if (isSidebarOpen()) {
+          <div 
+            class="resizer clips-resizer" 
+            [style.order]="isRtl() ? 4 : 2"
+            (mousedown)="startResizing('left', $event)"
+          ></div>
+        }
+
+        <!-- Player Panel (Order 2 in LTR, 5 in RTL) -->
+        <section class="player-panel" [style.order]="isRtl() ? 5 : 3">
           @if (activeClip()) {
             <app-txt-media-player-v2 
               [clip]="activeClip()!" 
@@ -110,12 +121,21 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
           }
         </section>
 
+        <!-- Right Resizer (Export) -->
+        @if (showExportPanel()) {
+          <div 
+            class="resizer export-resizer" 
+            [style.order]="isRtl() ? 2 : 4"
+            (mousedown)="startResizing('right', $event)"
+          ></div>
+        }
+
         <!-- Export Panel (Order 3 in LTR, 1 in RTL) -->
         @if (projectService.project(); as proj) {
           <aside class="side-panel-wrapper export-wrapper" 
             [class.opened]="showExportPanel()"
-            [style.order]="isRtl() ? 1 : 3">
-            <div class="side-label" (click)="showExportPanel.set(!showExportPanel())"><span>EXPORT</span></div>
+            [style.order]="isRtl() ? 1 : 5"
+            [style.width.px]="showExportPanel() ? rightSidebarWidth() : 0">
             <div class="panel-content">
               <app-export-panel
                 [projectId]="proj.id"
@@ -127,16 +147,6 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
           </aside>
         }
 
-        @if (showReviewPanel() && pendingProposal()) {
-          <aside class="review-panel-wrapper">
-            <app-story-review-panel
-              [proposal]="pendingProposal()!"
-              [segmentTexts]="segmentTexts()"
-              (commit)="onCommit($event)"
-              (discard)="onDiscard()"
-            />
-          </aside>
-        }
         @if (showReviewPanel() && pendingProposal()) {
           <aside class="review-panel-wrapper">
             <app-story-review-panel
@@ -321,6 +331,14 @@ export class StudioComponent implements OnInit {
   readonly showReviewPanel = signal(false);
   readonly showExportPanel = signal(false);
   readonly showMetadataPanel = signal(false);
+  
+  // Resizing signals
+  readonly leftSidebarWidth = signal(320);
+  readonly rightSidebarWidth = signal(400);
+  readonly isResizing = signal(false);
+  private isResizingLeft = false;
+  private isResizingRight = false;
+
   readonly isRtl = computed(() => {
     // Use URL search params for robustness
     const urlParams = new URLSearchParams(window.location.search);
@@ -384,6 +402,59 @@ export class StudioComponent implements OnInit {
     });
   }
 
+  startResizing(side: 'left' | 'right', event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isResizing.set(true);
+    if (side === 'left') {
+      this.isResizingLeft = true;
+    } else {
+      this.isResizingRight = true;
+    }
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }
+
+  @HostListener('window:mousemove', ['$event'])
+  onMouseMove(event: MouseEvent): void {
+    if (this.isResizingLeft) {
+      // Clips Panel
+      if (this.isRtl()) {
+        // Clips is order 2, Export is order 1 (rightmost).
+        // Total right space used = ExportWidth (0 or rightSidebarWidth)
+        const exportWidth = this.showExportPanel() ? this.rightSidebarWidth() : 0;
+        const width = window.innerWidth - event.clientX - exportWidth;
+        this.leftSidebarWidth.set(Math.max(200, Math.min(width, 800)));
+      } else {
+        // Clips is order 1 (leftmost).
+        const width = event.clientX - 36;
+        this.leftSidebarWidth.set(Math.max(200, Math.min(width, 800)));
+      }
+    } else if (this.isResizingRight) {
+      // Export Panel
+      if (this.isRtl()) {
+        // Export is order 1 (rightmost).
+        const width = window.innerWidth - event.clientX;
+        this.rightSidebarWidth.set(Math.max(300, Math.min(width, 800)));
+      } else {
+        // Export is order 3 (rightmost).
+        const width = window.innerWidth - event.clientX;
+        this.rightSidebarWidth.set(Math.max(300, Math.min(width, 800)));
+      }
+    }
+  }
+
+  @HostListener('window:mouseup')
+  onMouseUp(): void {
+    if (this.isResizingLeft || this.isResizingRight) {
+      this.isResizingLeft = false;
+      this.isResizingRight = false;
+      this.isResizing.set(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  }
+
   openReviewPanel(): void {
     this.showReviewPanel.set(true);
   }
@@ -419,7 +490,7 @@ export class StudioComponent implements OnInit {
 
   selectClip(clip: Clip): void {
     this.activeClipId.set(clip?.id ?? null);
-    this.closeSidebar();
+    // this.closeSidebar(); // Removed per user request
   }
 
   toggleSidebar(): void {

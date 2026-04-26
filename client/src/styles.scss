@@ -49,6 +49,10 @@ button { font-family: inherit; }
   flex-shrink: 0;
   justify-content: flex-start;
   
+  .resizing & {
+    transition: none !important;
+  }
+  
   &.opened {
     width: 300px;
   }
@@ -87,6 +91,8 @@ button { font-family: inherit; }
     cursor: pointer;
     flex-shrink: 0;
     user-select: none;
+    position: relative;
+    z-index: 10;
 
     &:hover {
       background: var(--color-border);
@@ -107,6 +113,51 @@ button { font-family: inherit; }
       transition: all 0.2s;
     }
   }
+}
+
+/* ── Resizer Handles ─────────────────────────────────── */
+
+.resizer {
+  width: 12px;
+  margin: 0 -6px;
+  z-index: 1000;
+  cursor: col-resize;
+  position: relative;
+  background: transparent;
+  height: 100%;
+  flex-shrink: 0;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.08);
+    transition: all 0.2s;
+  }
+
+  &:hover::after {
+    background: var(--color-primary, #6200ee);
+    width: 4px;
+    box-shadow: 0 0 10px rgba(98, 0, 238, 0.4);
+  }
+
+  &:active::after {
+    background: var(--color-primary, #6200ee);
+    width: 4px;
+    box-shadow: 0 0 15px rgba(98, 0, 238, 0.6);
+  }
+}
+
+.clips-resizer {
+  /* Specific positioning if needed */
+}
+
+.export-resizer {
+  /* Specific positioning if needed */
 }
 
 .rtl-layout {

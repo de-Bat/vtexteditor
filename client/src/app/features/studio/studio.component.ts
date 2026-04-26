@@ -74,27 +74,32 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
         </div>
       }
 
-      <main class="studio-body">
-        <aside class="clip-panel" [class.open]="isSidebarOpen()">
-          <div class="clip-panel-content">
+      <main class="studio-body" [class.rtl-layout]="isRtl()">
+        
+        <!-- Sidebar: Clips (Order 1 in LTR, 2 in RTL) -->
+        <aside class="side-panel-wrapper clips-wrapper" 
+          [class.opened]="isSidebarOpen()"
+          [style.order]="isRtl() ? 2 : 1">
+          <div class="side-label" (click)="toggleSidebar()"><span>CLIPS</span></div>
+          <div class="panel-content">
             @if (isLoadingClips()) {
-              <div class="clip-loading">Loading clips...</div>
+              <div class="clip-loading">Loading...</div>
             } @else {
               <app-clip-list
                 [clips]="clipService.clips()"
-                [activeClipId]="activeClip()?.id ?? null"
+                [activeClipId]="activeClipId()"
                 (clipSelected)="selectClip($event)"
               />
             }
           </div>
-          <div class="clip-side-label"><span>CLIPS</span></div>
         </aside>
-        <div class="clip-backdrop" [class.visible]="isSidebarOpen()" (click)="closeSidebar()"></div>
 
-        <section class="player-panel">
+        <!-- Player Panel (Order 2 in LTR, 3 in RTL) -->
+        <section class="player-panel" [style.order]="isRtl() ? 3 : 2">
           @if (activeClip()) {
             <app-txt-media-player-v2 
               [clip]="activeClip()!" 
+              [isRtl]="isRtl()"
               [metadataPanelOpen]="showMetadataPanel()"
               (metadataPanelToggle)="showMetadataPanel.update(v => !v)"
             />
@@ -105,17 +110,33 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
           }
         </section>
 
+        <!-- Export Panel (Order 3 in LTR, 1 in RTL) -->
         @if (projectService.project(); as proj) {
-          <aside class="export-panel-wrapper" [class.open]="showExportPanel()">
-            <app-export-panel
-              [projectId]="proj.id"
-              [activeClipId]="activeClip()?.id ?? null"
-              [availableClips]="clipService.clips()"
-              (close)="showExportPanel.set(false)"
-            />
+          <aside class="side-panel-wrapper export-wrapper" 
+            [class.opened]="showExportPanel()"
+            [style.order]="isRtl() ? 1 : 3">
+            <div class="side-label" (click)="showExportPanel.set(!showExportPanel())"><span>EXPORT</span></div>
+            <div class="panel-content">
+              <app-export-panel
+                [projectId]="proj.id"
+                [activeClipId]="activeClipId()"
+                [availableClips]="clipService.clips()"
+                (close)="showExportPanel.set(false)"
+              />
+            </div>
           </aside>
         }
 
+        @if (showReviewPanel() && pendingProposal()) {
+          <aside class="review-panel-wrapper">
+            <app-story-review-panel
+              [proposal]="pendingProposal()!"
+              [segmentTexts]="segmentTexts()"
+              (commit)="onCommit($event)"
+              (discard)="onDiscard()"
+            />
+          </aside>
+        }
         @if (showReviewPanel() && pendingProposal()) {
           <aside class="review-panel-wrapper">
             <app-story-review-panel
@@ -193,114 +214,67 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
       display: flex;
       flex: 1;
       overflow: hidden;
+      position: relative;
     }
-    .clip-panel {
-      width: 280px;
-      flex-shrink: 0;
-      border-right: 1px solid var(--color-border);
-      background: var(--color-surface);
-      display: flex;
-      flex-direction: row;
+    
+    .side-panel-wrapper {
+      /* Shared sidebar logic - can also rely on styles.scss but adding specific overrides here if needed */
+      width: 36px;
       overflow: hidden;
-    }
-    .clip-panel-content {
-      flex: 1;
-      overflow-y: auto;
-      &::-webkit-scrollbar {
-        width: 6px;
-      }
-      &::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      &::-webkit-scrollbar-thumb {
-        background: var(--color-surface-alt);
-        border-radius: 10px;
-      }
-    }
-    .clip-side-label {
-      width: 32px;
-      background: var(--color-surface-alt);
-      border-left: 1px solid var(--color-border);
+      transition: width .3s cubic-bezier(0.4, 0, 0.2, 1);
       display: flex;
-      align-items: center;
-      justify-content: center;
       flex-shrink: 0;
 
-      span {
-        writing-mode: vertical-rl;
-        transform: rotate(180deg);
-        font-family: 'Space Grotesk', 'Inter', sans-serif;
-        font-size: 10px;
-        letter-spacing: 0.3em;
-        font-weight: 700;
-        color: var(--color-muted);
-        opacity: 0.7;
+      &.clips-wrapper.opened { width: 320px; }
+      &.export-wrapper {
+        width: 0;
+        &.opened { width: 400px; }
+      }
+      
+      .panel-content {
+        /* Matching the premium scrollbar from transcript */
+        &::-webkit-scrollbar { width: 4px; }
+        &::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
       }
     }
-    .clip-loading {
-      color: var(--color-muted);
-      font-size: .85rem;
-      padding: 1rem;
+
+    .rtl-layout {
+      flex-direction: row-reverse;
+      
+      .side-panel-wrapper {
+        flex-direction: row; /* Label on inner edge? User wants label to be toggle. */
+        /* If panels are on the right, label should be on the LEFT of content to be accessible from player */
+        /* But user said "first only ny buton click" and "use vertical title to expand/collapse" */
+      }
     }
-    .clip-backdrop {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.35);
-      z-index: 20;
-    }
-    .clip-backdrop.visible {
-      display: block;
-    }
+
     .player-panel {
       flex: 1;
       overflow: hidden;
       display: flex;
       flex-direction: column;
     }
+
+    .clip-loading {
+      padding: 1rem;
+      color: var(--color-muted);
+      font-size: .85rem;
+    }
+
     .empty-player {
+      flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100%;
       color: var(--color-muted);
       font-size: .9rem;
     }
-    .export-panel-wrapper {
-      flex-shrink: 0;
-      overflow-y: auto;
-      border-left: 1px solid var(--color-border);
-      width: 0;
-      visibility: hidden;
-      opacity: 0;
-      transition: width .3s cubic-bezier(0.4, 0, 0.2, 1), opacity .2s ease, visibility .3s;
-      &.open {
-        width: 350px;
-        visibility: visible;
-        opacity: 1;
-      }
-    }
+
     @media (max-width: 1024px) {
       .sidebar-toggle {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-      }
-      .clip-panel {
-        position: fixed;
-        top: 49px;
-        left: 0;
-        bottom: 0;
-        width: min(82vw, 320px);
-        transform: translateX(-101%);
-        transition: transform 180ms ease;
-        z-index: 30;
-      }
-      .clip-panel.open {
-        transform: translateX(0);
-      }
-      .export-panel-wrapper {
-        display: none;
       }
     }
     .proposal-banner {
@@ -341,12 +315,29 @@ export class StudioComponent implements OnInit {
   readonly activeClip = computed(() =>
     this.clipService.clips().find((c) => c.id === this.activeClipId()) ?? null
   );
-  readonly isSidebarOpen = signal(false);
+  readonly isSidebarOpen = signal(true);
   readonly isLoadingClips = signal(true);
   readonly pendingProposal = signal<StoryProposal | null>(null);
-   readonly showReviewPanel = signal(false);
+  readonly showReviewPanel = signal(false);
   readonly showExportPanel = signal(false);
   readonly showMetadataPanel = signal(false);
+  readonly isRtl = computed(() => {
+    // Use URL search params for robustness
+    const urlParams = new URLSearchParams(window.location.search);
+    const langParam = urlParams.get('lang');
+    if (langParam === 'he' || langParam === 'ar') return true;
+
+    // Check project setting
+    const projLang = this.projectService.project()?.language;
+    if (projLang === 'he' || projLang === 'ar') return true;
+
+    // Fallback to active clip detection
+    const active = this.activeClip();
+    if (!active || !active.segments.length) return false;
+    return active.segments.slice(0, 3).some(seg => 
+      /[\u0590-\u05FF\u0600-\u06FF]/.test(seg.text || '')
+    );
+  });
 
   private dialog = inject(Dialog);
   private storyApi = inject(StoryApiService);

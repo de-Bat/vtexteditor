@@ -25,4 +25,5 @@ export interface Clip {
   showSilenceMarkers?: boolean;
   /** Structured metadata entries for the entire clip */
   metadata?: Record<string, MetadataEntry[]>;
+  language?: string;
 }

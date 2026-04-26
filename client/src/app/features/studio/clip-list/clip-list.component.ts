@@ -8,11 +8,6 @@ import { Clip } from '../../../core/models/clip.model';
   imports: [CommonModule],
   template: `
     <div class="clip-list">
-      <div class="clip-list-header">
-        <span>Clips</span>
-        <span class="count">{{ clips().length }}</span>
-      </div>
-
       @if (!clips().length) {
         <div class="clip-list-empty">
           <p>No clips yet. Run a transcription pipeline to generate clips.</p>

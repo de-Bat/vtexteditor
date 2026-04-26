@@ -44,6 +44,7 @@ export interface Project {
   pipelineConfig: PipelineStep[];
   editHistory: EditAction[];
   metadata?: Record<string, unknown>;
+  language?: string;
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 }

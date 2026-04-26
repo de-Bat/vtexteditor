@@ -13,8 +13,6 @@ import { MetadataAddFormComponent } from './metadata-add-form.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="panel-container">
-      <div class="panel-side-label"><span>METADATA</span></div>
-      
       <div class="panel-content-wrapper">
         <div class="panel-tabs">
           <button class="tab-btn" [class.active]="currentTab() === 'clip'" (click)="setTab('clip')">

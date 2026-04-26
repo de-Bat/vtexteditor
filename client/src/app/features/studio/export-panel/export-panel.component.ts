@@ -24,9 +24,6 @@ type ExportTab = 'simple' | 'smart';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="export-panel" [class.tab-smart]="activeTab() === 'smart'">
-      <!-- Vertical side label -->
-      <div class="export-side-label"><span>EXPORT</span></div>
-
       <div class="export-content-wrapper">
         <!-- ── Header ── -->
         <div class="ep-header">
@@ -289,35 +286,11 @@ type ExportTab = 'simple' | 'smart';
   styles: [`
     .export-panel {
       display: flex;
-      flex-direction: row; /* Side-by-side with label */
-      gap: 0;
+      flex-direction: column;
       background: var(--color-surface);
       width: 100%;
       height: 100%;
       overflow: hidden;
-      transition: width 0.3s ease;
-    }
-
-    /* ── Side Label ── */
-    .export-side-label {
-      width: 32px;
-      background: var(--color-surface-alt);
-      border-right: 1px solid var(--color-border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-
-      span {
-        writing-mode: vertical-rl;
-        transform: rotate(180deg);
-        font-family: 'Space Grotesk', 'Inter', sans-serif;
-        font-size: 10px;
-        letter-spacing: 0.3em;
-        font-weight: 700;
-        color: var(--color-muted);
-        opacity: 0.7;
-      }
     }
 
     .export-content-wrapper {

@@ -72,10 +72,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 @Component({
   selector: 'app-txt-media-player-v2',
   standalone: true,
-  imports: [CommonModule, SegmentMetadataPanelComponent],
+  imports: [
+    CommonModule, 
+    SegmentMetadataPanelComponent
+  ],
   template: `
-<div class="player-v2">
-
+<div class="player-v2" [class.rtl]="isRtl()">
+  
   <!-- ═══════════ Left: Video Preview + Timeline ═══════════ -->
   <section class="preview-section">
 
@@ -204,19 +207,24 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
 
   <!-- Metadata Panel Section (Column 2) - Positions between player and transcript -->
   <div class="metadata-panel-side" [class.opened]="metadataPanelOpen()">
-    @if (metadataPanelOpen()) {
-      <app-segment-metadata-panel
-        [segmentId]="selectedSegmentId()"
-        [clips]="[clip()]"
-      />
-    }
+    <div class="side-label" (click)="metadataPanelToggle.emit()"><span>METADATA</span></div>
+    <div class="panel-content">
+      @if (metadataPanelOpen()) {
+        <app-segment-metadata-panel
+          [segmentId]="selectedSegmentId()"
+          [clips]="[clip()]"
+        />
+      }
+    </div>
   </div>
 
   <!-- ═══════════ Right: Transcript Panel ═══════════ -->
-  <section class="transcript-section" [class.metadata-mode]="metadataPanelOpen()">
+  <section class="transcript-section" 
+    [class.opened]="isTranscriptOpen()"
+    [class.metadata-mode]="metadataPanelOpen()">
 
     <!-- Vertical side label -->
-    <div class="transcript-side-label"><span>TRANSCRIPT</span></div>
+    <div class="side-label" (click)="isTranscriptOpen.set(!isTranscriptOpen())"><span>TRANSCRIPT</span></div>
 
     <!-- Linkage Indicator (The visual bridge) -->
     @if (selectedSegmentLinkage(); as linkage) {
@@ -670,6 +678,8 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
       }
     </div>
   </section>
+  
+  <!-- Export Panel Section -->
 </div>
   `,
   styleUrl: './txt-media-player-v2.component.scss'
@@ -683,6 +693,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Inputs ──────────────────────────────────────────── */
   readonly clip = input.required<Clip>();
+  readonly metadataPanelOpen = input(false);
+  readonly metadataPanelToggle = output<void>();
+  readonly isRtl = input(false);
 
   /* ── Palette (exposed for template) ──────────────────── */
   readonly SEGMENT_PALETTE = SEGMENT_PALETTE;
@@ -708,8 +721,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly isDragSelecting = signal(false);
   readonly transcriptScrollTop = signal(0);
   readonly transcriptViewportHeight = signal(0);
-  readonly metadataPanelOpen = input(false);
-  readonly metadataPanelToggle = output<void>();
+  /* ── Direction Input ── */
 
   readonly selectedSegmentId = signal<string | null>(null);
   private dragSelectAnchorId: string | null = null;
@@ -748,6 +760,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /** Whether the responsive "More" menu is open; mutual exclusion with silence/smart-cut */
   readonly moreMenuOpen = signal(false);
+  readonly isTranscriptOpen = signal(true);
 
   /** Checks if any word in the clip has been manually text-edited */
   readonly isTranscriptEdited = computed(() => {

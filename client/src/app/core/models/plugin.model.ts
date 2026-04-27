@@ -61,3 +61,17 @@ export interface PipelineStep {
   config: Record<string, unknown>;
   order: number;
 }
+
+export interface PluginStepOutput {
+  stepIndex: number;
+  pluginId: string;
+  clips: import('./clip.model').Clip[];
+  metadata: Record<string, unknown>;
+  completedAt: string;
+  wordCount: number;
+}
+
+export interface PipelineOutput {
+  jobId: string;
+  steps: PluginStepOutput[];
+}

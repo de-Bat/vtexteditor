@@ -82,7 +82,7 @@ import { SettingsService } from '../../core/services/settings.service';
         <!-- Sidebar: Clips (Order 1 in LTR, 3 in RTL) -->
         <aside class="side-panel-wrapper clips-wrapper" 
           [class.opened]="isSidebarOpen()"
-          [style.order]="isRtl() ? 7 : 1"
+          [style.order]="isRtl() ? 5 : 1"
           [style.width.px]="isSidebarOpen() ? leftSidebarWidth() : 36">
           <div class="side-label" (click)="toggleSidebar()"><span>CLIPS</span></div>
           <div class="panel-content">
@@ -108,7 +108,7 @@ import { SettingsService } from '../../core/services/settings.service';
         }
 
         <!-- Player Panel (Order 2 in LTR, 5 in RTL) -->
-        <section class="player-panel" [style.order]="isRtl() ? 5 : 3">
+        <section class="player-panel" [style.order]="isRtl() ? 7 : 3">
           @if (activeClip()) {
             <app-txt-media-player-v2
               [clip]="activeClip()!"

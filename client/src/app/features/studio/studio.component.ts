@@ -17,6 +17,7 @@ import { ClipListComponent } from './clip-list/clip-list.component';
 import { TxtMediaPlayerV2Component } from './txt-media-player-v2/txt-media-player-v2.component';
 import { ExportPanelComponent } from './export-panel/export-panel.component';
 import { StoryReviewPanelComponent } from './story-review-panel/story-review-panel.component';
+import { PluginPanelComponent } from './plugin-panel/plugin-panel.component';
 import { StoryApiService } from './story-review-panel/story-api.service';
 import { Clip } from '../../core/models/clip.model';
 import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.model';
@@ -32,6 +33,7 @@ import { SettingsService } from '../../core/services/settings.service';
     TxtMediaPlayerV2Component,
     ExportPanelComponent,
     StoryReviewPanelComponent,
+    PluginPanelComponent,
   ],
   template: `
     <div class="studio-layout">
@@ -44,6 +46,15 @@ import { SettingsService } from '../../core/services/settings.service';
         <h1 class="project-name">{{ (projectService.project()?.name) ?? 'Untitled Project' }}</h1>
         <nav class="studio-nav">
           <a routerLink="/" class="nav-link">← New Project</a>
+          <button
+            class="export-toggle-btn"
+            [class.active]="showPluginsPanel()"
+            (click)="showPluginsPanel.update(v => !v)"
+            title="Toggle Plugin Panel"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+            <span>Plugins</span>
+          </button>
           <button
             class="export-toggle-btn"
             [class.active]="showExportPanel()"
@@ -110,20 +121,45 @@ import { SettingsService } from '../../core/services/settings.service';
           }
         </section>
 
+        <!-- Plugin Panel Resizer -->
+        @if (showPluginsPanel()) {
+          <div
+            class="resizer plugin-resizer"
+            [style.order]="isRtl() ? 6 : 4"
+            (mousedown)="startResizing('plugin', $event)"
+          ></div>
+        }
+
+        <!-- Plugin Panel -->
+        @if (projectService.project(); as proj) {
+          <aside class="side-panel-wrapper plugin-wrapper"
+            [class.opened]="showPluginsPanel()"
+            [style.order]="isRtl() ? 5 : 5"
+            [style.width.px]="showPluginsPanel() ? pluginsPanelWidth() : 0">
+            <div class="panel-content">
+              <app-plugin-panel
+                [projectId]="proj.id"
+                (close)="showPluginsPanel.set(false)"
+                (outputPanelOpen)="pluginsPanelWidth.set($event ? 750 : 400)"
+              />
+            </div>
+          </aside>
+        }
+
         <!-- Right Resizer (Export) -->
         @if (showExportPanel()) {
-          <div 
-            class="resizer export-resizer" 
-            [style.order]="isRtl() ? 2 : 4"
+          <div
+            class="resizer export-resizer"
+            [style.order]="isRtl() ? 4 : 6"
             (mousedown)="startResizing('right', $event)"
           ></div>
         }
 
-        <!-- Export Panel (Order 3 in LTR, 1 in RTL) -->
+        <!-- Export Panel (Order 7 in LTR, 3 in RTL) -->
         @if (projectService.project(); as proj) {
-          <aside class="side-panel-wrapper export-wrapper" 
+          <aside class="side-panel-wrapper export-wrapper"
             [class.opened]="showExportPanel()"
-            [style.order]="isRtl() ? 1 : 5"
+            [style.order]="isRtl() ? 3 : 7"
             [style.width.px]="showExportPanel() ? rightSidebarWidth() : 0">
             <div class="panel-content">
               <app-export-panel
@@ -229,6 +265,10 @@ import { SettingsService } from '../../core/services/settings.service';
         width: 0;
         &.opened { width: 400px; }
       }
+      &.plugin-wrapper {
+        width: 0;
+        &.opened { width: 400px; }
+      }
       
       .panel-content {
         /* Matching the premium scrollbar from transcript */
@@ -319,6 +359,8 @@ export class StudioComponent implements OnInit {
   readonly pendingProposal = signal<StoryProposal | null>(null);
   readonly showReviewPanel = signal(false);
   readonly showExportPanel = signal(false);
+  readonly showPluginsPanel = signal(false);
+  readonly pluginsPanelWidth = signal(400);
 
   // Resizing signals
   readonly leftSidebarWidth = signal(320);
@@ -326,6 +368,7 @@ export class StudioComponent implements OnInit {
   readonly isResizing = signal(false);
   private isResizingLeft = false;
   private isResizingRight = false;
+  private isResizingPlugin = false;
   private startX = 0;
   private startWidth = 0;
 
@@ -395,7 +438,7 @@ export class StudioComponent implements OnInit {
     });
   }
 
-  startResizing(side: 'left' | 'right', event: MouseEvent): void {
+  startResizing(side: 'left' | 'right' | 'plugin', event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
     this.isResizing.set(true);
@@ -404,9 +447,12 @@ export class StudioComponent implements OnInit {
     if (side === 'left') {
       this.isResizingLeft = true;
       this.startWidth = this.leftSidebarWidth();
-    } else {
+    } else if (side === 'right') {
       this.isResizingRight = true;
       this.startWidth = this.rightSidebarWidth();
+    } else {
+      this.isResizingPlugin = true;
+      this.startWidth = this.pluginsPanelWidth();
     }
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
@@ -414,7 +460,7 @@ export class StudioComponent implements OnInit {
 
   @HostListener('window:mousemove', ['$event'])
   onMouseMove(event: MouseEvent): void {
-    if (!this.isResizingLeft && !this.isResizingRight) return;
+    if (!this.isResizingLeft && !this.isResizingRight && !this.isResizingPlugin) return;
 
     const delta = event.clientX - this.startX;
 
@@ -436,14 +482,18 @@ export class StudioComponent implements OnInit {
         const newWidth = this.startWidth - delta;
         this.rightSidebarWidth.set(Math.max(300, Math.min(newWidth, 800)));
       }
+    } else if (this.isResizingPlugin) {
+      const newWidth = this.startWidth - delta;
+      this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
     }
   }
 
   @HostListener('window:mouseup')
   onMouseUp(): void {
-    if (this.isResizingLeft || this.isResizingRight) {
+    if (this.isResizingLeft || this.isResizingRight || this.isResizingPlugin) {
       this.isResizingLeft = false;
       this.isResizingRight = false;
+      this.isResizingPlugin = false;
       this.isResizing.set(false);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';

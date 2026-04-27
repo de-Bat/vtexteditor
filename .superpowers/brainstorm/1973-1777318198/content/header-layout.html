@@ -1,0 +1,72 @@
+<h2>Studio Header with Notebook Tabs</h2>
+<p class="subtitle">Proposed layout — notebook tabs row sits between the main nav and the player toolbar</p>
+
+<div class="mockup">
+  <div class="mockup-header">Studio Header — full layout</div>
+  <div class="mockup-body" style="padding:0;overflow:hidden;">
+
+    <!-- Row 1: existing main header -->
+    <div style="background:#12122a;padding:8px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #1e1e3a;font-family:'Space Grotesk',sans-serif;">
+      <span style="color:#7c3aed;font-weight:700;font-size:14px;">✦ VTextStudio</span>
+      <span style="color:#888;font-size:12px;margin-left:4px;">My Project Name</span>
+      <div style="flex:1"></div>
+      <button style="background:transparent;color:#888;border:1px solid #2d2d4e;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">← New Project</button>
+      <button style="background:transparent;color:#888;border:1px solid #2d2d4e;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Plugins</button>
+      <button style="background:transparent;color:#888;border:1px solid #2d2d4e;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Export</button>
+    </div>
+
+    <!-- Row 2: NEW notebook tabs row -->
+    <div style="background:#0f0f24;padding:0 16px;display:flex;align-items:flex-end;gap:2px;border-bottom:2px solid #7c3aed;font-family:'Space Grotesk',sans-serif;">
+      <!-- Inactive tab -->
+      <div style="background:#1e1e3a;color:#888;padding:6px 14px;border-radius:6px 6px 0 0;font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;border:1px solid #2d2d4e;border-bottom:none;margin-bottom:-2px;">
+        <span>Draft Edit</span>
+        <span style="color:#444;font-size:10px;">✕</span>
+      </div>
+      <!-- Active tab -->
+      <div style="background:#1a0a3a;color:#e9d5ff;padding:6px 14px;border-radius:6px 6px 0 0;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;cursor:pointer;border:1px solid #7c3aed;border-bottom:2px solid #1a0a3a;margin-bottom:-2px;box-shadow:0 -2px 8px rgba(124,58,237,0.25);">
+        <span>Final Cut</span>
+        <!-- Dirty indicator dot -->
+        <span style="width:6px;height:6px;background:#f59e0b;border-radius:50%;display:inline-block;" title="Unsaved changes"></span>
+        <span style="color:#a78bfa;font-size:10px;">✕</span>
+      </div>
+      <!-- Inactive tab -->
+      <div style="background:#1e1e3a;color:#888;padding:6px 14px;border-radius:6px 6px 0 0;font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;border:1px solid #2d2d4e;border-bottom:none;margin-bottom:-2px;">
+        <span>Version 3</span>
+        <span style="color:#444;font-size:10px;">✕</span>
+      </div>
+      <!-- New notebook button -->
+      <div style="background:transparent;color:#555;padding:6px 10px;border-radius:6px 6px 0 0;font-size:15px;cursor:pointer;font-weight:bold;margin-bottom:-2px;" title="New notebook">✱</div>
+      <div style="flex:1"></div>
+      <!-- Save button (only enabled when dirty) -->
+      <div style="padding:4px 0 6px;display:flex;align-items:center;">
+        <button style="background:#7c3aed;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;">💾 Save</button>
+      </div>
+    </div>
+
+    <!-- Row 3: player toolbar (existing, shown for context) -->
+    <div style="background:#0d0d20;padding:6px 16px;display:flex;align-items:center;gap:8px;font-family:'Space Grotesk',sans-serif;color:#666;font-size:11px;">
+      <span style="color:#444">[search]</span>
+      <span style="color:#444">|</span>
+      <span style="color:#444">[edit mode]</span>
+      <span style="color:#444">|</span>
+      <span style="color:#444">[smart cut]</span>
+      <span style="color:#444">|</span>
+      <span style="color:#444">[undo / redo]</span>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>Notes inline indicator</h3>
+  <p class="subtitle">Notes attached to words/segments show as small marker in the transcript. Hover to preview, click to open notes panel.</p>
+  <div style="background:#12122a;padding:12px 16px;border-radius:6px;font-family:'Space Grotesk',sans-serif;font-size:13px;color:#ccc;line-height:2;">
+    <span>...and we </span>
+    <span style="color:#e9d5ff;border-bottom:1px dashed #7c3aed;">really need to</span>
+    <span> think about </span>
+    <span style="color:#e9d5ff;background:#1a0a3a;padding:1px 4px;border-radius:3px;border-bottom:1px dashed #f59e0b;">this approach</span>
+    <sup style="background:#f59e0b;color:#000;border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;cursor:pointer;margin-left:1px;">1</sup>
+    <span> because...</span>
+  </div>
+  <p style="font-size:11px;color:#666;margin-top:8px;">Amber superscript badge = has note. Click opens note in side panel or tooltip.</p>
+</div>

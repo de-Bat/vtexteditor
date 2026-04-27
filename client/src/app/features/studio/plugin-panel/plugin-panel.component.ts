@@ -768,7 +768,8 @@ export class PluginPanelComponent implements OnInit {
     });
   }
 
-  getPlugin(id: string): PluginMeta | undefined {
+  getPlugin(id: string | undefined): PluginMeta | undefined {
+    if (!id) return undefined;
     return this.pluginMap.get(id);
   }
 
@@ -899,7 +900,7 @@ export class PluginPanelComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: () => {
-        this.clipService.loadAll().subscribe();
+        this.clipService.loadAll().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
         this.notifications.push('success', 'Working data updated');
         this.isActivating.set(false);
         this.closeOutput();

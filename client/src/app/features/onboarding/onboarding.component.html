@@ -37,7 +37,7 @@
         <div class="projects-grid">
           @for (p of projects(); track p.id) {
             <div class="project-card" [class.selected]="isSelected(p.id)" [class.selection-mode]="selectionMode()"
-                 (click)="selectionMode() ? toggleSelection(p.id) : null">
+                 (click)="selectionMode() ? toggleSelection(p.id) : openProject(p.id)">
               <div class="card-top">
                 <div class="card-title-row">
                   @if (selectionMode()) {

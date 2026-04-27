@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { ApiService } from './api.service';
-import { PluginMeta, PipelineStep } from '../models/plugin.model';
+import { PluginMeta, PipelineStep, PipelineOutput } from '../models/plugin.model';
 import { tap } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 
@@ -20,6 +20,14 @@ export class PluginService {
 
   runPipeline(projectId: string, steps: PipelineStep[]): Observable<PipelineRunResult> {
     return this.api.post<PipelineRunResult>('/plugins/pipeline/run', { projectId, steps });
+  }
+
+  getOutputs(jobId: string): Observable<PipelineOutput> {
+    return this.api.get<PipelineOutput>(`/plugins/pipeline/${jobId}/outputs`);
+  }
+
+  activateOutput(projectId: string, jobId: string, stepIndex: number): Observable<void> {
+    return this.api.post<void>(`/plugins/pipeline/${jobId}/activate`, { projectId, stepIndex });
   }
 
   submitInput(requestId: string, response: { skipped: boolean; values: Record<string, unknown> }): Observable<{ ok: boolean }> {

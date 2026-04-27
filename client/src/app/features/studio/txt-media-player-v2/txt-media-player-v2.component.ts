@@ -9,7 +9,6 @@ import {
   effect,
   inject,
   input,
-  output,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -610,7 +609,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
   <div class="metadata-panel-side" 
     [class.opened]="metadataPanelOpen()"
     [style.width.px]="metadataPanelOpen() ? metadataWidth() : 36">
-    <div class="side-label" (click)="metadataPanelToggle.emit()"><span>METADATA</span></div>
+    <div class="side-label" (click)="toggleMetadataPanel()"><span>METADATA</span></div>
     <div class="panel-content">
       @if (metadataPanelOpen()) {
         <app-segment-metadata-panel
@@ -764,8 +763,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   /* ── Inputs ──────────────────────────────────────────── */
   readonly clip = input.required<Clip>();
-  readonly metadataPanelOpen = input(false);
-  readonly metadataPanelToggle = output<void>();
+  readonly metadataPanelOpen = signal(false);
   readonly isRtl = input(false);
 
   /* ── Palette (exposed for template) ──────────────────── */
@@ -1385,7 +1383,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       removeSelection: () => { if (!this.metadataPanelOpen()) this.removeSelected(); },
       undo: () => { if (!this.metadataPanelOpen()) this.undo(); },
       redo: () => { if (!this.metadataPanelOpen()) this.redo(); },
-      toggleMetadata: () => this.metadataPanelToggle.emit(),
+      toggleMetadata: () => this.toggleMetadataPanel(),
     });
   }
 
@@ -1433,12 +1431,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   toggleMetadataPanel(): void {
     const opening = !this.metadataPanelOpen();
     if (opening) {
-      // Clear word selection when entering metadata mode
       this.selectedWordIds.set([]);
       this.selectionAnchorWordId.set(null);
     }
-    this.metadataPanelToggle.emit();
-    if (!this.metadataPanelOpen() && !this.selectedSegmentId()) {
+    this.metadataPanelOpen.update(v => !v);
+    if (opening && !this.selectedSegmentId()) {
       this.selectedSegmentId.set(this.activeSegmentId());
     }
     this.moreMenuOpen.set(false);

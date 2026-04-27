@@ -46,16 +46,6 @@ import { SettingsService } from '../../core/services/settings.service';
           <a routerLink="/" class="nav-link">← New Project</a>
           <button
             class="export-toggle-btn"
-            [class.active]="showMetadataPanel()"
-            (click)="showMetadataPanel.update(v => !v)"
-            title="Toggle Metadata Panel (M)"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>Metadata</span>
-          </button>
-          
-          <button
-            class="export-toggle-btn"
             [class.active]="showExportPanel()"
             (click)="showExportPanel.update(v => !v)"
             title="Toggle Export Panel"
@@ -109,11 +99,9 @@ import { SettingsService } from '../../core/services/settings.service';
         <!-- Player Panel (Order 2 in LTR, 5 in RTL) -->
         <section class="player-panel" [style.order]="isRtl() ? 5 : 3">
           @if (activeClip()) {
-            <app-txt-media-player-v2 
-              [clip]="activeClip()!" 
+            <app-txt-media-player-v2
+              [clip]="activeClip()!"
               [isRtl]="isRtl()"
-              [metadataPanelOpen]="showMetadataPanel()"
-              (metadataPanelToggle)="showMetadataPanel.update(v => !v)"
             />
           } @else {
             <div class="empty-player">
@@ -331,8 +319,7 @@ export class StudioComponent implements OnInit {
   readonly pendingProposal = signal<StoryProposal | null>(null);
   readonly showReviewPanel = signal(false);
   readonly showExportPanel = signal(false);
-  readonly showMetadataPanel = signal(false);
-  
+
   // Resizing signals
   readonly leftSidebarWidth = signal(320);
   readonly rightSidebarWidth = signal(400);

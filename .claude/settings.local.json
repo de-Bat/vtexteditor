@@ -5,7 +5,9 @@
       "Bash(echo \"---HTTP:$?\")",
       "Bash(npx tsc:*)",
       "Bash(npm install:*)",
-      "mcp__plugin_context7-plugin_context7__resolve-library-id"
+      "mcp__plugin_context7-plugin_context7__resolve-library-id",
+      "Bash(git -C \"C:/web.projects/VTextStudio/.worktrees/plugin-panel\" show HEAD:docs/superpowers/plans/2026-04-27-plugin-panel.md)",
+      "Bash(git *)"
     ]
   }
 }

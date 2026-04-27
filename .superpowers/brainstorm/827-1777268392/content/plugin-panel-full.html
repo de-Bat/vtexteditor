@@ -1,0 +1,183 @@
+<h2>Plugin Panel — Full Design (Split + Notebooks)</h2>
+<p class="subtitle">Expanded split view. Where should the Notebooks list live?</p>
+
+<div class="cards" style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:1.5rem">
+
+  <!-- Option A: Notebooks as a bottom section on the left column -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;background:#0d0d14;border-radius:8px 8px 0 0;overflow:hidden">
+      <div style="font-size:.5rem;font-weight:700;text-transform:uppercase;color:#444;padding:.4rem .6rem;border-bottom:1px solid #1e1e2e">~750px expanded panel</div>
+      <div style="display:flex;height:380px">
+
+        <!-- Left column: diagram + notebooks stacked -->
+        <div style="width:210px;border-right:1px solid #1e1e2e;display:flex;flex-direction:column;flex-shrink:0">
+
+          <!-- Pipeline section -->
+          <div style="padding:.5rem;flex:1;display:flex;flex-direction:column;gap:.25rem;overflow:hidden">
+            <div style="font-size:.48rem;color:#444;text-transform:uppercase;margin-bottom:.1rem">Pipeline</div>
+
+            <!-- Step 1 selected -->
+            <div style="background:#1d1d30;border:1.5px solid #7c6af7;border-radius:6px;padding:.35rem .45rem;display:flex;align-items:center;gap:.35rem">
+              <span style="font-size:.5rem;color:#555">⠿</span>
+              <span style="width:14px;height:14px;border-radius:50%;background:#4caf82;display:flex;align-items:center;justify-content:center;font-size:.42rem;color:#fff;flex-shrink:0">✓</span>
+              <div style="flex:1;min-width:0"><div style="font-size:.58rem;color:#fff;font-weight:600">Whisper</div></div>
+              <span style="font-size:.48rem;color:#7c6af7">◀</span>
+            </div>
+            <div style="text-align:center;font-size:.55rem;color:#2a2a3a">↓</div>
+            <!-- Step 2 -->
+            <div style="background:#161622;border:1px solid #2a2a3a;border-radius:6px;padding:.35rem .45rem;display:flex;align-items:center;gap:.35rem">
+              <span style="font-size:.5rem;color:#555">⠿</span>
+              <span style="width:14px;height:14px;border-radius:50%;background:#2a2a3a;display:flex;align-items:center;justify-content:center;font-size:.42rem;color:#555;flex-shrink:0">2</span>
+              <div style="flex:1;min-width:0"><div style="font-size:.58rem;color:#777">Diarize</div></div>
+            </div>
+            <div style="text-align:center;font-size:.55rem;color:#2a2a3a">↓</div>
+            <!-- Step 3 -->
+            <div style="background:#161622;border:1px solid #2a2a3a;border-radius:6px;padding:.35rem .45rem;display:flex;align-items:center;gap:.35rem">
+              <span style="font-size:.5rem;color:#555">⠿</span>
+              <span style="width:14px;height:14px;border-radius:50%;background:#2a2a3a;display:flex;align-items:center;justify-content:center;font-size:.42rem;color:#555;flex-shrink:0">3</span>
+              <div style="flex:1;min-width:0"><div style="font-size:.58rem;color:#777">Translate</div></div>
+            </div>
+
+            <div style="border:1px dashed #1e1e2e;border-radius:5px;padding:.25rem;text-align:center;font-size:.48rem;color:#444;margin-top:.1rem">+ Add Plugin</div>
+            <div style="background:#7c6af7;border-radius:5px;padding:.28rem;text-align:center;font-size:.5rem;color:#fff;font-weight:700">▶ Run</div>
+          </div>
+
+          <!-- Notebooks section at bottom -->
+          <div style="border-top:1px solid #1e1e2e;padding:.4rem .5rem;flex-shrink:0">
+            <div style="font-size:.48rem;color:#444;text-transform:uppercase;margin-bottom:.3rem">Notebooks</div>
+            <div style="display:flex;flex-direction:column;gap:.2rem">
+              <!-- Active notebook -->
+              <div style="background:#1a1a2e;border:1px solid #7c6af7;border-radius:4px;padding:.25rem .4rem;display:flex;align-items:center;gap:.3rem">
+                <span style="font-size:.52rem;color:#7c6af7">📓</span>
+                <span style="font-size:.55rem;color:#ccc;flex:1">Working Data</span>
+                <span style="font-size:.42rem;background:#7c6af7;border-radius:3px;padding:.05rem .25rem;color:#fff">active</span>
+              </div>
+              <div style="background:#0f0f1a;border:1px solid #1e1e2e;border-radius:4px;padding:.25rem .4rem;display:flex;align-items:center;gap:.3rem">
+                <span style="font-size:.52rem;color:#555">📓</span>
+                <span style="font-size:.55rem;color:#888;flex:1">Whisper v1</span>
+                <span style="font-size:.42rem;color:#555;cursor:pointer">↩</span>
+              </div>
+              <div style="background:#0f0f1a;border:1px solid #1e1e2e;border-radius:4px;padding:.25rem .4rem;display:flex;align-items:center;gap:.3rem">
+                <span style="font-size:.52rem;color:#555">📓</span>
+                <span style="font-size:.55rem;color:#888;flex:1">Raw Upload</span>
+                <span style="font-size:.42rem;color:#555;cursor:pointer">↩</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column: output viewer -->
+        <div style="flex:1;padding:.5rem;display:flex;flex-direction:column;gap:.35rem;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:.6rem;font-weight:700;color:#7c6af7">Whisper — Output</div>
+              <div style="font-size:.48rem;color:#555">847 words · 3 clips</div>
+            </div>
+            <span style="font-size:.65rem;color:#555">×</span>
+          </div>
+          <!-- Tabs -->
+          <div style="display:flex;gap:.15rem;background:#1a1a2e;padding:2px;border-radius:4px">
+            <span style="flex:1;text-align:center;font-size:.45rem;font-weight:700;padding:.18rem;background:#252535;border-radius:3px;color:#7c6af7">CLIPS</span>
+            <span style="flex:1;text-align:center;font-size:.45rem;font-weight:700;padding:.18rem;color:#555">SEGMENTS</span>
+            <span style="flex:1;text-align:center;font-size:.45rem;font-weight:700;padding:.18rem;color:#555">METADATA</span>
+          </div>
+          <!-- Content preview -->
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:.2rem">
+            <div style="background:#0f0f1a;border:1px solid #1e1e2e;border-radius:5px;padding:.3rem .4rem">
+              <div style="font-size:.5rem;color:#7c6af7;margin-bottom:.15rem;font-weight:600">Clip 1 — Interview_A.mp4</div>
+              <div style="font-size:.52rem;color:#ccc;line-height:1.4">And welcome to today's episode where we discuss the future of AI in media...</div>
+              <div style="font-size:.45rem;color:#555;margin-top:.1rem">14 segments · 312 words</div>
+            </div>
+            <div style="background:#0f0f1a;border:1px solid #1e1e2e;border-radius:5px;padding:.3rem .4rem">
+              <div style="font-size:.5rem;color:#7c6af7;margin-bottom:.15rem;font-weight:600">Clip 2 — Interview_B.mp4</div>
+              <div style="font-size:.52rem;color:#888;line-height:1.4">Our guest today has worked on transformer-based models for over a decade...</div>
+              <div style="font-size:.45rem;color:#555;margin-top:.1rem">11 segments · 247 words</div>
+            </div>
+          </div>
+          <!-- Actions -->
+          <div style="display:flex;gap:.3rem;flex-shrink:0">
+            <div style="flex:1;text-align:center;border:1px solid #2a2a3a;border-radius:4px;padding:.28rem;font-size:.48rem;color:#888">💾 Save to Notebook</div>
+            <div style="flex:1;text-align:center;background:rgba(76,175,130,.15);border:1px solid rgba(76,175,130,.35);border-radius:4px;padding:.28rem;font-size:.48rem;color:#4caf82;font-weight:700">⚡ Use as Working Data</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Notebooks in left column (below pipeline)</h3>
+      <p>Notebooks always visible at bottom of the diagram column. Can rename/reload inline. Active notebook highlighted. Natural proximity to pipeline.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Notebooks as a 3rd tab in the right output panel -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:0;background:#0d0d14;border-radius:8px 8px 0 0;overflow:hidden">
+      <div style="font-size:.5rem;font-weight:700;text-transform:uppercase;color:#444;padding:.4rem .6rem;border-bottom:1px solid #1e1e2e">Right panel has Notebooks tab</div>
+      <div style="display:flex;height:380px">
+
+        <!-- Left: same pipeline -->
+        <div style="width:210px;border-right:1px solid #1e1e2e;padding:.5rem;display:flex;flex-direction:column;gap:.25rem;flex-shrink:0">
+          <div style="font-size:.48rem;color:#444;text-transform:uppercase;margin-bottom:.1rem">Pipeline</div>
+          <div style="background:#1d1d30;border:1.5px solid #7c6af7;border-radius:6px;padding:.35rem .45rem;display:flex;align-items:center;gap:.35rem">
+            <span style="font-size:.5rem;color:#555">⠿</span>
+            <span style="width:14px;height:14px;border-radius:50%;background:#4caf82;display:flex;align-items:center;justify-content:center;font-size:.42rem;color:#fff;flex-shrink:0">✓</span>
+            <div style="flex:1"><div style="font-size:.58rem;color:#fff;font-weight:600">Whisper</div></div>
+            <span style="font-size:.48rem;color:#7c6af7">◀</span>
+          </div>
+          <div style="text-align:center;font-size:.55rem;color:#2a2a3a">↓</div>
+          <div style="background:#161622;border:1px solid #2a2a3a;border-radius:6px;padding:.35rem .45rem;display:flex;align-items:center;gap:.35rem">
+            <span style="font-size:.5rem;color:#555">⠿</span>
+            <span style="width:14px;height:14px;border-radius:50%;background:#2a2a3a;display:flex;align-items:center;justify-content:center;font-size:.42rem;color:#555;flex-shrink:0">2</span>
+            <div style="flex:1"><div style="font-size:.58rem;color:#777">Diarize</div></div>
+          </div>
+          <div style="text-align:center;font-size:.55rem;color:#2a2a3a">↓</div>
+          <div style="background:#161622;border:1px solid #2a2a3a;border-radius:6px;padding:.35rem .45rem;display:flex;align-items:center;gap:.35rem">
+            <span style="font-size:.5rem;color:#555">⠿</span>
+            <span style="width:14px;height:14px;border-radius:50%;background:#2a2a3a;display:flex;align-items:center;justify-content:center;font-size:.42rem;color:#555;flex-shrink:0">3</span>
+            <div style="flex:1"><div style="font-size:.58rem;color:#777">Translate</div></div>
+          </div>
+          <div style="border:1px dashed #1e1e2e;border-radius:5px;padding:.25rem;text-align:center;font-size:.48rem;color:#444;margin-top:.1rem">+ Add Plugin</div>
+          <div style="background:#7c6af7;border-radius:5px;padding:.28rem;text-align:center;font-size:.5rem;color:#fff;font-weight:700;margin-top:auto">▶ Run</div>
+        </div>
+
+        <!-- Right: output panel with Notebooks as tab -->
+        <div style="flex:1;padding:.5rem;display:flex;flex-direction:column;gap:.35rem;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:.6rem;font-weight:700;color:#7c6af7">Whisper — Output</div>
+            <span style="font-size:.65rem;color:#555">×</span>
+          </div>
+          <!-- Tabs including Notebooks -->
+          <div style="display:flex;gap:.15rem;background:#1a1a2e;padding:2px;border-radius:4px">
+            <span style="flex:1;text-align:center;font-size:.42rem;font-weight:700;padding:.18rem;background:#252535;border-radius:3px;color:#7c6af7">CLIPS</span>
+            <span style="flex:1;text-align:center;font-size:.42rem;font-weight:700;padding:.18rem;color:#555">SEGMENTS</span>
+            <span style="flex:1;text-align:center;font-size:.42rem;font-weight:700;padding:.18rem;color:#555">METADATA</span>
+            <span style="flex:1;text-align:center;font-size:.42rem;font-weight:700;padding:.18rem;color:#555;border-left:1px solid #2a2a3a">📓 SAVED</span>
+          </div>
+          <!-- Content -->
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:.2rem">
+            <div style="background:#0f0f1a;border:1px solid #1e1e2e;border-radius:5px;padding:.3rem .4rem">
+              <div style="font-size:.5rem;color:#7c6af7;margin-bottom:.15rem;font-weight:600">Clip 1 — Interview_A.mp4</div>
+              <div style="font-size:.52rem;color:#ccc;line-height:1.4">And welcome to today's episode where we discuss...</div>
+              <div style="font-size:.45rem;color:#555;margin-top:.1rem">14 segments · 312 words</div>
+            </div>
+            <div style="background:#0f0f1a;border:1px solid #1e1e2e;border-radius:5px;padding:.3rem .4rem">
+              <div style="font-size:.5rem;color:#7c6af7;margin-bottom:.15rem;font-weight:600">Clip 2 — Interview_B.mp4</div>
+              <div style="font-size:.52rem;color:#888;line-height:1.4">Our guest today has worked on transformer models...</div>
+              <div style="font-size:.45rem;color:#555;margin-top:.1rem">11 segments · 247 words</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:.3rem;flex-shrink:0">
+            <div style="flex:1;text-align:center;border:1px solid #2a2a3a;border-radius:4px;padding:.28rem;font-size:.48rem;color:#888">💾 Save to Notebook</div>
+            <div style="flex:1;text-align:center;background:rgba(76,175,130,.15);border:1px solid rgba(76,175,130,.35);border-radius:4px;padding:.28rem;font-size:.48rem;color:#4caf82;font-weight:700">⚡ Use as Working Data</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Notebooks as tab in right output panel</h3>
+      <p>Right panel has 4 tabs: Clips / Segments / Metadata / Saved. Notebooks live in the "Saved" tab. No panel selected → right panel shows only notebooks. Cleaner left column.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="text-align:center;margin-top:1rem">Both always auto-save current working data before "Use as Working Data" fires.</p>

@@ -1,0 +1,127 @@
+<h2>Plugin Panel — Layout Options</h2>
+<p class="subtitle">Right sidebar, same pattern as Export panel. Which layout feels right?</p>
+
+<div class="cards" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;margin-top:1.5rem">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:1rem;background:#0d0d14;border-radius:8px 8px 0 0">
+      <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:.75rem">PLUGINS</div>
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .5rem;background:#161622;border-radius:6px;margin-bottom:.5rem;border:1px solid #2a2a3a">
+        <span style="font-size:.65rem;color:#7c6af7;font-weight:700">▶ Run Pipeline</span>
+        <span style="color:#555;font-size:.8rem">×</span>
+      </div>
+      <!-- Inventory chips -->
+      <div style="font-size:.5rem;color:#555;text-transform:uppercase;margin-bottom:.3rem">Add Plugin</div>
+      <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.75rem">
+        <span style="background:#1a1a2e;border:1px solid #2a2a3a;border-radius:4px;padding:.2rem .4rem;font-size:.55rem;color:#9090b0">+ Transcribe</span>
+        <span style="background:#1a1a2e;border:1px solid #2a2a3a;border-radius:4px;padding:.2rem .4rem;font-size:.55rem;color:#9090b0">+ Diarize</span>
+        <span style="background:#1a1a2e;border:1px solid #2a2a3a;border-radius:4px;padding:.2rem .4rem;font-size:.55rem;color:#9090b0">+ Translate</span>
+      </div>
+      <!-- Pipeline steps -->
+      <div style="font-size:.5rem;color:#555;text-transform:uppercase;margin-bottom:.3rem">Pipeline</div>
+      <div style="display:flex;flex-direction:column;gap:.3rem">
+        <div style="display:flex;align-items:center;gap:.4rem;background:#161622;border:1px solid #2a2a3a;border-radius:5px;padding:.35rem .5rem">
+          <span style="width:14px;height:14px;border-radius:50%;background:#7c6af7;display:flex;align-items:center;justify-content:center;font-size:.45rem;color:#fff;flex-shrink:0">1</span>
+          <span style="font-size:.6rem;color:#ccc;flex:1">Whisper Transcribe</span>
+          <span style="font-size:.5rem;color:#4caf82">✓ done</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:.4rem;background:#161622;border:1px solid #2a2a3a;border-radius:5px;padding:.35rem .5rem">
+          <span style="width:14px;height:14px;border-radius:50%;background:#2a2a3a;display:flex;align-items:center;justify-content:center;font-size:.45rem;color:#666;flex-shrink:0">2</span>
+          <span style="font-size:.6rem;color:#888;flex:1">Speaker Diarize</span>
+          <span style="font-size:.5rem;color:#555">pending</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Compact List</h3>
+      <p>Inventory chips on top, pipeline steps below. Run button in header. Outputs shown inline as status badges. Dense, everything visible at once.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:1rem;background:#0d0d14;border-radius:8px 8px 0 0">
+      <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:.75rem">PLUGINS</div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:.2rem;margin-bottom:.5rem;background:#1a1a2e;padding:2px;border-radius:5px">
+        <span style="flex:1;text-align:center;font-size:.5rem;font-weight:700;padding:.25rem;background:#252535;border-radius:4px;color:#7c6af7">PIPELINE</span>
+        <span style="flex:1;text-align:center;font-size:.5rem;font-weight:700;padding:.25rem;color:#555">OUTPUTS</span>
+      </div>
+      <!-- Expanded step -->
+      <div style="background:#161622;border:1px solid #7c6af7;border-radius:6px;margin-bottom:.3rem;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:.4rem;padding:.35rem .5rem;background:#1d1d30">
+          <span style="width:14px;height:14px;border-radius:50%;background:#7c6af7;display:flex;align-items:center;justify-content:center;font-size:.45rem;color:#fff;flex-shrink:0">1</span>
+          <span style="font-size:.6rem;color:#ccc;flex:1">Whisper Transcribe</span>
+          <span style="font-size:.6rem;color:#666">▾</span>
+        </div>
+        <!-- Config inline -->
+        <div style="padding:.35rem .5rem;border-top:1px solid #2a2a3a">
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <span style="font-size:.5rem;color:#666">Model</span>
+            <span style="font-size:.5rem;background:#0d0d14;border:1px solid #2a2a3a;border-radius:3px;padding:.1rem .3rem;color:#aaa">large-v3</span>
+            <span style="font-size:.5rem;color:#666;margin-left:.3rem">Lang</span>
+            <span style="font-size:.5rem;background:#0d0d14;border:1px solid #2a2a3a;border-radius:3px;padding:.1rem .3rem;color:#aaa">auto</span>
+          </div>
+        </div>
+      </div>
+      <!-- Collapsed step -->
+      <div style="display:flex;align-items:center;gap:.4rem;background:#161622;border:1px solid #2a2a3a;border-radius:5px;padding:.35rem .5rem;margin-bottom:.5rem">
+        <span style="width:14px;height:14px;border-radius:50%;background:#2a2a3a;display:flex;align-items:center;justify-content:center;font-size:.45rem;color:#666;flex-shrink:0">2</span>
+        <span style="font-size:.6rem;color:#888;flex:1">Speaker Diarize</span>
+        <span style="font-size:.6rem;color:#666">▸</span>
+      </div>
+      <!-- Add + Run -->
+      <div style="display:flex;gap:.3rem">
+        <span style="flex:1;text-align:center;font-size:.5rem;border:1px dashed #2a2a3a;border-radius:4px;padding:.25rem;color:#555">+ Add Plugin</span>
+        <span style="font-size:.5rem;background:#7c6af7;border-radius:4px;padding:.25rem .6rem;color:#fff">▶ Run</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Tabbed (Pipeline / Outputs)</h3>
+      <p>Two tabs: Pipeline tab for building/configuring the chain, Outputs tab for viewing per-plugin results. Steps expand inline to show config. Run at bottom.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:1rem;background:#0d0d14;border-radius:8px 8px 0 0">
+      <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:.75rem">PLUGINS</div>
+      <!-- Header run -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+        <span style="font-size:.55rem;color:#555">2 steps configured</span>
+        <span style="font-size:.5rem;background:#7c6af7;border-radius:4px;padding:.2rem .6rem;color:#fff">▶ Run</span>
+      </div>
+      <!-- Step card with output section -->
+      <div style="background:#161622;border:1px solid #2a2a3a;border-radius:6px;margin-bottom:.3rem;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:.4rem;padding:.35rem .5rem">
+          <span style="width:14px;height:14px;border-radius:50%;background:#4caf82;display:flex;align-items:center;justify-content:center;font-size:.45rem;color:#fff;flex-shrink:0">✓</span>
+          <span style="font-size:.6rem;color:#ccc;flex:1">Whisper Transcribe</span>
+          <span style="font-size:.55rem;background:#161622;border:1px solid #2a2a3a;border-radius:3px;padding:.1rem .3rem;color:#7c6af7;cursor:pointer">config</span>
+          <span style="font-size:.55rem;background:#161622;border:1px solid #4caf82;border-radius:3px;padding:.1rem .3rem;color:#4caf82;cursor:pointer">output</span>
+        </div>
+        <!-- Output preview -->
+        <div style="padding:.3rem .5rem;border-top:1px solid #2a2a3a;background:#0f0f1a">
+          <span style="font-size:.5rem;color:#4caf82;display:block;margin-bottom:.2rem">▾ Output (last run)</span>
+          <span style="font-size:.5rem;color:#888;font-style:italic;line-height:1.4">"...and welcome to today's episode where we discuss..."</span>
+        </div>
+      </div>
+      <!-- Step 2 no output yet -->
+      <div style="background:#161622;border:1px dashed #2a2a3a;border-radius:6px;padding:.35rem .5rem;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem">
+        <span style="width:14px;height:14px;border-radius:50%;background:#2a2a3a;display:flex;align-items:center;justify-content:center;font-size:.45rem;color:#666;flex-shrink:0">2</span>
+        <span style="font-size:.6rem;color:#666;flex:1">Speaker Diarize</span>
+        <span style="font-size:.5rem;color:#444">no output yet</span>
+      </div>
+      <!-- Add -->
+      <div style="text-align:center;font-size:.5rem;border:1px dashed #2a2a3a;border-radius:4px;padding:.25rem;color:#555">+ Add Plugin</div>
+    </div>
+    <div class="card-body">
+      <h3>C — Unified Steps + Inline Output</h3>
+      <p>Single scrollable list of steps. Each step has "config" + "output" toggle buttons. Output expands inline below the step. No tab switching needed — outputs live alongside the pipeline.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem;text-align:center">Click to select. Or just tell me in the terminal.</p>

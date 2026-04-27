@@ -66,3 +66,14 @@
 - [] transcription plugin - add suport for fixing words. let user choose on plugin panel 
 - [] transcription panel (player) - support fix words
 - [] performance - upload file if not in cache, upload file in server side - not through browser,  try transcribe mutiple parts simoulanslycopl
+
+## notebooks
+- [] notebook contains all data for diting video (clips structure, segments per clip, metadata, cut words...)
+- [] notebooks can be saved, loaded, renamed, deleted
+- notebook appears on header rows (where the vtexteditor, exprt, plugins buttons resides)
+  or on the side
+  they apear as stylized binder tabs 
+  they can be selected, renamed, deleted and a create a  new notebook (using an asricks like byutton at the end os the tabs)
+- [] notebook can contains notes
+
+## AI features

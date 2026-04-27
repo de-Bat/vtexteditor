@@ -1,0 +1,149 @@
+<h2>Plugin Panel — Vertical Diagram + Output Inspection</h2>
+<p class="subtitle">Node selected → output panel opens. Two options for how the output panel appears.</p>
+
+<div class="split" style="gap:2rem;margin-top:1.5rem;align-items:start">
+
+  <!-- Option A: Panel expands (split view inside sidebar) -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="cursor:pointer">
+    <div class="card-image" style="padding:0;background:#0d0d14;border-radius:8px 8px 0 0;overflow:hidden">
+      <div style="font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;padding:.5rem .75rem;border-bottom:1px solid #1e1e2e">PLUGINS PANEL (expanded to ~750px when node selected)</div>
+      <div style="display:flex;height:320px">
+
+        <!-- Left: Pipeline diagram -->
+        <div style="width:220px;border-right:1px solid #1e1e2e;padding:.6rem;display:flex;flex-direction:column;gap:.3rem;flex-shrink:0">
+          <div style="font-size:.5rem;color:#555;text-transform:uppercase;margin-bottom:.25rem">Pipeline</div>
+
+          <!-- Node 1 - selected -->
+          <div style="position:relative">
+            <div style="background:#1d1d30;border:1.5px solid #7c6af7;border-radius:7px;padding:.4rem .55rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 0 10px rgba(124,106,247,.3)">
+              <span style="font-size:.55rem;color:#888;cursor:grab">⠿</span>
+              <span style="width:16px;height:16px;border-radius:50%;background:#7c6af7;display:flex;align-items:center;justify-content:center;font-size:.45rem;color:#fff;flex-shrink:0">1</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:.62rem;color:#fff;font-weight:600">Whisper</div>
+                <div style="font-size:.5rem;color:#4caf82">✓ complete</div>
+              </div>
+              <span style="font-size:.55rem;color:#7c6af7">◀</span>
+            </div>
+            <!-- connector line -->
+            <div style="width:1px;height:12px;background:#2a2a3a;margin:0 auto;position:relative;left:-60px"></div>
+          </div>
+
+          <!-- Arrow -->
+          <div style="text-align:center;color:#333;font-size:.6rem;margin:-4px 0">↓</div>
+
+          <!-- Node 2 -->
+          <div style="background:#161622;border:1px solid #2a2a3a;border-radius:7px;padding:.4rem .55rem;display:flex;align-items:center;gap:.4rem">
+            <span style="font-size:.55rem;color:#888;cursor:grab">⠿</span>
+            <span style="width:16px;height:16px;border-radius:50%;background:#2a2a3a;display:flex;align-items:center;justify-content:center;font-size:.45rem;color:#666;flex-shrink:0">2</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.62rem;color:#888;font-weight:600">Diarize</div>
+              <div style="font-size:.5rem;color:#555">pending</div>
+            </div>
+          </div>
+
+          <div style="text-align:center;color:#333;font-size:.6rem">↓</div>
+
+          <!-- Node 3 -->
+          <div style="background:#161622;border:1px solid #2a2a3a;border-radius:7px;padding:.4rem .55rem;display:flex;align-items:center;gap:.4rem">
+            <span style="font-size:.55rem;color:#888;cursor:grab">⠿</span>
+            <span style="width:16px;height:16px;border-radius:50%;background:#2a2a3a;display:flex;align-items:center;justify-content:center;font-size:.45rem;color:#666;flex-shrink:0">3</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.62rem;color:#888;font-weight:600">Translate</div>
+              <div style="font-size:.5rem;color:#555">pending</div>
+            </div>
+          </div>
+
+          <!-- Add + Run -->
+          <div style="margin-top:auto;display:flex;flex-direction:column;gap:.3rem">
+            <div style="text-align:center;border:1px dashed #2a2a3a;border-radius:5px;padding:.3rem;font-size:.5rem;color:#555">+ Add Plugin</div>
+            <div style="text-align:center;background:#7c6af7;border-radius:5px;padding:.3rem;font-size:.55rem;color:#fff;font-weight:700">▶ Run Pipeline</div>
+          </div>
+        </div>
+
+        <!-- Right: Output panel (slides in) -->
+        <div style="flex:1;padding:.6rem;display:flex;flex-direction:column;gap:.4rem;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:.62rem;font-weight:700;color:#7c6af7">Whisper — Output</div>
+              <div style="font-size:.5rem;color:#555">Run 3 min ago • 847 words</div>
+            </div>
+            <span style="font-size:.7rem;color:#555;cursor:pointer">×</span>
+          </div>
+          <!-- Tabs -->
+          <div style="display:flex;gap:.2rem;background:#1a1a2e;padding:2px;border-radius:4px">
+            <span style="flex:1;text-align:center;font-size:.48rem;font-weight:700;padding:.2rem;background:#252535;border-radius:3px;color:#7c6af7">SEGMENTS</span>
+            <span style="flex:1;text-align:center;font-size:.48rem;font-weight:700;padding:.2rem;color:#555">METADATA</span>
+          </div>
+          <!-- Segments preview -->
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:.25rem">
+            <div style="background:#0f0f1a;border-radius:4px;padding:.3rem .4rem;border-left:2px solid #7c6af7">
+              <div style="font-size:.5rem;color:#666;margin-bottom:.15rem">00:00 – 00:14</div>
+              <div style="font-size:.58rem;color:#ccc;line-height:1.4">And welcome to today's episode where we discuss the future of AI in media production...</div>
+            </div>
+            <div style="background:#0f0f1a;border-radius:4px;padding:.3rem .4rem;border-left:2px solid #2a2a3a">
+              <div style="font-size:.5rem;color:#666;margin-bottom:.15rem">00:14 – 00:31</div>
+              <div style="font-size:.58rem;color:#888;line-height:1.4">Our guest today has been working on transformer-based models for over a decade...</div>
+            </div>
+          </div>
+          <!-- Actions -->
+          <div style="display:flex;gap:.3rem;margin-top:auto">
+            <div style="flex:1;text-align:center;border:1px solid #2a2a3a;border-radius:4px;padding:.3rem;font-size:.5rem;color:#888">💾 Save as Notebook</div>
+            <div style="flex:1;text-align:center;background:rgba(76,175,130,.15);border:1px solid rgba(76,175,130,.3);border-radius:4px;padding:.3rem;font-size:.5rem;color:#4caf82;font-weight:700">⚡ Use as Working Data</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Split: diagram left, output right</h3>
+      <p>Panel expands from ~400px → ~750px when a node is selected. Diagram stays visible alongside the output. Close button collapses back.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Output replaces content (back button to return) -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="cursor:pointer">
+    <div class="card-image" style="padding:0;background:#0d0d14;border-radius:8px 8px 0 0;overflow:hidden">
+      <div style="font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;padding:.5rem .75rem;border-bottom:1px solid #1e1e2e">PLUGINS PANEL (~400px, same width always)</div>
+      <div style="height:320px;padding:.6rem;display:flex;flex-direction:column;gap:.4rem">
+        <!-- Back nav -->
+        <div style="display:flex;align-items:center;gap:.4rem">
+          <span style="font-size:.55rem;color:#7c6af7;cursor:pointer">← Pipeline</span>
+          <span style="font-size:.55rem;color:#555">/</span>
+          <span style="font-size:.62rem;color:#ccc;font-weight:600">Whisper Output</span>
+          <span style="font-size:.5rem;color:#4caf82;margin-left:auto">✓ complete</span>
+        </div>
+        <!-- Tabs -->
+        <div style="display:flex;gap:.2rem;background:#1a1a2e;padding:2px;border-radius:4px">
+          <span style="flex:1;text-align:center;font-size:.48rem;font-weight:700;padding:.2rem;background:#252535;border-radius:3px;color:#7c6af7">SEGMENTS</span>
+          <span style="flex:1;text-align:center;font-size:.48rem;font-weight:700;padding:.2rem;color:#555">METADATA</span>
+        </div>
+        <!-- Segments -->
+        <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:.25rem">
+          <div style="background:#0f0f1a;border-radius:4px;padding:.3rem .4rem;border-left:2px solid #7c6af7">
+            <div style="font-size:.5rem;color:#666;margin-bottom:.15rem">00:00 – 00:14</div>
+            <div style="font-size:.58rem;color:#ccc;line-height:1.4">And welcome to today's episode where we discuss the future of AI in media production...</div>
+          </div>
+          <div style="background:#0f0f1a;border-radius:4px;padding:.3rem .4rem;border-left:2px solid #2a2a3a">
+            <div style="font-size:.5rem;color:#666;margin-bottom:.15rem">00:14 – 00:31</div>
+            <div style="font-size:.58rem;color:#888;line-height:1.4">Our guest today has been working on transformer-based models for over a decade...</div>
+          </div>
+          <div style="background:#0f0f1a;border-radius:4px;padding:.3rem .4rem;border-left:2px solid #2a2a3a">
+            <div style="font-size:.5rem;color:#666;margin-bottom:.15rem">00:31 – 00:52</div>
+            <div style="font-size:.58rem;color:#888;line-height:1.4">The key insight is that attention mechanisms allow the model to focus on relevant context...</div>
+          </div>
+        </div>
+        <!-- Actions -->
+        <div style="display:flex;gap:.3rem">
+          <div style="flex:1;text-align:center;border:1px solid #2a2a3a;border-radius:4px;padding:.3rem;font-size:.5rem;color:#888">💾 Save as Notebook</div>
+          <div style="flex:1;text-align:center;background:rgba(76,175,130,.15);border:1px solid rgba(76,175,130,.3);border-radius:4px;padding:.3rem;font-size:.5rem;color:#4caf82;font-weight:700">⚡ Use as Working Data</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Navigate into node (breadcrumb back)</h3>
+      <p>Clicking a node navigates into it — output fills the panel. Breadcrumb "← Pipeline" goes back. Panel stays same width. Simpler, no layout shift.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:1rem;text-align:center">Click option or respond in terminal. Next question: what exactly does "Use as Working Data" replace?</p>

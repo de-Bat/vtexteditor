@@ -134,7 +134,7 @@ import { SettingsService } from '../../core/services/settings.service';
         @if (projectService.project(); as proj) {
           <aside class="side-panel-wrapper plugin-wrapper"
             [class.opened]="showPluginsPanel()"
-            [style.order]="isRtl() ? 5 : 5"
+            [style.order]="isRtl() ? 7 : 5"
             [style.width.px]="showPluginsPanel() ? pluginsPanelWidth() : 0">
             <div class="panel-content">
               <app-plugin-panel
@@ -483,8 +483,14 @@ export class StudioComponent implements OnInit {
         this.rightSidebarWidth.set(Math.max(300, Math.min(newWidth, 800)));
       }
     } else if (this.isResizingPlugin) {
-      const newWidth = this.startWidth - delta;
-      this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
+      // Plugin Panel (right side, same logic as export panel)
+      if (this.isRtl()) {
+        const newWidth = this.startWidth + delta;
+        this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
+      } else {
+        const newWidth = this.startWidth - delta;
+        this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
+      }
     }
   }
 

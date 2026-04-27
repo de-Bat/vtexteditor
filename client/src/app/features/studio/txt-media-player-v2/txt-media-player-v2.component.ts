@@ -846,6 +846,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly isResizing = signal(false);
   private isResizingMetadata = false;
   private isResizingTranscript = false;
+  private startX = 0;
+  private startWidth = 0;
 
   /** Checks if any word in the clip has been manually text-edited */
   readonly isTranscriptEdited = computed(() => {
@@ -1452,10 +1454,14 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     event.preventDefault();
     event.stopPropagation();
     this.isResizing.set(true);
+    this.startX = event.clientX;
+    
     if (panel === 'metadata') {
       this.isResizingMetadata = true;
+      this.startWidth = this.metadataWidth();
     } else {
       this.isResizingTranscript = true;
+      this.startWidth = this.transcriptWidth();
     }
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
@@ -1464,27 +1470,23 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   onMouseMove(event: MouseEvent): void {
     if (!this.isResizingMetadata && !this.isResizingTranscript) return;
 
+    const delta = event.clientX - this.startX;
+
     if (this.isResizingTranscript) {
       if (this.isRtl()) {
-        const width = window.innerWidth - event.clientX;
-        this.transcriptWidth.set(Math.max(200, Math.min(width, 800)));
+        const newWidth = this.startWidth - delta;
+        this.transcriptWidth.set(Math.max(200, Math.min(newWidth, 800)));
       } else {
-        const rect = this.transcriptElRef.nativeElement.getBoundingClientRect();
-        const newWidth = event.clientX - rect.left + 18;
+        const newWidth = this.startWidth + delta;
         this.transcriptWidth.set(Math.max(200, Math.min(newWidth, 800)));
       }
     } else if (this.isResizingMetadata) {
       if (this.isRtl()) {
-        const transcriptWidth = this.isTranscriptOpen() ? this.transcriptWidth() : 36;
-        const width = window.innerWidth - event.clientX - transcriptWidth;
-        this.metadataWidth.set(Math.max(200, Math.min(width, 800)));
+        const newWidth = this.startWidth - delta;
+        this.metadataWidth.set(Math.max(200, Math.min(newWidth, 800)));
       } else {
-        const transcriptWidth = this.isTranscriptOpen() ? this.transcriptWidth() : 36;
-        const rect = this.transcriptElRef.nativeElement.parentElement?.getBoundingClientRect();
-        if (rect) {
-          const width = event.clientX - rect.left - transcriptWidth + 18;
-          this.metadataWidth.set(Math.max(200, Math.min(width, 800)));
-        }
+        const newWidth = this.startWidth + delta;
+        this.metadataWidth.set(Math.max(200, Math.min(newWidth, 800)));
       }
     }
   }

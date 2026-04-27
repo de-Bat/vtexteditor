@@ -339,6 +339,8 @@ export class StudioComponent implements OnInit {
   readonly isResizing = signal(false);
   private isResizingLeft = false;
   private isResizingRight = false;
+  private startX = 0;
+  private startWidth = 0;
 
   readonly isRtl = computed(() => {
     // Use URL search params for robustness
@@ -410,10 +412,14 @@ export class StudioComponent implements OnInit {
     event.preventDefault();
     event.stopPropagation();
     this.isResizing.set(true);
+    this.startX = event.clientX;
+
     if (side === 'left') {
       this.isResizingLeft = true;
+      this.startWidth = this.leftSidebarWidth();
     } else {
       this.isResizingRight = true;
+      this.startWidth = this.rightSidebarWidth();
     }
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
@@ -421,29 +427,27 @@ export class StudioComponent implements OnInit {
 
   @HostListener('window:mousemove', ['$event'])
   onMouseMove(event: MouseEvent): void {
+    if (!this.isResizingLeft && !this.isResizingRight) return;
+
+    const delta = event.clientX - this.startX;
+
     if (this.isResizingLeft) {
       // Clips Panel
       if (this.isRtl()) {
-        // Clips is order 2, Export is order 1 (rightmost).
-        // Total right space used = ExportWidth (0 or rightSidebarWidth)
-        const exportWidth = this.showExportPanel() ? this.rightSidebarWidth() : 0;
-        const width = window.innerWidth - event.clientX - exportWidth;
-        this.leftSidebarWidth.set(Math.max(200, Math.min(width, 800)));
+        const newWidth = this.startWidth - delta;
+        this.leftSidebarWidth.set(Math.max(200, Math.min(newWidth, 800)));
       } else {
-        // Clips is order 1 (leftmost).
-        const width = event.clientX - 36;
-        this.leftSidebarWidth.set(Math.max(200, Math.min(width, 800)));
+        const newWidth = this.startWidth + delta;
+        this.leftSidebarWidth.set(Math.max(200, Math.min(newWidth, 800)));
       }
     } else if (this.isResizingRight) {
       // Export Panel
       if (this.isRtl()) {
-        // Export is order 1 (rightmost).
-        const width = window.innerWidth - event.clientX;
-        this.rightSidebarWidth.set(Math.max(300, Math.min(width, 800)));
+        const newWidth = this.startWidth - delta;
+        this.rightSidebarWidth.set(Math.max(300, Math.min(newWidth, 800)));
       } else {
-        // Export is order 3 (rightmost).
-        const width = window.innerWidth - event.clientX;
-        this.rightSidebarWidth.set(Math.max(300, Math.min(width, 800)));
+        const newWidth = this.startWidth - delta;
+        this.rightSidebarWidth.set(Math.max(300, Math.min(newWidth, 800)));
       }
     }
   }

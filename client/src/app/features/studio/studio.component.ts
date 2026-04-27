@@ -82,7 +82,7 @@ import { SettingsService } from '../../core/services/settings.service';
         <!-- Sidebar: Clips (Order 1 in LTR, 3 in RTL) -->
         <aside class="side-panel-wrapper clips-wrapper" 
           [class.opened]="isSidebarOpen()"
-          [style.order]="isRtl() ? 3 : 1"
+          [style.order]="isRtl() ? 7 : 1"
           [style.width.px]="isSidebarOpen() ? leftSidebarWidth() : 36">
           <div class="side-label" (click)="toggleSidebar()"><span>CLIPS</span></div>
           <div class="panel-content">
@@ -102,7 +102,7 @@ import { SettingsService } from '../../core/services/settings.service';
         @if (isSidebarOpen()) {
           <div 
             class="resizer clips-resizer" 
-            [style.order]="isRtl() ? 4 : 2"
+            [style.order]="isRtl() ? 6 : 2"
             (mousedown)="startResizing('left', $event)"
           ></div>
         }
@@ -125,7 +125,7 @@ import { SettingsService } from '../../core/services/settings.service';
         @if (showPluginsPanel()) {
           <div
             class="resizer plugin-resizer"
-            [style.order]="isRtl() ? 6 : 4"
+            [style.order]="isRtl() ? 2 : 6"
             (mousedown)="startResizing('plugin', $event)"
           ></div>
         }
@@ -134,7 +134,7 @@ import { SettingsService } from '../../core/services/settings.service';
         @if (projectService.project(); as proj) {
           <aside class="side-panel-wrapper plugin-wrapper"
             [class.opened]="showPluginsPanel()"
-            [style.order]="isRtl() ? 7 : 5"
+            [style.order]="isRtl() ? 1 : 7"
             [style.width.px]="showPluginsPanel() ? pluginsPanelWidth() : 0">
             <div class="panel-content">
               <app-plugin-panel
@@ -150,7 +150,7 @@ import { SettingsService } from '../../core/services/settings.service';
         @if (showExportPanel()) {
           <div
             class="resizer export-resizer"
-            [style.order]="isRtl() ? 4 : 6"
+            [style.order]="4"
             (mousedown)="startResizing('right', $event)"
           ></div>
         }
@@ -159,7 +159,7 @@ import { SettingsService } from '../../core/services/settings.service';
         @if (projectService.project(); as proj) {
           <aside class="side-panel-wrapper export-wrapper"
             [class.opened]="showExportPanel()"
-            [style.order]="isRtl() ? 3 : 7"
+            [style.order]="isRtl() ? 3 : 5"
             [style.width.px]="showExportPanel() ? rightSidebarWidth() : 0">
             <div class="panel-content">
               <app-export-panel

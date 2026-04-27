@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
   computed,
   effect,
@@ -9,7 +10,7 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { PluginService } from '../../../core/services/plugin.service';
 import { SseService } from '../../../core/services/sse.service';
@@ -25,7 +26,7 @@ type OutputTab = 'clips' | 'segments' | 'metadata';
 @Component({
   selector: 'app-plugin-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, DragDropModule, PluginOptionsComponent],
+  imports: [DragDropModule, PluginOptionsComponent],
   template: `
     <div class="plugin-panel" [class.has-output]="selectedOutput() !== null">
 
@@ -685,6 +686,7 @@ export class PluginPanelComponent implements OnInit {
   readonly close = output<void>();
   readonly outputPanelOpen = output<boolean>();
 
+  private readonly destroyRef = inject(DestroyRef);
   private readonly pluginService = inject(PluginService);
   private readonly sseService = inject(SseService);
   private readonly clipService = inject(ClipService);
@@ -744,9 +746,9 @@ export class PluginPanelComponent implements OnInit {
         this.stepStatuses.set(allDone);
         const jobId = this.currentJobId();
         if (jobId) {
-          this.pluginService.getOutputs(jobId).subscribe({
-            next: output => this.pipelineOutput.set(output),
-          });
+          this.pluginService.getOutputs(jobId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({ next: output => this.pipelineOutput.set(output) });
         }
       } else if (type === 'pipeline:error') {
         this.runStatus.set('error');
@@ -760,7 +762,7 @@ export class PluginPanelComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.pluginService.loadAll().subscribe(plugins => {
+    this.pluginService.loadAll().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(plugins => {
       this.availablePlugins.set(plugins);
       plugins.forEach(p => this.pluginMap.set(p.id, p));
     });
@@ -782,12 +784,24 @@ export class PluginPanelComponent implements OnInit {
     this.steps.update(s =>
       s.filter((_, i) => i !== index).map((step, i) => ({ ...step, order: i }))
     );
-    if (this.selectedStepIndex() === index) {
-      this.selectedStepIndex.set(null);
-      this.outputPanelOpen.emit(false);
+
+    const selected = this.selectedStepIndex();
+    if (selected !== null) {
+      if (selected === index) {
+        this.selectedStepIndex.set(null);
+        this.outputPanelOpen.emit(false);
+      } else if (selected > index) {
+        this.selectedStepIndex.set(selected - 1);
+      }
     }
-    if (this.expandedConfigStep() === index) {
-      this.expandedConfigStep.set(null);
+
+    const expanded = this.expandedConfigStep();
+    if (expanded !== null) {
+      if (expanded === index) {
+        this.expandedConfigStep.set(null);
+      } else if (expanded > index) {
+        this.expandedConfigStep.set(expanded - 1);
+      }
     }
   }
 
@@ -804,14 +818,15 @@ export class PluginPanelComponent implements OnInit {
   }
 
   selectStep(index: number): void {
-    if (this.selectedOutput() === null && this.pipelineOutput() === null) return;
+    if (this.pipelineOutput() === null) return;
     const current = this.selectedStepIndex();
     if (current === index) {
       this.selectedStepIndex.set(null);
       this.outputPanelOpen.emit(false);
     } else {
       this.selectedStepIndex.set(index);
-      this.outputPanelOpen.emit(true);
+      const hasOutput = this.selectedOutput() !== null;
+      this.outputPanelOpen.emit(hasOutput);
     }
   }
 
@@ -843,7 +858,9 @@ export class PluginPanelComponent implements OnInit {
     this.errorMsg.set('');
     this.outputPanelOpen.emit(false);
 
-    this.pluginService.runPipeline(this.projectId(), this.steps()).subscribe({
+    this.pluginService.runPipeline(this.projectId(), this.steps())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: ({ jobId }) => this.currentJobId.set(jobId),
       error: (err: Error) => {
         this.runStatus.set('error');
@@ -864,7 +881,9 @@ export class PluginPanelComponent implements OnInit {
       jobId,
       stepIndex: idx,
       label: `${pluginName} output`,
-    }).subscribe({
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => this.notifications.push('success', 'Saved to notebook'),
       error: () => this.notifications.push('error', 'Failed to save to notebook'),
     });
@@ -876,7 +895,9 @@ export class PluginPanelComponent implements OnInit {
     if (!jobId || idx === null || this.isActivating()) return;
 
     this.isActivating.set(true);
-    this.pluginService.activateOutput(this.projectId(), jobId, idx).subscribe({
+    this.pluginService.activateOutput(this.projectId(), jobId, idx)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.clipService.loadAll().subscribe();
         this.notifications.push('success', 'Working data updated');

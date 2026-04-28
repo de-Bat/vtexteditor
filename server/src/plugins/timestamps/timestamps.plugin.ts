@@ -56,6 +56,8 @@ export const timestampsPlugin: IPlugin = {
     let totalTimestamps = 0;
     let segmentsWithTimestamps = 0;
 
+    const processedSegIds = new Set<string>();
+
     for (let i = 0; i < total; i += batchSize) {
       const batch = allSegments.slice(i, i + batchSize).filter(s => !processedSegIds.has(s.id));
       if (batch.length === 0) continue;

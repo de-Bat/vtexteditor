@@ -1,6 +1,12 @@
 import { Clip } from './clip.model';
 import { PipelineStep } from './plugin.model';
 
+export interface NotebookSummary {
+  id: string;
+  name: string;
+  updatedAt: string;
+}
+
 export interface ProjectSummary {
   id: string;
   name: string;
@@ -15,6 +21,7 @@ export interface ProjectSummary {
   wordCount: number;
   hasTranscription: boolean;
   transcriptionPlugin: string | null;
+  notebooks: NotebookSummary[];
 }
 
 export interface EditAction {

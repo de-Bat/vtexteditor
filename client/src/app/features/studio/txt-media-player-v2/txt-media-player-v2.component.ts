@@ -10,7 +10,9 @@ import {
   inject,
   input,
   signal,
+  DestroyRef,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Clip } from '../../../core/models/clip.model';
 import { Word } from '../../../core/models/word.model';
@@ -26,7 +28,7 @@ import { KeyboardShortcutsService } from '../txt-media-player/keyboard-shortcuts
 import { SegmentMetadataPanelComponent } from '../segment-metadata-panel/segment-metadata-panel.component';
 import { SettingsService } from '../../../core/services/settings.service';
 import { PendingEditsService } from '../txt-media-player/pending-edits.service';
-
+import { NotebookService } from '../../../core/services/notebook.service';
 
 /* ── Palette & Constants ────────────────────────────────────── */
 
@@ -799,6 +801,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
   private readonly editVersion = signal(0);
 
+  private readonly notebookService = inject(NotebookService);
+  private readonly destroyRef = inject(DestroyRef);
+
   private readonly searchResetWatch = effect(() => {
     this.searchQuery();
     this.currentMatchIndex.set(0);
@@ -1358,6 +1363,20 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     }
   }, { allowSignalWrites: true });
 
+  /** Reset selection state when the clip changes */
+  private readonly clipSwitchWatch = effect(() => {
+    const clipId = this.clip().id;
+    // Untrack other signals so we don't reset when they change
+    this.selectedSegmentId.set(null);
+    this.selectedWordIds.set([]);
+    this.selectionAnchorWordId.set(null);
+    this.effectPopoverWordId.set(null);
+    this.transcriptScrollTop.set(0);
+    if (this.transcriptElRef) {
+      this.transcriptElRef.nativeElement.scrollTop = 0;
+    }
+  }, { allowSignalWrites: true });
+
   /* ── Private injected services ──────────────────────── */
   readonly settings = inject(SettingsService);
   readonly pendingEdits = inject(PendingEditsService);
@@ -1384,6 +1403,55 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       undo: () => { if (!this.metadataPanelOpen()) this.undo(); },
       redo: () => { if (!this.metadataPanelOpen()) this.redo(); },
       toggleMetadata: () => this.toggleMetadataPanel(),
+    });
+
+    effect(() => {
+      const ev = this.notebookService.noteJumpEvent();
+      if (!ev) return;
+      
+      const note = ev.note;
+      const clip = this.clip(); // Track clip so effect re-runs when clip updates
+
+      let targetWord: Word | null = null;
+      let targetSegment: Segment | null = null;
+
+      if (note.attachedToType === 'clip' && note.attachedToId === clip.id) {
+        targetSegment = clip.segments[0];
+        targetWord = targetSegment?.words[0] || null;
+      } else if (note.attachedToType === 'segment') {
+        targetSegment = clip.segments.find(s => s.id === note.attachedToId) || null;
+        if (targetSegment) {
+          targetWord = targetSegment.words[0] || null;
+        }
+      } else if (note.attachedToType === 'word') {
+        for (const seg of clip.segments) {
+          targetWord = seg.words.find(w => w.id === note.attachedToId) || null;
+          if (targetWord) {
+            targetSegment = seg;
+            break;
+          }
+        }
+      }
+
+      // If the target entity is not in this clip, do nothing.
+      // StudioComponent will change the clip, which will re-trigger this effect.
+      if (!targetWord) return;
+
+      // Use a timeout to ensure the DOM is ready if we just switched clips
+      setTimeout(() => {
+        if (!targetWord!.isRemoved) {
+          this.mediaPlayer.seek(targetWord!.startTime);
+        }
+        if (note.attachedToType === 'segment' && targetSegment) {
+          this.selectedSegmentId.set(targetSegment.id);
+        }
+        setTimeout(() => {
+          const el = document.getElementById(targetWord!.id);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 50);
+      }, 0);
     });
   }
 
@@ -1436,13 +1504,18 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     }
     this.metadataPanelOpen.update(v => !v);
     if (opening && !this.selectedSegmentId()) {
-      this.selectedSegmentId.set(this.activeSegmentId());
+      const activeId = this.activeSegmentId();
+      if (activeId) {
+        this.selectedSegmentId.set(activeId);
+        this.notebookService.selectEntity('segment', activeId);
+      }
     }
     this.moreMenuOpen.set(false);
   }
 
   onSegmentClick(id: string): void {
     this.selectedSegmentId.set(id);
+    this.notebookService.selectEntity('segment', id);
   }
 
   /* ── Resizing Logic ─────────────────────────────────── */
@@ -1542,7 +1615,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.justCompletedDrag = false;
       return;
     }
-    if (this.textEditMode() || this.metadataPanelOpen()) return;
+    if (this.textEditMode()) return;
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
       this.selectedWordIds.set(range);
@@ -1565,10 +1638,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.selectedWordIds.set([word.id]);
     if (!word.isRemoved) this.mediaPlayer.seek(word.startTime);
     this.effectPopoverWordId.set(null);
+    this.notebookService.selectEntity('word', word.id);
   }
 
   onWordMouseDown(word: Word, event: MouseEvent): void {
-    if (this.textEditMode() || this.metadataPanelOpen()) return;
+    if (this.textEditMode()) return;
     if (event.button !== 0) return;
     this.dragSelectAnchorId = word.id;
     this.isDragAppendMode = event.ctrlKey || event.metaKey;
@@ -1576,7 +1650,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onWordMouseEnter(word: Word): void {
-    if (this.textEditMode() || this.metadataPanelOpen()) return;
+    if (this.textEditMode()) return;
     if (!this.dragSelectAnchorId) return;
     if (word.id === this.dragSelectAnchorId) return;
     if (!this.isDragSelecting()) {

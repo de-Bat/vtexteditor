@@ -8,8 +8,8 @@ describe('Timestamps Plugin', () => {
   describe('buildExtractionPrompt', () => {
     it('should build a prompt containing segment IDs and text', () => {
       const segments: Segment[] = [
-        { id: '1', text: 'In 1945 the war ended.', startTime: 0, endTime: 10, words: [] },
-        { id: '2', text: 'Then in the 50s everything changed.', startTime: 10, endTime: 20, words: [] },
+        { id: '1', clipId: 'c1', text: 'In 1945 the war ended.', startTime: 0, endTime: 10, words: [], tags: [] },
+        { id: '2', clipId: 'c1', text: 'Then in the 50s everything changed.', startTime: 10, endTime: 20, words: [], tags: [] },
       ];
       const prompt = buildExtractionPrompt(segments);
       expect(prompt).toContain('[1] In 1945 the war ended.');
@@ -30,7 +30,7 @@ describe('Timestamps Plugin', () => {
   describe('applyResults', () => {
     it('should add DateIntervalMetadata to segments', () => {
       const segments: Segment[] = [
-        { id: '1', text: 'text', startTime: 0, endTime: 10, words: [] },
+        { id: '1', clipId: 'c1', text: 'text', startTime: 0, endTime: 10, words: [], tags: [] },
       ];
       const results = {
         '1': [{ label: '1945', startYear: 1945, endYear: 1945 }]
@@ -46,10 +46,10 @@ describe('Timestamps Plugin', () => {
 
   describe('addIntervalToClip', () => {
     it('should consolidate years into a range for the clip', () => {
-      const seg1: Segment = { id: '1', text: '1930', startTime: 0, endTime: 10, words: [], metadata: {
+      const seg1: Segment = { id: '1', clipId: 'c1', text: '1930', startTime: 0, endTime: 10, words: [], tags: [], metadata: {
         'timestamps': [{ type: 'dateInterval', sourcePluginId: 'timestamps', label: '1930', startYear: 1930, endYear: 1930 }]
       }};
-      const seg2: Segment = { id: '2', text: '1940', startTime: 10, endTime: 20, words: [], metadata: {
+      const seg2: Segment = { id: '2', clipId: 'c1', text: '1940', startTime: 10, endTime: 20, words: [], tags: [], metadata: {
         'timestamps': [{ type: 'dateInterval', sourcePluginId: 'timestamps', label: '1940', startYear: 1940, endYear: 1940 }]
       }};
       
@@ -73,7 +73,7 @@ describe('Timestamps Plugin', () => {
     });
 
     it('should use a single year label if min and max years are the same', () => {
-      const seg1: Segment = { id: '1', text: '1930', startTime: 0, endTime: 10, words: [], metadata: {
+      const seg1: Segment = { id: '1', clipId: 'c1', text: '1930', startTime: 0, endTime: 10, words: [], tags: [], metadata: {
         'timestamps': [{ type: 'dateInterval', sourcePluginId: 'timestamps', label: '1930', startYear: 1930, endYear: 1930 }]
       }};
       
@@ -88,14 +88,14 @@ describe('Timestamps Plugin', () => {
       };
 
       addIntervalToClip(clip);
-      expect(clip.metadata!['timestamps'][0].label).toBe('1930');
+      expect((clip.metadata!['timestamps'][0] as DateIntervalMetadata).label).toBe('1930');
     });
 
     it('should fallback to comma separated labels if years are missing', () => {
-      const seg1: Segment = { id: '1', text: 'Unknown time', startTime: 0, endTime: 10, words: [], metadata: {
+      const seg1: Segment = { id: '1', clipId: 'c1', text: 'Unknown time', startTime: 0, endTime: 10, words: [], tags: [], metadata: {
         'timestamps': [{ type: 'dateInterval', sourcePluginId: 'timestamps', label: 'Ancient times' }]
       }};
-      const seg2: Segment = { id: '2', text: 'Modern times', startTime: 10, endTime: 20, words: [], metadata: {
+      const seg2: Segment = { id: '2', clipId: 'c1', text: 'Modern times', startTime: 10, endTime: 20, words: [], tags: [], metadata: {
         'timestamps': [{ type: 'dateInterval', sourcePluginId: 'timestamps', label: 'Modern times' }]
       }};
       
@@ -110,7 +110,7 @@ describe('Timestamps Plugin', () => {
       };
 
       addIntervalToClip(clip);
-      expect(clip.metadata!['timestamps'][0].label).toBe('Ancient times, Modern times');
+      expect((clip.metadata!['timestamps'][0] as DateIntervalMetadata).label).toBe('Ancient times, Modern times');
     });
   });
 });

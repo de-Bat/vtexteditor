@@ -5,11 +5,12 @@ import { MetadataEntry } from '../../../core/models/segment-metadata.model';
 import { ClipService } from '../../../core/services/clip.service';
 import { MetadataEntryComponent } from './metadata-entry.component';
 import { MetadataAddFormComponent } from './metadata-add-form.component';
+import { NotesPanelComponent } from '../notes-panel/notes-panel.component';
 
 @Component({
   selector: 'app-segment-metadata-panel',
   standalone: true,
-  imports: [CommonModule, MetadataEntryComponent, MetadataAddFormComponent],
+  imports: [CommonModule, MetadataEntryComponent, MetadataAddFormComponent, NotesPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="panel-container">
@@ -22,6 +23,10 @@ import { MetadataAddFormComponent } from './metadata-add-form.component';
           <button class="tab-btn" [class.active]="currentTab() === 'segment'" (click)="setTab('segment')">
             <span class="material-symbols-outlined">segment</span>
             Segments
+          </button>
+          <button class="tab-btn" [class.active]="currentTab() === 'notes'" (click)="setTab('notes')">
+            <span class="material-symbols-outlined">notes</span>
+            Notes
           </button>
         </div>
 
@@ -39,7 +44,11 @@ import { MetadataAddFormComponent } from './metadata-add-form.component';
           }
         </div>
 
-      @if (currentTab() === 'segment' && !segment()) {
+      @if (currentTab() === 'notes') {
+        <div class="panel-content notes-tab-content">
+          <app-notes-panel />
+        </div>
+      } @else if (currentTab() === 'segment' && !segment()) {
         <div class="panel-empty">
           <span class="material-symbols-outlined large-icon">segment</span>
           <p>Select a segment in the transcript to manage its metadata.</p>
@@ -101,12 +110,12 @@ export class SegmentMetadataPanelComponent {
 
   private readonly clipService = inject(ClipService);
 
-  protected readonly currentTab = signal<'clip' | 'segment'>('segment');
+  protected readonly currentTab = signal<'clip' | 'segment' | 'notes'>('segment');
   protected readonly showAddForm = signal(false);
   protected readonly collapsedSections = signal<Set<string>>(new Set());
 
-  // Automatically switch to 'segment' tab if a segment is selected
   private readonly autoSwitchTab = effect(() => {
+    if (this.currentTab() === 'notes') return; // Don't auto-switch if on notes tab
     if (this.segmentId()) {
       this.currentTab.set('segment');
     } else {
@@ -152,7 +161,7 @@ export class SegmentMetadataPanelComponent {
     return Array.from(groupedMap.entries()).map(([type, items]) => ({ type, items }));
   });
 
-  protected setTab(tab: 'clip' | 'segment'): void {
+  protected setTab(tab: 'clip' | 'segment' | 'notes'): void {
     this.currentTab.set(tab);
     this.showAddForm.set(false);
   }

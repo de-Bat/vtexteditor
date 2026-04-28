@@ -1,4 +1,4 @@
-import { Component, computed, OnInit, signal, viewChild } from '@angular/core';
+import { Component, computed, OnInit, signal, viewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MediaUploaderComponent } from './media-uploader/media-uploader.component';
@@ -10,10 +10,14 @@ import { SseService } from '../../core/services/sse.service';
 import { PluginService } from '../../core/services/plugin.service';
 import { ProjectService } from '../../core/services/project.service';
 import { ConfirmService } from '../../core/services/confirm.service';
-import { ProjectSummary } from '../../core/models/project.model';
+import { ApiService } from '../../core/services/api.service';
+import { ProjectSummary, NotebookSummary } from '../../core/models/project.model';
 import { PipelineStep } from '../../core/models/plugin.model';
+import { Notebook } from '../../core/models/notebook.model';
 
 type Step = 'home' | 'upload' | 'pipeline' | 'processing';
+
+const ACTIVE_NOTEBOOK_KEY = 'vtx_active_notebook';
 
 @Component({
   selector: 'app-onboarding',
@@ -29,6 +33,8 @@ type Step = 'home' | 'upload' | 'pipeline' | 'processing';
   styleUrl: './onboarding.component.scss',
 })
 export class OnboardingComponent implements OnInit {
+  private readonly api = inject(ApiService);
+
   readonly currentStep = signal<Step>('home');
   readonly processingDone = signal(false);
   readonly projects = signal<ProjectSummary[]>([]);
@@ -41,6 +47,12 @@ export class OnboardingComponent implements OnInit {
   readonly selectedCount = computed(() => this.selectedIds().size);
   readonly emptyProjects = computed(() => this.projects().filter(p => p.clipCount === 0));
   readonly showSettings = signal(false);
+
+  /** Which project cards have the notebooks section expanded */
+  readonly expandedNotebookProjectIds = signal<Set<string>>(new Set());
+
+  /** Active notebook id per project, stored in localStorage */
+  private activeNotebookMap: Record<string, string> = {};
 
   private projectId = '';
   private mediaId = '';
@@ -55,6 +67,11 @@ export class OnboardingComponent implements OnInit {
     private router: Router,
   ) {
     sseService.connect();
+    // Load active-notebook map from localStorage
+    try {
+      const raw = localStorage.getItem(ACTIVE_NOTEBOOK_KEY);
+      if (raw) this.activeNotebookMap = JSON.parse(raw);
+    } catch { /* ignore */ }
   }
 
   ngOnInit(): void {
@@ -230,6 +247,61 @@ export class OnboardingComponent implements OnInit {
       error: () => this.loadError.set('Could not delete project.'),
     });
   }
+
+  /* ──── Notebook helpers ──────────────────────────────────────────────── */
+
+  toggleNotebooks(projectId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.expandedNotebookProjectIds.update(s => {
+      const next = new Set(s);
+      if (next.has(projectId)) next.delete(projectId); else next.add(projectId);
+      return next;
+    });
+  }
+
+  isNotebooksExpanded(projectId: string): boolean {
+    return this.expandedNotebookProjectIds().has(projectId);
+  }
+
+  getActiveNotebookId(projectId: string): string | null {
+    return this.activeNotebookMap[projectId] ?? null;
+  }
+
+  isActiveNotebook(projectId: string, notebookId: string): boolean {
+    const stored = this.activeNotebookMap[projectId];
+    if (stored) return stored === notebookId;
+    // default: first notebook is considered active
+    const project = this.projects().find(p => p.id === projectId);
+    return project?.notebooks[0]?.id === notebookId;
+  }
+
+  setActiveNotebook(projectId: string, notebookId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.activeNotebookMap[projectId] = notebookId;
+    try {
+      localStorage.setItem(ACTIVE_NOTEBOOK_KEY, JSON.stringify(this.activeNotebookMap));
+    } catch { /* ignore */ }
+    // Trigger re-render by updating the signal
+    this.expandedNotebookProjectIds.update(s => new Set(s));
+  }
+
+  createDefaultNotebook(projectId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.api.post<Notebook>(`/projects/${projectId}/notebooks`, {
+      name: 'Default',
+      snapshot: { wordStates: {}, cutRegions: {}, clipOrder: [] },
+    }).subscribe({
+      next: (nb) => {
+        this.projects.update(ps => ps.map(p => {
+          if (p.id !== projectId) return p;
+          return { ...p, notebooks: [...(p.notebooks || []), { id: nb.id, name: nb.name, updatedAt: nb.updatedAt }] };
+        }));
+      },
+      error: () => this.loadError.set('Could not create notebook.'),
+    });
+  }
+
+  /* ──── Formatting helpers ─────────────────────────────────────────────── */
 
   formatDuration(seconds: number): string {
     const h = Math.floor(seconds / 3600);

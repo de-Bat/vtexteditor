@@ -45,7 +45,7 @@ class ClipService {
     const normalized = (cutRegions as unknown as Record<string, unknown>[]).map(r => {
       const { pending, pendingKind, pendingTargetId, resolvedEffectType, ...clean } = normalizeCutRegion(r) as Record<string, unknown>;
       return clean;
-    }) as import('../models/clip.model').CutRegion[];
+    }) as unknown as import('../models/clip.model').CutRegion[];
 
     // Sync isRemoved on all words from the normalized cutRegions
     const removedIds = new Set(normalized.flatMap((r) => r.wordIds));

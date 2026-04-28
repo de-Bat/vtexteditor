@@ -85,6 +85,41 @@
                 }
               </div>
 
+              <div class="card-notebooks-section">
+                <div class="notebooks-toggle" (click)="toggleNotebooks(p.id, $event)">
+                  <span class="nb-icon">📓</span>
+                  <span class="nb-label">{{ p.notebooks.length || 0 }} Notebooks</span>
+                  <span class="nb-chevron">{{ isNotebooksExpanded(p.id) ? '▲' : '▼' }}</span>
+                </div>
+                @if (isNotebooksExpanded(p.id)) {
+                  <div class="notebooks-list" (click)="$event.stopPropagation()">
+                    @if (!p.notebooks || p.notebooks.length === 0) {
+                      <div class="no-notebooks">
+                        <span class="muted">No notebooks yet.</span>
+                        <button class="btn-secondary btn-sm" (click)="createDefaultNotebook(p.id, $event)">
+                          Create Default
+                        </button>
+                      </div>
+                    } @else {
+                      @for (nb of p.notebooks; track nb.id) {
+                        <div class="notebook-row" [class.active]="isActiveNotebook(p.id, nb.id)">
+                          <span class="nb-name" [title]="nb.name">{{ nb.name }}</span>
+                          <div class="nb-actions">
+                            @if (isActiveNotebook(p.id, nb.id)) {
+                              <span class="nb-status">Active</span>
+                            } @else {
+                              <button class="btn-secondary btn-sm" (click)="setActiveNotebook(p.id, nb.id, $event)">
+                                Set Active
+                              </button>
+                            }
+                          </div>
+                        </div>
+                      }
+                    }
+                  </div>
+                }
+              </div>
+
               <div class="card-footer">
                 <span class="card-date">{{ formatRelativeDate(p.updatedAt) }}</span>
                 @if (!selectionMode()) {

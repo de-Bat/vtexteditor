@@ -223,7 +223,7 @@ export function parseEvents(
           }
           return null;
         })
-        .filter((item): item is { id: string; text?: string } => item !== null)
+        .filter((item): item is { id: string; text: string | undefined } => item !== null)
         // Resolve short IDs (S001 …) back to real UUIDs when map is provided.
         .map(item => ({
           ...item,

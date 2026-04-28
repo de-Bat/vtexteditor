@@ -6,6 +6,7 @@ import {
   inject,
   signal,
   HostListener,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -22,6 +23,8 @@ import { StoryApiService } from './story-review-panel/story-api.service';
 import { Clip } from '../../core/models/clip.model';
 import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.model';
 import { SettingsService } from '../../core/services/settings.service';
+import { NotebookService } from '../../core/services/notebook.service';
+import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
 
 @Component({
   selector: 'app-studio',
@@ -34,6 +37,7 @@ import { SettingsService } from '../../core/services/settings.service';
     ExportPanelComponent,
     StoryReviewPanelComponent,
     PluginPanelComponent,
+    NotebookTabsComponent,
   ],
   template: `
     <div class="studio-layout">
@@ -65,9 +69,10 @@ import { SettingsService } from '../../core/services/settings.service';
             <span>Export</span>
           </button>
 
-
         </nav>
       </header>
+
+      <app-notebook-tabs />
 
       @if (pendingProposal()) {
         <div class="proposal-banner" role="alert">
@@ -182,6 +187,8 @@ import { SettingsService } from '../../core/services/settings.service';
             />
           </aside>
         }
+
+
       </main>
     </div>
   `,
@@ -347,6 +354,14 @@ import { SettingsService } from '../../core/services/settings.service';
       overflow-y: auto;
       border-left: 1px solid var(--color-border);
     }
+    .notes-wrapper {
+      width: 300px;
+      flex-shrink: 0;
+      border-left: 1px solid var(--color-border);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
   `]
 })
 export class StudioComponent implements OnInit {
@@ -360,6 +375,7 @@ export class StudioComponent implements OnInit {
   readonly showReviewPanel = signal(false);
   readonly showExportPanel = signal(false);
   readonly showPluginsPanel = signal(false);
+
   readonly pluginsPanelWidth = signal(400);
 
   // Resizing signals
@@ -392,6 +408,7 @@ export class StudioComponent implements OnInit {
 
   private dialog = inject(Dialog);
   private storyApi = inject(StoryApiService);
+  readonly notebookService = inject(NotebookService);
 
 
 
@@ -412,18 +429,68 @@ export class StudioComponent implements OnInit {
     readonly projectService: ProjectService,
     private sseService: SseService,
     private settingsService: SettingsService,
-  ) {}
+  ) {
+    effect(() => {
+      const ev = this.notebookService.noteJumpEvent();
+      if (!ev) return;
+      const note = ev.note;
+      const clips = this.clipService.clips();
+      let targetClipId: string | null = null;
+
+      if (note.attachedToType === 'clip') {
+        targetClipId = note.attachedToId;
+      } else if (note.attachedToType === 'segment') {
+        for (const clip of clips) {
+          if (clip.segments.some(s => s.id === note.attachedToId)) {
+            targetClipId = clip.id;
+            break;
+          }
+        }
+      } else if (note.attachedToType === 'word') {
+        for (const clip of clips) {
+          for (const seg of clip.segments) {
+            if (seg.words.some(w => w.id === note.attachedToId)) {
+              targetClipId = clip.id;
+              break;
+            }
+          }
+          if (targetClipId) break;
+        }
+      }
+
+      if (targetClipId && this.activeClipId() !== targetClipId) {
+        this.activeClipId.set(targetClipId);
+      }
+    }, { allowSignalWrites: true });
+  }
 
   ngOnInit(): void {
     this.sseService.connect();
     // Load settings first so defaultEditMode signal is populated before clips render
     this.settingsService.load().subscribe({ error: () => {} });
     this.projectService.load().subscribe({
-      next: (project) => this.checkForProposal(project?.id),
+      next: (project) => {
+        this.checkForProposal(project?.id);
+        if (project?.id) {
+          this.notebookService.loadAll(project.id).subscribe({
+            next: () => {
+              if (this.notebookService.notebooks().length === 0) {
+                this.notebookService.create('Default', project.id).subscribe();
+              }
+            },
+          });
+        }
+      },
     });
     this.clipService.loadAll().subscribe({
       next: (clips) => {
-        if (clips.length) this.activeClipId.set(clips[0]?.id ?? null);
+        if (clips.length) {
+          const firstClipId = clips[0]?.id ?? null;
+          this.activeClipId.set(firstClipId);
+          if (firstClipId) {
+            this.notebookService.selectEntity('clip', firstClipId);
+          }
+        }
       },
       complete: () => this.isLoadingClips.set(false),
       error: () => this.isLoadingClips.set(false),
@@ -521,7 +588,13 @@ export class StudioComponent implements OnInit {
         this.showReviewPanel.set(false);
         this.clipService.loadAll().subscribe({
           next: (clips) => {
-            if (clips.length) this.activeClipId.set(clips[0]?.id ?? null);
+            if (clips.length) {
+              const firstClipId = clips[0]?.id ?? null;
+              this.activeClipId.set(firstClipId);
+              if (firstClipId) {
+                this.notebookService.selectEntity('clip', firstClipId);
+              }
+            }
           },
         });
       },
@@ -541,7 +614,9 @@ export class StudioComponent implements OnInit {
 
   selectClip(clip: Clip): void {
     this.activeClipId.set(clip?.id ?? null);
-    // this.closeSidebar(); // Removed per user request
+    if (clip) {
+      this.notebookService.selectEntity('clip', clip.id);
+    }
   }
 
   toggleSidebar(): void {

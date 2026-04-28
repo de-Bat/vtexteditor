@@ -14,6 +14,8 @@ import {
   removeDir,
 } from '../utils/file.util';
 import { pluginRegistry } from '../plugins/plugin-registry';
+import { notebookService } from './notebook.service';
+
 
 class ProjectService {
   private currentProjectId: string | null = null;
@@ -85,6 +87,11 @@ class ProjectService {
           const plugin = pluginRegistry.getById(step.pluginId);
           return plugin?.type === 'transcription';
         });
+        const notebooks = notebookService.list(id).map((nb) => ({
+          id: nb.id,
+          name: nb.name,
+          updatedAt: nb.updatedAt,
+        }));
         summaries.push({
           id: project.id,
           name: project.name,
@@ -99,6 +106,7 @@ class ProjectService {
           wordCount,
           hasTranscription: clipCount > 0 && !!transcriptionStep,
           transcriptionPlugin: transcriptionStep?.pluginId ?? null,
+          notebooks,
         });
       } catch {
         // skip corrupt project files

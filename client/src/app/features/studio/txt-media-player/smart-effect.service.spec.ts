@@ -137,7 +137,7 @@ describe('SmartEffectService — smart-cut resolution', () => {
     const region = { ...makeRegion(['w1']), id: 'r1', effectType: 'smart' as const };
     const result = await svc.resolve(clip, region);
     expect(result.effectType).toBe('smart-cut');
-    expect(result.resumeOffsetMs).toBe(20);
+    expect(result.resumeOffsetMs).toBeCloseTo(0.02, 3);
   });
 
   it('smart + cache hit with score >= 12 → falls through to existing rules', async () => {

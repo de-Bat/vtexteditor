@@ -46,7 +46,7 @@ export class SmartEffectService {
     const isExplicit = region.effectType === 'smart-cut' && cached.score <= SMART_CUT_MAX_USABLE;
     if (!isAutoEligible && !isExplicit) return null;
 
-    return { effectType: 'smart-cut' as Exclude<EffectType, 'smart'>, durationMs: 300, resumeOffsetMs: cached.resumeOffsetMs };
+    return { effectType: 'smart-cut' as Exclude<EffectType, 'smart'>, durationMs: 300, resumeOffsetMs: cached.resumeOffsetMs / 1000 };
   }
 
   private resolveSync(clip: Clip, region: CutRegion): ResolvedEffect {

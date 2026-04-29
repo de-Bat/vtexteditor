@@ -86,4 +86,54 @@ describe('SmartCutQueueService', () => {
     await vi.runAllTimersAsync();
     expect(svc.getStatus('r1')).toBe('error');
   });
+
+  it('passes roi=undefined (full frame) when clip.sceneType is "two-shot"', async () => {
+    const clip: Clip = { ...makeClip(), sceneType: 'two-shot' };
+    const region = makeRegion();
+    svc.enqueue(region, clip);
+    await vi.runAllTimersAsync();
+
+    expect(extractSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ roi: undefined })
+    );
+  });
+
+  it('passes roi={x:0.10,y:0.00,w:0.80,h:0.60} when clip.sceneType is "talking-head"', async () => {
+    const clip: Clip = { ...makeClip(), sceneType: 'talking-head' };
+    const region = makeRegion();
+    svc.enqueue(region, clip);
+    await vi.runAllTimersAsync();
+
+    expect(extractSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ roi: { x: 0.10, y: 0.00, w: 0.80, h: 0.60 } })
+    );
+  });
+
+  it('passes talking-head roi when clip.sceneType is absent (default)', async () => {
+    const clip = makeClip(); // no sceneType
+    const region = makeRegion();
+    svc.enqueue(region, clip);
+    await vi.runAllTimersAsync();
+
+    expect(extractSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ roi: { x: 0.10, y: 0.00, w: 0.80, h: 0.60 } })
+    );
+  });
+
+  it('invalidateClip() removes all regions of that clip from queue and clears status', async () => {
+    const clip = makeClip();
+    const r1 = makeRegion('r1');
+    const r2: CutRegion = { ...makeRegion('r2'), wordIds: [] };
+    svc.enqueue(r1, clip);
+    svc.enqueue(r2, clip);
+    expect(svc.getStatus('r1')).toBe('queued');
+
+    svc.invalidateClip(clip.id, ['r1', 'r2']);
+
+    await vi.runAllTimersAsync();
+
+    expect(extractSpy).not.toHaveBeenCalled();
+    expect(svc.getStatus('r1')).toBeNull();
+    expect(svc.getStatus('r2')).toBeNull();
+  });
 });

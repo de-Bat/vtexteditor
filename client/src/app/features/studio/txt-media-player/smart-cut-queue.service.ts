@@ -3,7 +3,7 @@ import { Clip } from '../../../core/models/clip.model';
 import { CutRegion } from '../../../core/models/cut-region.model';
 import { SmartCutCacheService } from './smart-cut-cache.service';
 import { SmartCutExtractor } from './smart-cut-extractor';
-import { SMART_CUT_DEBOUNCE_MS, SMART_CUT_MAX_USABLE } from './smart-cut.constants';
+import { SMART_CUT_DEBOUNCE_MS, SMART_CUT_MAX_USABLE, SMART_CUT_ROI } from './smart-cut.constants';
 
 export type SmartCutStatus = 'queued' | 'computing' | 'done' | 'error' | 'unsupported';
 
@@ -21,7 +21,6 @@ export class SmartCutQueueService {
   private pendingQueue: QueueItem[] = [];
   private isProcessing = false;
   private readonly cache: SmartCutCacheService;
-  // Lazy extractor per clip (keyed by clipId). Created on first use.
   private extractors = new Map<string, SmartCutExtractor>();
   private readonly extractorFactory: ExtractorFactory;
   private invalidatedRegions = new Set<string>();
@@ -70,6 +69,18 @@ export class SmartCutQueueService {
     this.invalidatedRegions.add(regionId);
   }
 
+  invalidateClip(clipId: string, regionIds: string[]): void {
+    for (const regionId of regionIds) {
+      this.invalidate(regionId);
+    }
+    // invalidate() adds each regionId to invalidatedRegions, but since we're
+    // doing a full clip invalidation the caller will re-enqueue — remove from
+    // the invalidated set so stale-guard doesn't suppress the new results.
+    for (const regionId of regionIds) {
+      this.invalidatedRegions.delete(regionId);
+    }
+  }
+
   getStatus(regionId: string): SmartCutStatus | null {
     return this.statusMap()[regionId] ?? null;
   }
@@ -108,12 +119,17 @@ export class SmartCutQueueService {
 
       const cacheKey = `${item.clip.id}|${item.region.id}|${tBefore.toFixed(4)}|${tAfterCenter.toFixed(4)}`;
       const extractor = this.getExtractor(item.clip.id);
+
+      const sceneType = item.clip.sceneType ?? 'talking-head';
+      const roi = SMART_CUT_ROI[sceneType];
+
       const result = await extractor.extract({
         id: item.region.id,
         tBefore,
         tAfterCenter,
-        windowMs: SMART_CUT_DEBOUNCE_MS, // will be overridden by settings in Task 10
+        windowMs: SMART_CUT_DEBOUNCE_MS,
         clipId: item.clip.id,
+        roi,
       });
 
       if (!this.invalidatedRegions.has(item.region.id)) {

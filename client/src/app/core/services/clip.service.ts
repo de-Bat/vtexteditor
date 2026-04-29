@@ -100,4 +100,18 @@ export class ClipService {
       error: (err) => console.error('Failed to update clip metadata:', err)
     });
   }
+
+  updateSceneType(clipId: string, sceneType: import('../models/clip.model').SceneType): void {
+    this.clips.update(list =>
+      list.map(c => c.id === clipId ? { ...c, sceneType } : c)
+    );
+    this.api.patch<Clip>(
+      `/clips/${clipId}/scene-type`, { sceneType }
+    ).subscribe({
+      next: (updated) => this.clips.update(list => list.map(c => c.id === clipId ? updated : c)),
+      error: () => {
+        this.clips.update(list => list.map(c => c.id === clipId ? { ...c, sceneType: undefined } : c));
+      },
+    });
+  }
 }

@@ -98,7 +98,7 @@ describe('SmartCutExtractor', () => {
 
   it('passes roi from ExtractionRequest through to WorkerRequest', async () => {
     const roi = { x: 0.10, y: 0.00, w: 0.80, h: 0.60 };
-    let capturedMessage: any;
+    let capturedMessage: any = null;
     const capturingWorker = makeMockWorker({
       id: 'roi-test',
       resumeOffsetMs: 0,
@@ -127,6 +127,7 @@ describe('SmartCutExtractor', () => {
       roi,
     });
 
+    expect(capturedMessage).not.toBeNull();
     expect(capturedMessage.roi).toEqual(roi);
   });
 });

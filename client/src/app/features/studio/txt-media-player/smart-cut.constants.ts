@@ -1,3 +1,5 @@
+import type { SceneType } from '../../../core/models/clip.model';
+
 export const SMART_CUT_WINDOW_MS = 150;
 export const SMART_CUT_FRAME_INTERVAL_MS = 16;
 export const SMART_CUT_MIN_WINDOW_MS = 60;
@@ -20,3 +22,15 @@ export const SMART_CUT_DEBOUNCE_MS = 250;
 export const SMART_CUT_PREVIEW_PREROLL_MS = 500;
 export const SMART_CUT_PREVIEW_POSTROLL_MS = 500;
 export const SMART_CUT_WORD_BUFFER_MS = 50;
+
+export interface SmartCutRoi {
+  x: number;  // normalized 0–1 from left
+  y: number;  // normalized 0–1 from top
+  w: number;  // normalized width
+  h: number;  // normalized height
+}
+
+export const SMART_CUT_ROI: Record<SceneType, SmartCutRoi | undefined> = {
+  'talking-head': { x: 0.10, y: 0.00, w: 0.80, h: 0.60 },
+  'two-shot': undefined,
+};

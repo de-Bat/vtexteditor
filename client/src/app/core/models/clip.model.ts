@@ -2,6 +2,8 @@ import { Segment } from './segment.model';
 import { CutRegion } from './cut-region.model';
 import { MetadataEntry } from './segment-metadata.model';
 
+export type SceneType = 'talking-head' | 'two-shot';
+
 export interface Clip {
   id: string;
   projectId: string;
@@ -14,4 +16,5 @@ export interface Clip {
   /** Structured metadata entries for the entire clip */
   metadata?: Record<string, MetadataEntry[]>;
   language?: string;
+  sceneType?: SceneType;
 }

@@ -14,6 +14,8 @@ export interface CutRegion {
   durationFixed: boolean;
 }
 
+export type SceneType = 'talking-head' | 'two-shot';
+
 export interface Clip {
   id: string;
   projectId: string;
@@ -26,4 +28,5 @@ export interface Clip {
   /** Structured metadata entries for the entire clip */
   metadata?: Record<string, MetadataEntry[]>;
   language?: string;
+  sceneType?: SceneType;
 }

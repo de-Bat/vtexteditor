@@ -3,7 +3,7 @@ import { Clip } from '../../../core/models/clip.model';
 import { CutRegion } from '../../../core/models/cut-region.model';
 import { SmartCutCacheService } from './smart-cut-cache.service';
 import { SmartCutExtractor } from './smart-cut-extractor';
-import { SMART_CUT_DEBOUNCE_MS, SMART_CUT_MAX_USABLE, SMART_CUT_ROI } from './smart-cut.constants';
+import { SMART_CUT_DEBOUNCE_MS, SMART_CUT_MAX_USABLE, SMART_CUT_ROI, SMART_CUT_WINDOW_MS } from './smart-cut.constants';
 
 export type SmartCutStatus = 'queued' | 'computing' | 'done' | 'error' | 'unsupported';
 
@@ -69,7 +69,7 @@ export class SmartCutQueueService {
     this.invalidatedRegions.add(regionId);
   }
 
-  invalidateClip(clipId: string, regionIds: string[]): void {
+  invalidateClip(_clipId: string, regionIds: string[]): void {
     for (const regionId of regionIds) {
       this.invalidate(regionId);
     }
@@ -127,7 +127,7 @@ export class SmartCutQueueService {
         id: item.region.id,
         tBefore,
         tAfterCenter,
-        windowMs: SMART_CUT_DEBOUNCE_MS,
+        windowMs: SMART_CUT_WINDOW_MS,
         clipId: item.clip.id,
         roi,
       });

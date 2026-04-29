@@ -1,0 +1,138 @@
+import { Injectable, signal, inject, InjectionToken, Inject, Optional } from '@angular/core';
+import { Clip } from '../../../core/models/clip.model';
+import { CutRegion } from '../../../core/models/cut-region.model';
+import { SmartCutCacheService } from './smart-cut-cache.service';
+import { SmartCutExtractor } from './smart-cut-extractor';
+import { SMART_CUT_DEBOUNCE_MS, SMART_CUT_MAX_USABLE } from './smart-cut.constants';
+
+export type SmartCutStatus = 'queued' | 'computing' | 'done' | 'error' | 'unsupported';
+
+export type ExtractorFactory = (clipId: string) => SmartCutExtractor;
+
+export const SMART_CUT_CACHE_OVERRIDE = new InjectionToken<SmartCutCacheService>('SMART_CUT_CACHE_OVERRIDE');
+export const SMART_CUT_EXTRACTOR_FACTORY = new InjectionToken<ExtractorFactory>('SMART_CUT_EXTRACTOR_FACTORY');
+
+interface QueueItem { region: CutRegion; clip: Clip; }
+
+@Injectable({ providedIn: 'root' })
+export class SmartCutQueueService {
+  private readonly statusMap = signal<Record<string, SmartCutStatus>>({});
+  private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private pendingQueue: QueueItem[] = [];
+  private isProcessing = false;
+  private readonly cache: SmartCutCacheService;
+  // Lazy extractor per clip (keyed by clipId). Created on first use.
+  private extractors = new Map<string, SmartCutExtractor>();
+  private readonly extractorFactory: ExtractorFactory;
+
+  constructor(
+    @Optional() @Inject(SMART_CUT_CACHE_OVERRIDE) cacheOverride?: SmartCutCacheService,
+    @Optional() @Inject(SMART_CUT_EXTRACTOR_FACTORY) extractorFactoryOverride?: ExtractorFactory,
+  ) {
+    this.cache = cacheOverride ?? inject(SmartCutCacheService);
+    this.extractorFactory = extractorFactoryOverride
+      ?? ((clipId) => SmartCutExtractor.create(`/api/clips/${clipId}/stream`));
+  }
+
+  private getExtractor(clipId: string): SmartCutExtractor {
+    if (!this.extractors.has(clipId)) {
+      this.extractors.set(clipId, this.extractorFactory(clipId));
+    }
+    return this.extractors.get(clipId)!;
+  }
+
+  enqueue(region: CutRegion, clip: Clip): void {
+    const existing = this.debounceTimers.get(region.id);
+    if (existing) clearTimeout(existing);
+
+    this.updateStatus(region.id, 'queued');
+
+    const timer = setTimeout(() => {
+      this.debounceTimers.delete(region.id);
+      this.pendingQueue.push({ region, clip });
+      this.processNext();
+    }, SMART_CUT_DEBOUNCE_MS);
+
+    this.debounceTimers.set(region.id, timer);
+  }
+
+  invalidate(regionId: string): void {
+    const timer = this.debounceTimers.get(regionId);
+    if (timer) {
+      clearTimeout(timer);
+      this.debounceTimers.delete(regionId);
+    }
+    this.pendingQueue = this.pendingQueue.filter(item => item.region.id !== regionId);
+    const s = this.statusMap();
+    const { [regionId]: _, ...rest } = s;
+    this.statusMap.set(rest);
+  }
+
+  getStatus(regionId: string): SmartCutStatus | null {
+    return this.statusMap()[regionId] ?? null;
+  }
+
+  readonly statusSignal = this.statusMap.asReadonly();
+
+  private updateStatus(regionId: string, status: SmartCutStatus): void {
+    this.statusMap.update(s => ({ ...s, [regionId]: status }));
+  }
+
+  private async processNext(): Promise<void> {
+    if (this.isProcessing || !this.pendingQueue.length) return;
+    this.isProcessing = true;
+    const item = this.pendingQueue.shift()!;
+    this.updateStatus(item.region.id, 'computing');
+
+    try {
+      const tBefore = this.getTBefore(item.clip, item.region);
+      const tAfterCenter = this.getTAfterCenter(item.clip, item.region);
+
+      if (tBefore === null || tAfterCenter === null) {
+        this.updateStatus(item.region.id, 'unsupported');
+        return;
+      }
+
+      const cacheKey = `${item.clip.id}|${item.region.id}|${tBefore.toFixed(4)}|${tAfterCenter.toFixed(4)}`;
+      const extractor = this.getExtractor(item.clip.id);
+      const result = await extractor.extract({
+        id: item.region.id,
+        tBefore,
+        tAfterCenter,
+        windowMs: SMART_CUT_DEBOUNCE_MS, // will be overridden by settings in Task 10
+        clipId: item.clip.id,
+      });
+
+      const status: SmartCutStatus = result.score > SMART_CUT_MAX_USABLE ? 'error' : 'done';
+      await this.cache.put(cacheKey, { ...result, computedAt: Date.now() });
+      this.updateStatus(item.region.id, status);
+    } catch {
+      this.updateStatus(item.region.id, 'error');
+    } finally {
+      this.isProcessing = false;
+      this.processNext();
+    }
+  }
+
+  private getTBefore(clip: Clip, region: CutRegion): number | null {
+    const allWords = clip.segments.flatMap(s => s.words);
+    const regionSet = new Set(region.wordIds);
+    const regionStart = region.startTime
+      ?? Math.min(...region.wordIds.map(id => allWords.find(w => w.id === id)?.startTime ?? Infinity));
+
+    const kept = allWords.filter(w => !w.isRemoved && !regionSet.has(w.id) && w.endTime <= regionStart);
+    if (!kept.length) return null;
+    return kept[kept.length - 1].endTime;
+  }
+
+  private getTAfterCenter(clip: Clip, region: CutRegion): number | null {
+    const allWords = clip.segments.flatMap(s => s.words);
+    const regionSet = new Set(region.wordIds);
+    const regionEnd = region.endTime
+      ?? Math.max(...region.wordIds.map(id => allWords.find(w => w.id === id)?.endTime ?? -Infinity));
+
+    const kept = allWords.filter(w => !w.isRemoved && !regionSet.has(w.id) && w.startTime >= regionEnd);
+    if (!kept.length) return null;
+    return kept[0].startTime;
+  }
+}

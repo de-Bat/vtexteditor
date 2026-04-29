@@ -189,6 +189,21 @@ class ClipService {
     projectService.update(projectId, { clips: updatedClips });
     return updatedClip;
   }
+
+  updateSceneType(clipId: string, sceneType: import('../models/clip.model').SceneType): Clip | null {
+    const project = projectService.getCurrent();
+    if (!project) return null;
+
+    const clipIndex = project.clips.findIndex(c => c.id === clipId);
+    if (clipIndex === -1) return null;
+
+    const updatedClip: Clip = { ...project.clips[clipIndex], sceneType };
+    const updatedClips = [...project.clips];
+    updatedClips[clipIndex] = updatedClip;
+    projectService.update(project.id, { clips: updatedClips });
+
+    return updatedClip;
+  }
 }
 
 export const clipService = new ClipService();

@@ -110,3 +110,18 @@ clipRoutes.put('/:id/words', (req: Request, res: Response) => {
   }
   res.json(updated);
 });
+
+/** PATCH /api/clips/:id/scene-type — update clip's scene type */
+clipRoutes.patch('/:id/scene-type', (req: Request, res: Response) => {
+  const { sceneType } = req.body as { sceneType?: unknown };
+  if (sceneType !== 'talking-head' && sceneType !== 'two-shot') {
+    res.status(400).json({ error: 'sceneType must be "talking-head" or "two-shot"' });
+    return;
+  }
+  const updated = clipService.updateSceneType(String(req.params.id), sceneType);
+  if (!updated) {
+    res.status(404).json({ error: 'Clip not found' });
+    return;
+  }
+  res.json(updated);
+});

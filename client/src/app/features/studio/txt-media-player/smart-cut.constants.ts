@@ -26,8 +26,8 @@ export const SMART_CUT_WORD_BUFFER_MS = 50;
 export interface SmartCutRoi {
   x: number;  // normalized 0–1 from left
   y: number;  // normalized 0–1 from top
-  w: number;  // normalized width
-  h: number;  // normalized height
+  w: number;  // normalized 0–1 width
+  h: number;  // normalized 0–1 height
 }
 
 export const SMART_CUT_ROI: Record<SceneType, SmartCutRoi | undefined> = {

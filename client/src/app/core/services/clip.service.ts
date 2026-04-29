@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { ApiService } from './api.service';
-import { Clip } from '../models/clip.model';
+import { Clip, SceneType } from '../models/clip.model';
 import { CutRegion } from '../models/cut-region.model';
 import { tap } from 'rxjs/operators';
 import { Observable } from 'rxjs';
@@ -101,7 +101,8 @@ export class ClipService {
     });
   }
 
-  updateSceneType(clipId: string, sceneType: import('../models/clip.model').SceneType): void {
+  updateSceneType(clipId: string, sceneType: SceneType): void {
+    const previous = this.clips().find(c => c.id === clipId)?.sceneType;
     this.clips.update(list =>
       list.map(c => c.id === clipId ? { ...c, sceneType } : c)
     );
@@ -110,7 +111,7 @@ export class ClipService {
     ).subscribe({
       next: (updated) => this.clips.update(list => list.map(c => c.id === clipId ? updated : c)),
       error: () => {
-        this.clips.update(list => list.map(c => c.id === clipId ? { ...c, sceneType: undefined } : c));
+        this.clips.update(list => list.map(c => c.id === clipId ? { ...c, sceneType: previous } : c));
       },
     });
   }

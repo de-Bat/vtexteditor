@@ -1,4 +1,4 @@
-import { Clip } from '../models/clip.model';
+import { Clip, SceneType } from '../models/clip.model';
 import { Word } from '../models/word.model';
 import { MetadataEntry } from '../models/segment-metadata.model';
 import { projectService } from './project.service';
@@ -190,7 +190,8 @@ class ClipService {
     return updatedClip;
   }
 
-  updateSceneType(clipId: string, sceneType: import('../models/clip.model').SceneType): Clip | null {
+  // Uses getCurrent() consistent with updateCutRegions/updateWordStates (single-project app).
+  updateSceneType(clipId: string, sceneType: SceneType): Clip | null {
     const project = projectService.getCurrent();
     if (!project) return null;
 
@@ -202,7 +203,7 @@ class ClipService {
     updatedClips[clipIndex] = updatedClip;
     projectService.update(project.id, { clips: updatedClips });
 
-    return updatedClip;
+    return this.normalizeClip(updatedClip);
   }
 }
 

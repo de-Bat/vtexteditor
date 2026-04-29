@@ -24,6 +24,7 @@ export class SmartCutQueueService {
   // Lazy extractor per clip (keyed by clipId). Created on first use.
   private extractors = new Map<string, SmartCutExtractor>();
   private readonly extractorFactory: ExtractorFactory;
+  private invalidatedRegions = new Set<string>();
 
   constructor(
     @Optional() @Inject(SMART_CUT_CACHE_OVERRIDE) cacheOverride?: SmartCutCacheService,
@@ -66,10 +67,19 @@ export class SmartCutQueueService {
     const s = this.statusMap();
     const { [regionId]: _, ...rest } = s;
     this.statusMap.set(rest);
+    this.invalidatedRegions.add(regionId);
   }
 
   getStatus(regionId: string): SmartCutStatus | null {
     return this.statusMap()[regionId] ?? null;
+  }
+
+  destroy(): void {
+    this.extractors.forEach(extractor => extractor.destroy());
+    this.extractors.clear();
+    this.debounceTimers.forEach(timer => clearTimeout(timer));
+    this.debounceTimers.clear();
+    this.pendingQueue = [];
   }
 
   readonly statusSignal = this.statusMap.asReadonly();
@@ -89,7 +99,10 @@ export class SmartCutQueueService {
       const tAfterCenter = this.getTAfterCenter(item.clip, item.region);
 
       if (tBefore === null || tAfterCenter === null) {
-        this.updateStatus(item.region.id, 'unsupported');
+        if (!this.invalidatedRegions.has(item.region.id)) {
+          this.updateStatus(item.region.id, 'unsupported');
+        }
+        this.invalidatedRegions.delete(item.region.id);
         return;
       }
 
@@ -103,11 +116,17 @@ export class SmartCutQueueService {
         clipId: item.clip.id,
       });
 
-      const status: SmartCutStatus = result.score > SMART_CUT_MAX_USABLE ? 'error' : 'done';
-      await this.cache.put(cacheKey, { ...result, computedAt: Date.now() });
-      this.updateStatus(item.region.id, status);
+      if (!this.invalidatedRegions.has(item.region.id)) {
+        const status: SmartCutStatus = result.score > SMART_CUT_MAX_USABLE ? 'error' : 'done';
+        await this.cache.put(cacheKey, { ...result, computedAt: Date.now() });
+        this.updateStatus(item.region.id, status);
+      }
+      this.invalidatedRegions.delete(item.region.id);
     } catch {
-      this.updateStatus(item.region.id, 'error');
+      if (!this.invalidatedRegions.has(item.region.id)) {
+        this.updateStatus(item.region.id, 'error');
+      }
+      this.invalidatedRegions.delete(item.region.id);
     } finally {
       this.isProcessing = false;
       this.processNext();

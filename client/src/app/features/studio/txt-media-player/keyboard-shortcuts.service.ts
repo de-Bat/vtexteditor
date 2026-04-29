@@ -7,6 +7,7 @@ export interface PlayerShortcutHandlers {
   undo: () => void;
   redo: () => void;
   toggleMetadata: () => void;
+  'shift.p'?: () => void;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -60,6 +61,14 @@ export class KeyboardShortcutsService {
         event.preventDefault();
         handlers.toggleMetadata();
         return;
+      }
+
+      if (event.key.toLowerCase() === 'p' && event.shiftKey && !isCtrlOrMeta) {
+        if (handlers['shift.p']) {
+          event.preventDefault();
+          handlers['shift.p']();
+          return;
+        }
       }
     };
   }

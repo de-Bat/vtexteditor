@@ -11,6 +11,7 @@ import {
   input,
   signal,
   DestroyRef,
+  Injector,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
@@ -29,6 +30,9 @@ import { SegmentMetadataPanelComponent } from '../segment-metadata-panel/segment
 import { SettingsService } from '../../../core/services/settings.service';
 import { PendingEditsService } from '../txt-media-player/pending-edits.service';
 import { NotebookService } from '../../../core/services/notebook.service';
+import { SmartCutQueueService } from '../txt-media-player/smart-cut-queue.service';
+import { SmartCutCacheService } from '../txt-media-player/smart-cut-cache.service';
+import { SMART_CUT_PREVIEW_PREROLL_MS, SMART_CUT_PREVIEW_POSTROLL_MS } from '../txt-media-player/smart-cut.constants';
 
 /* ── Palette & Constants ────────────────────────────────────── */
 
@@ -336,6 +340,10 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             (click)="setDefaultEffect('smart')" title="Smart (auto)">
             <span class="material-symbols-outlined" style="font-size:1rem">auto_awesome</span>
           </button>
+          <button class="effect-pill" [class.active]="defaultEffectType() === 'smart-cut'"
+            (click)="setDefaultEffect('smart-cut')" title="Smart Cut (frame-match)">
+            <span class="material-symbols-outlined" style="font-size:1rem">auto_fix_high</span>
+          </button>
         </div>
       </div>
     </div>
@@ -431,6 +439,29 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                       <span class="material-symbols-outlined">close</span>
                     </button>
 
+                    @if (region && getSmartCutStatus(region.id); as scStatus) {
+                      <span
+                        class="sc-status-dot sc-status-dot--{{ scStatus }}"
+                        [attr.aria-label]="'Smart cut: ' + scStatus"
+                        [title]="'Smart cut: ' + scStatus"
+                        (mouseenter)="loadSmartCutThumbs(region.id, clip().id, getRegionTBefore(region), getRegionTAfterCenter(region))">
+                        @if (smartCutThumbs()[region.id]; as thumbs) {
+                          <span class="sc-thumb-popover">
+                            <img [src]="thumbs.pre" alt="Pre-cut frame" width="160" height="90">
+                            <span class="sc-thumb-arrow">→</span>
+                            <img [src]="thumbs.post" alt="Post-cut frame" width="160" height="90">
+                          </span>
+                        }
+                      </span>
+                    }
+                    @if (region && (getSmartCutStatus(region.id) === 'done' || getSmartCutStatus(region.id) === 'computing')) {
+                      <button class="sc-preview-btn" (click)="previewSmartCut(region.id); $event.stopPropagation()"
+                        [attr.aria-label]="'Preview smart cut for region ' + region.id"
+                        title="Preview transition (Shift+P)">
+                        ▶
+                      </button>
+                    }
+
                     @if (effectPopoverWordId() === fi.word.id && region) {
                       <div class="effect-popover" role="dialog" aria-label="Cut effect options" (click)="$event.stopPropagation()">
                         <div class="ep-row">
@@ -443,6 +474,11 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                               (click)="setRegionEffect(region.id, 'cross-cut')">Cross</button>
                             <button class="ep-pill" [class.active]="region.effectType === 'smart'"
                               (click)="setRegionEffect(region.id, 'smart')">Smart</button>
+                            <button class="ep-pill" [class.active]="region.effectType === 'smart-cut'"
+                              (click)="setRegionEffect(region.id, 'smart-cut')"
+                              title="Find best matching resume frame. Falls back to cross-cut if no good match.">
+                              Frame Match
+                            </button>
                           </div>
                         </div>
                         @if (region.effectType !== 'clear-cut') {
@@ -644,14 +680,18 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         (mouseleave)="showOverlay.set(false)">
 
         @if (isVideo()) {
-          <video
-            #mediaEl
-            class="video-el"
-            [src]="mediaUrl()"
-            preload="metadata"
-            [style.opacity]="effectPlayer.videoOpacity()"
-            [style.filter]="effectPlayer.videoFilter()"
-          ></video>
+          <div style="position:relative; width:100%; height:100%;">
+            <video
+              #mediaEl
+              class="video-el"
+              [src]="mediaUrl()"
+              preload="metadata"
+              [style.opacity]="effectPlayer.videoOpacity()"
+              [style.filter]="effectPlayer.videoFilter()"
+            ></video>
+            <!-- Overlay canvas for smart-cut freeze-frame -->
+            <canvas #overlayCanvas class="smart-cut-overlay" aria-hidden="true"></canvas>
+          </div>
         } @else {
           <audio #mediaEl [src]="mediaUrl()" preload="metadata"></audio>
           <div class="audio-placeholder"
@@ -768,6 +808,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   @ViewChild('mediaEl') mediaElRef!: ElementRef<HTMLVideoElement | HTMLAudioElement>;
   @ViewChild('transcriptEl') transcriptElRef!: ElementRef<HTMLDivElement>;
   @ViewChild('videoFrameEl') videoFrameRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('overlayCanvas') private overlayCanvasRef?: ElementRef<HTMLCanvasElement>;
 
   /* ── Inputs ──────────────────────────────────────────── */
   readonly clip = input.required<Clip>();
@@ -834,6 +875,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly durationEditRegionId = signal<string | null>(null);
   /** Filler words selected for cutting */
   readonly selectedFillers = signal<Set<string>>(new Set());
+  /** Currently active region ID for keyboard shortcuts */
+  readonly activeRegionId = signal<string | null>(null);
+  /** Thumbnails for smart-cut preview popover */
+  readonly smartCutThumbs = signal<Record<string, { pre: string; post: string }>>({});
 
   /** Global default effect type — new regions inherit this. */
   readonly defaultEffectType = signal<EffectType>('clear-cut');
@@ -1367,6 +1412,12 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (t < clip.startTime - 0.1 || t > clip.endTime + 0.1) {
       this.mediaPlayer.seek(clip.startTime);
     }
+    const regions = clip.cutRegions ?? [];
+    for (const region of regions) {
+      if (region.effectType === 'smart-cut' || region.effectType === 'smart') {
+        this.smartCutQueue.enqueue(region, clip);
+      }
+    }
   }, { allowSignalWrites: true });
 
   /** Reset selection state when the clip changes */
@@ -1386,6 +1437,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /* ── Private injected services ──────────────────────── */
   readonly settings = inject(SettingsService);
   readonly pendingEdits = inject(PendingEditsService);
+  private readonly smartCutQueue = inject(SmartCutQueueService);
+  private readonly smartCutCache = inject(SmartCutCacheService);
+  private readonly injector = inject(Injector);
+
+  readonly smartCutStatus = this.smartCutQueue.statusSignal;
 
   /* ── Constructor ─────────────────────────────────────── */
   constructor(
@@ -1409,6 +1465,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       undo: () => { if (!this.metadataPanelOpen()) this.undo(); },
       redo: () => { if (!this.metadataPanelOpen()) this.redo(); },
       toggleMetadata: () => this.toggleMetadataPanel(),
+      'shift.p': () => {
+        const regionId = this.activeRegionId();
+        if (regionId) this.previewSmartCut(regionId);
+      },
     });
 
     effect(() => {
@@ -1480,6 +1540,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (this.mediaElRef?.nativeElement) {
       this.mediaPlayer.attachElement(this.mediaElRef.nativeElement);
       this.effectPlayer.attachElement(this.mediaElRef.nativeElement);
+    }
+    if (this.overlayCanvasRef) {
+      this.effectPlayer.attachOverlayCanvas(this.overlayCanvasRef.nativeElement);
     }
     this.measureTranscriptViewport();
     this.detachKeyboard = this.keyboardShortcuts.bindWindowKeydown(this.handleKeydown);
@@ -1960,6 +2023,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.selectionAnchorWordId.set(word.id);
     this.selectedWordIds.set([word.id]);
     this.effectPopoverWordId.set(this.effectPopoverWordId() === word.id ? null : word.id);
+    const r = this.wordIdToRegion().get(word.id);
+    if (r) this.activeRegionId.set(r.id);
   }
 
   setRegionEffect(regionId: string, type: EffectType): void {
@@ -2076,6 +2141,35 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.saveCutRegions();
     }
     this.effectPopoverWordId.set(null);
+
+    // Update smart cut queue based on changes
+    const entry = result.entry;
+    if (entry.kind === 'cut') {
+      this.smartCutQueue.invalidate(entry.regionAfter.id);
+      if (entry.regionAfter.effectType === 'smart-cut' || entry.regionAfter.effectType === 'smart') {
+        this.smartCutQueue.enqueue(entry.regionAfter, result.clip);
+      }
+    } else if (entry.kind === 'restore') {
+      entry.regionsBefore.forEach(r => this.smartCutQueue.invalidate(r.id));
+      entry.regionsAfter.forEach(r => {
+        if (r.effectType === 'smart-cut' || r.effectType === 'smart') {
+          this.smartCutQueue.enqueue(r, result.clip);
+        }
+      });
+    } else if (entry.kind === 'edit-effect') {
+      this.smartCutQueue.invalidate(entry.regionId);
+      const r = result.clip.cutRegions.find(cr => cr.id === entry.regionId);
+      if (r && (r.effectType === 'smart-cut' || r.effectType === 'smart')) {
+        this.smartCutQueue.enqueue(r, result.clip);
+      }
+    } else if (entry.kind === 'apply-batch') {
+      for (const r of result.clip.cutRegions) {
+        if (r.effectType === 'smart-cut' || r.effectType === 'smart') {
+          this.smartCutQueue.invalidate(r.id);
+          this.smartCutQueue.enqueue(r, result.clip);
+        }
+      }
+    }
   }
 
   private saveCutRegions(): void {
@@ -2124,10 +2218,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         }
         if (!this.effectInProgress()) {
           this.effectInProgress.set(true);
-          this.effectPlayer.playEffect(r, this.clip()).subscribe({
-            complete: () => {
+          this.effectPlayer.playEffect(r, this.clip(), end).subscribe({
+            next: (seekTo) => {
               this.effectInProgress.set(false);
-              this.mediaPlayer.seek(end);
+              this.mediaPlayer.seek(seekTo);
             }
           });
         }
@@ -2195,6 +2289,61 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     const dur = seg.endTime - seg.startTime;
     if (dur <= 0) return 0;
     return ((ct - seg.startTime) / dur) * 100;
+  }
+
+  getSmartCutStatus(regionId: string) {
+    return this.smartCutStatus()[regionId] ?? null;
+  }
+
+  async loadSmartCutThumbs(regionId: string, clipId: string, tBefore: number, tAfterCenter: number): Promise<void> {
+    const key = `${clipId}|${regionId}|${tBefore.toFixed(4)}|${tAfterCenter.toFixed(4)}`;
+    const result = await this.smartCutCache.get(key);
+    if (!result) return;
+    const pre = URL.createObjectURL(result.preThumb);
+    const post = URL.createObjectURL(result.postThumb);
+    this.smartCutThumbs.update(m => ({ ...m, [regionId]: { pre, post } }));
+  }
+
+  getRegionTBefore(region: CutRegion): number {
+    const clip = this.clip();
+    const allWords = clip.segments.flatMap(s => s.words);
+    const regionSet = new Set(region.wordIds);
+    const regionStart = region.startTime ?? Math.min(...region.wordIds.map(id => allWords.find(w => w.id === id)?.startTime ?? Infinity));
+    const kept = allWords.filter(w => !w.isRemoved && !regionSet.has(w.id) && w.endTime <= regionStart);
+    return kept.length ? kept[kept.length - 1].endTime : 0;
+  }
+
+  getRegionTAfterCenter(region: CutRegion): number {
+    const clip = this.clip();
+    const allWords = clip.segments.flatMap(s => s.words);
+    const regionSet = new Set(region.wordIds);
+    const regionEnd = region.endTime ?? Math.max(...region.wordIds.map(id => allWords.find(w => w.id === id)?.endTime ?? -Infinity));
+    const kept = allWords.filter(w => !w.isRemoved && !regionSet.has(w.id) && w.startTime >= regionEnd);
+    return kept.length ? kept[0].startTime : 0;
+  }
+
+  previewSmartCut(regionId: string): void {
+    const clip = this.clip();
+    const region = clip.cutRegions.find(r => r.id === regionId);
+    if (!region) return;
+
+    const allWords = clip.segments.flatMap(s => s.words);
+    const regionSet = new Set(region.wordIds);
+    const regionStart = region.startTime ?? Math.min(...region.wordIds.map(id => allWords.find(w => w.id === id)?.startTime ?? 0));
+
+    const previewStart = Math.max(clip.startTime, regionStart - SMART_CUT_PREVIEW_PREROLL_MS / 1000);
+    this.mediaPlayer.seek(previewStart);
+    this.mediaPlayer.play();
+
+    const regionEnd = region.endTime ?? Math.max(...region.wordIds.map(id => allWords.find(w => w.id === id)?.endTime ?? 0));
+    const pauseAt = regionEnd + SMART_CUT_PREVIEW_POSTROLL_MS / 1000;
+
+    const sub = effect(() => {
+      if (this.currentTime() >= pauseAt) {
+        this.mediaPlayer.pause();
+        sub.destroy();
+      }
+    }, { injector: this.injector });
   }
 }
 

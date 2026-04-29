@@ -62,6 +62,7 @@ describe('NotebookService', () => {
   it('loadAll sets notebooks signal and activates first', () => {
     service.loadAll('proj-1').subscribe();
     httpMock.expectOne('/api/projects/proj-1/notebooks').flush([MOCK_NOTEBOOK]);
+    httpMock.expectOne('/api/notebooks/nb-1/notes').flush([]);
 
     expect(service.notebooks()).toHaveLength(1);
     expect(service.active()?.id).toBe('nb-1');

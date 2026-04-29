@@ -1,0 +1,112 @@
+
+> client@0.0.0 test
+> ng test --watch=false
+
+[33m❯[39m Building...
+[32m✔[39m Building...
+[1mInitial chunk files[22m                                                        [2m | [22m[1mNames[22m                                                                   [2m | [22m [1mRaw size[22m
+[32mspec-app-features-studio-txt-media-player-txt-media-player.component.js[39m    [2m | [22m[2mspec-app-features-studio-txt-media-player-txt-media-player.component[22m    [2m | [22m [36m71.17 kB[39m[2m | [22m
+[32mspec-app-features-onboarding-media-uploader-media-uploader.component.js[39m    [2m | [22m[2mspec-app-features-onboarding-media-uploader-media-uploader.component[22m    [2m | [22m [36m26.66 kB[39m[2m | [22m
+[32mspec-app-app.js[39m                                                            [2m | [22m[2mspec-app-app[22m                                                            [2m | [22m [36m24.17 kB[39m[2m | [22m
+[32mspec-app-features-studio-story-review-panel-story-review-panel.component.js[39m[2m | [22m[2mspec-app-features-studio-story-review-panel-story-review-panel.component[22m[2m | [22m [36m22.75 kB[39m[2m | [22m
+[32mchunk-VE3OUOIM.js[39m                                                          [2m | [22m[2m-[22m                                                                       [2m | [22m [36m15.14 kB[39m[2m | [22m
+[32mspec-app-core-services-notebook.service.js[39m                                 [2m | [22m[2mspec-app-core-services-notebook.service[22m                                 [2m | [22m [36m13.78 kB[39m[2m | [22m
+[32mspec-app-features-studio-txt-media-player-pending-edits.service.js[39m         [2m | [22m[2mspec-app-features-studio-txt-media-player-pending-edits.service[22m         [2m | [22m [36m11.47 kB[39m[2m | [22m
+[32mspec-app-features-studio-txt-media-player-cut-region.service.js[39m            [2m | [22m[2mspec-app-features-studio-txt-media-player-cut-region.service[22m            [2m | [22m  [36m8.82 kB[39m[2m | [22m
+[32mspec-app-features-studio-txt-media-player-smart-effect.service.js[39m          [2m | [22m[2mspec-app-features-studio-txt-media-player-smart-effect.service[22m          [2m | [22m  [36m5.92 kB[39m[2m | [22m
+[32mchunk-JBWBLPNK.js[39m                                                          [2m | [22m[2m-[22m                                                                       [2m | [22m  [36m5.19 kB[39m[2m | [22m
+[32mchunk-DZCJR5ZV.js[39m                                                          [2m | [22m[2m-[22m                                                                       [2m | [22m  [36m4.43 kB[39m[2m | [22m
+[32mchunk-26BOWHV3.js[39m                                                          [2m | [22m[2m-[22m                                                                       [2m | [22m  [36m3.89 kB[39m[2m | [22m
+[32mstyles.css[39m                                                                 [2m | [22m[2mstyles[22m                                                                  [2m | [22m  [36m3.69 kB[39m[2m | [22m
+[32mspec-app-features-studio-txt-media-player-smart-cut-hash.js[39m                [2m | [22m[2mspec-app-features-studio-txt-media-player-smart-cut-hash[22m                [2m | [22m  [36m2.23 kB[39m[2m | [22m
+[32mchunk-FVGJACCA.js[39m                                                          [2m | [22m[2m-[22m                                                                       [2m | [22m  [36m1.92 kB[39m[2m | [22m
+[32mchunk-RZACQI3X.js[39m                                                          [2m | [22m[2m-[22m                                                                       [2m | [22m  [36m1.74 kB[39m[2m | [22m
+[32mspec-app-core-services-file-hash.service.js[39m                                [2m | [22m[2mspec-app-core-services-file-hash.service[22m                                [2m | [22m  [36m1.74 kB[39m[2m | [22m
+[32mspec-app-features-studio-txt-media-player-edit-history.service.js[39m          [2m | [22m[2mspec-app-features-studio-txt-media-player-edit-history.service[22m          [2m | [22m  [36m1.72 kB[39m[2m | [22m
+[32mchunk-P7AZXRPY.js[39m                                                          [2m | [22m[2m-[22m                                                                       [2m | [22m  [36m1.67 kB[39m[2m | [22m
+[32mchunk-7TVK3EAI.js[39m                                                          [2m | [22m[2m-[22m                                                                       [2m | [22m  [36m1.38 kB[39m[2m | [22m
+[32mspec-app-features-studio-txt-media-player-media-player.service.js[39m          [2m | [22m[2mspec-app-features-studio-txt-media-player-media-player.service[22m          [2m | [22m  [36m1.28 kB[39m[2m | [22m
+[32minit-testbed.js[39m                                                            [2m | [22m[2minit-testbed[22m                                                            [2m | [22m  [36m1.21 kB[39m[2m | [22m
+[32mvitest-mock-patch.js[39m                                                       [2m | [22m[2mvitest-mock-patch[22m                                                       [2m | [22m[36m969 bytes[39m[2m | [22m
+
+[1m [22m                                                                          [2m | [22m[1mInitial total[22m                                                           [2m | [22m[1m232.95 kB[22m
+
+Application bundle generation complete. [2.762 seconds] - 2026-04-29T05:42:06.693Z
+
+
+[1m[46m RUN [49m[22m [36mv4.1.2 [39m[90mC:/web.projects/VTextStudio/client[39m
+
+ [31m❯[39m [30m[42m client [49m[39m src/app/core/services/file-hash.service.spec.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 43[2mms[22m[39m
+[31m     [31m×[31m computes SHA-256 hash of a file as a hex string[39m[32m 29[2mms[22m[39m
+ [31m❯[39m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts [2m([22m[2m8 tests[22m[2m | [22m[31m8 failed[39m[2m)[22m[32m 35[2mms[22m[39m
+[31m     [31m×[31m loadAll sets notebooks signal and activates first[39m[32m 28[2mms[22m[39m
+[31m     [31m×[31m create posts snapshot and activates new notebook[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m save puts current snapshot and clears isDirty[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m rename updates notebook name in list and active[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m delete removes notebook and activates next[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m addNote posts and appends to notes signal[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m deleteNote removes from notes signal[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m _captureSnapshot records isRemoved and cutRegions[39m[32m 0[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 9 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/file-hash.service.spec.ts[2m > [22mFileHashService[2m > [22mcomputes SHA-256 hash of a file as a hex string
+[31m[1mTypeError[22m: Failed to execute 'digest' on 'SubtleCrypto': 2nd argument is not instance of ArrayBuffer, Buffer, TypedArray, or DataView.[39m
+[90m [2m❯[22m _FileHashService.computeHash src/app/core/services/file-hash.service.ts:[2m35:44[22m[39m
+[36m [2m❯[22m src/app/core/services/file-hash.service.spec.ts:[2m25:18[22m[39m
+    [90m 23|[39m     const file = new File([bytes], 'hello.txt', { type: 'text/plain' }…
+    [90m 24|[39m
+    [90m 25|[39m     [35mconst[39m hash [33m=[39m [35mawait[39m service[33m.[39m[34mcomputeHash[39m(file)[33m;[39m
+    [90m   |[39m                  [31m^[39m
+    [90m 26|[39m
+    [90m 27|[39m     [90m// SHA-256 of 'hello'[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/16]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22mloadAll sets notebooks signal and activates first
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22mcreate posts snapshot and activates new notebook
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22msave puts current snapshot and clears isDirty
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22mrename updates notebook name in list and active
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22mdelete removes notebook and activates next
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22maddNote posts and appends to notes signal
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22mdeleteNote removes from notes signal
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22m_captureSnapshot records isRemoved and cutRegions
+[31m[1mError[22m: Expected no open requests, found 1: GET /api/notebooks/nb-1/notes[39m
+[90m [2m❯[22m HttpClientTestingBackend.verify ../darwin_arm64-fastbuild-ST-fdfa778d11ba/bin/packages/common/http/testing/src/backend.ts:[2m147:12[22m[39m
+[36m [2m❯[22m src/app/core/services/notebook.service.spec.ts:[2m60:28[22m[39m
+    [90m 58|[39m   })[33m;[39m
+    [90m 59|[39m
+    [90m 60|[39m   [34mafterEach[39m(() [33m=>[39m httpMock[33m.[39m[34mverify[39m())[33m;[39m
+    [90m   |[39m                            [31m^[39m
+    [90m 61|[39m
+    [90m 62|[39m   [34mit[39m([32m'loadAll sets notebooks signal and activates first'[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/16]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22mcreate posts snapshot and activates new notebook
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22msave puts current snapshot and clears isDirty
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22mrename updates notebook name in list and active
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22mdelete removes notebook and activates next
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22maddNote posts and appends to notes signal
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22mdeleteNote removes from notes signal
+[41m[1m FAIL [22m[49m [30m[42m client [49m[39m src/app/core/services/notebook.service.spec.ts[2m > [22mNotebookService[2m > [22m_captureSnapshot records isRemoved and cutRegions
+[31m[1mError[22m: Cannot configure the test module when the test module has already been instantiated. Make sure you are not using `inject` before `TestBed.configureTestingModule`.[39m
+[90m [2m❯[22m TestBedImpl.assertNotInstantiated ../darwin_arm64-fastbuild-ST-fdfa778d11ba/bin/packages/core/testing/src/test_bed.ts:[2m736:12[22m[39m
+[90m [2m❯[22m assertNotInstantiated ../darwin_arm64-fastbuild-ST-fdfa778d11ba/bin/packages/core/testing/src/test_bed.ts:[2m562:9[22m[39m
+[90m [2m❯[22m configureTestingModule ../darwin_arm64-fastbuild-ST-fdfa778d11ba/bin/packages/core/testing/src/test_bed.ts:[2m319:32[22m[39m
+[36m [2m❯[22m src/app/core/services/notebook.service.spec.ts:[2m51:13[22m[39m
+    [90m 49|[39m
+    [90m 50|[39m   [34mbeforeEach[39m(() [33m=>[39m {
+    [90m 51|[39m     [33mTestBed[39m[33m.[39m[34mconfigureTestingModule[39m({
+    [90m   |[39m             [31m^[39m
+    [90m 52|[39m       providers[33m:[39m [[34mprovideHttpClient[39m()[33m,[39m [34mprovideHttpClientTesting[39m()][33m,[39m
+    [90m 53|[39m     })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/16]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m10 passed[39m[22m[90m (12)[39m
+[2m      Tests [22m [1m[31m9 failed[39m[22m[2m | [22m[1m[32m57 passed[39m[22m[90m (66)[39m
+[2m   Start at [22m 08:42:07
+[2m   Duration [22m 3.38s[2m (transform 1.97s, setup 7.89s, import 2.43s, tests 1.07s, environment 21.53s)[22m
+

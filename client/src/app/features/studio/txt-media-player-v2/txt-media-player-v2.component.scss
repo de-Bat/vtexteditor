@@ -2219,3 +2219,87 @@ audio {
     &:hover { background: rgba(255, 110, 132, 0.07); color: var(--error, #ff6e84); }
   }
 }
+
+/* ── Smart Cut UI ────────────────────────────────────── */
+.smart-cut-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  z-index: 10;
+  object-fit: contain;
+
+  &.visible {
+    opacity: 1;
+  }
+}
+
+.sc-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 4px;
+  position: relative;
+  cursor: help;
+
+  &--queued { background: #9ca3af; }
+  &--computing { background: #60a5fa; animation: pulse 1.5s infinite; }
+  &--done { background: #34d399; }
+  &--error { background: #ef4444; }
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.sc-thumb-popover {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  background: var(--surface-container-highest);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px;
+  border-radius: 8px;
+  z-index: 500;
+  white-space: nowrap;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+
+  .sc-status-dot:hover & {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  img {
+    border-radius: 4px;
+    background: #000;
+  }
+  
+  .sc-thumb-arrow {
+    color: var(--outline);
+    font-weight: bold;
+  }
+}
+
+.sc-preview-btn {
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  margin-left: 4px;
+  cursor: pointer;
+  
+  &:hover {
+    background: rgba(52, 211, 153, 0.2);
+  }
+}

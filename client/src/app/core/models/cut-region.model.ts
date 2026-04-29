@@ -1,4 +1,4 @@
-export type EffectType = 'clear-cut' | 'fade-in' | 'cross-cut' | 'smart';
+export type EffectType = 'clear-cut' | 'fade-in' | 'cross-cut' | 'smart' | 'smart-cut';
 
 export interface CutRegion {
   id: string;

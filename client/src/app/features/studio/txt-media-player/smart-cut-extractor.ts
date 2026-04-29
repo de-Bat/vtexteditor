@@ -91,11 +91,8 @@ export class SmartCutExtractor {
 
   destroy(): void {
     this.worker.terminate();
-    this.video.removeEventListener('seeked', this._onSeeked);
     this.video.remove?.();
   }
-
-  private _onSeeked: () => void = () => {};
 
   private captureFrame(timestamp: number): Promise<ImageBitmap> {
     return new Promise<ImageBitmap>((resolve, reject) => {

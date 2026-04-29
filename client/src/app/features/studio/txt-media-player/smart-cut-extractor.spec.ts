@@ -95,4 +95,38 @@ describe('SmartCutExtractor', () => {
     e.destroy();
     expect((worker as any).terminate).toHaveBeenCalled();
   });
+
+  it('passes roi from ExtractionRequest through to WorkerRequest', async () => {
+    const roi = { x: 0.10, y: 0.00, w: 0.80, h: 0.60 };
+    let capturedMessage: any;
+    const capturingWorker = makeMockWorker({
+      id: 'roi-test',
+      resumeOffsetMs: 0,
+      score: 3,
+      preThumb: new Blob(),
+      postThumb: new Blob(),
+    });
+    // Intercept postMessage to capture the WorkerRequest
+    (capturingWorker as any).postMessage = vi.fn((msg: any) => {
+      capturedMessage = msg;
+      // Still fire the response so the promise resolves
+      Promise.resolve().then(() => {
+        (capturingWorker as any).onmessage?.({
+          data: { id: 'roi-test', resumeOffsetMs: 0, score: 3, preThumb: new Blob(), postThumb: new Blob() }
+        } as MessageEvent);
+      });
+    });
+
+    const e = new SmartCutExtractor(makeMockVideo(), capturingWorker);
+    await e.extract({
+      id: 'roi-test',
+      tBefore: 10.0,
+      tAfterCenter: 12.0,
+      windowMs: 150,
+      clipId: 'clip1',
+      roi,
+    });
+
+    expect(capturedMessage.roi).toEqual(roi);
+  });
 });

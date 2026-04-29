@@ -3,6 +3,7 @@ import {
   SMART_CUT_FRAME_INTERVAL_MS,
   SMART_CUT_MIN_WINDOW_MS,
   SMART_CUT_SEEK_TIMEOUT_MS,
+  type SmartCutRoi,
 } from './smart-cut.constants';
 import type { WorkerRequest, WorkerResult, WorkerError } from './smart-cut.worker';
 
@@ -12,6 +13,7 @@ export interface ExtractionRequest {
   tAfterCenter: number;   // seconds: center of search window
   windowMs: number;       // half-window in ms (default 150)
   clipId: string;
+  roi?: SmartCutRoi;      // passed through to WorkerRequest
 }
 
 export interface ExtractionResult {
@@ -84,6 +86,7 @@ export class SmartCutExtractor {
         candidates,
         candidateTimestamps,
         centerTimestamp: req.tAfterCenter,
+        roi: req.roi,
       };
       this.worker.postMessage(workerReq, [anchor, ...candidates]);
     });

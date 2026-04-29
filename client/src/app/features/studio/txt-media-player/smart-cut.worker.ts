@@ -2,7 +2,8 @@
 
 import { dHash, hammingDistance } from './smart-cut-hash';
 import {
-  SMART_CUT_THUMB_WIDTH, SMART_CUT_THUMB_HEIGHT, SMART_CUT_THUMB_QUALITY
+  SMART_CUT_THUMB_WIDTH, SMART_CUT_THUMB_HEIGHT, SMART_CUT_THUMB_QUALITY,
+  type SmartCutRoi,
 } from './smart-cut.constants';
 
 export interface WorkerRequest {
@@ -11,6 +12,7 @@ export interface WorkerRequest {
   candidates: ImageBitmap[];
   candidateTimestamps: number[];  // seconds, matching candidates[] by index
   centerTimestamp: number;        // tAfterCenter in seconds
+  roi?: SmartCutRoi;              // null/absent = full frame
 }
 
 export interface WorkerResult {
@@ -26,10 +28,19 @@ export interface WorkerError {
   error: string;
 }
 
-function toGrayscale9x8(bitmap: ImageBitmap): Uint8Array {
+function toGrayscale9x8(bitmap: ImageBitmap, roi?: SmartCutRoi): Uint8Array {
   const canvas = new OffscreenCanvas(9, 8);
   const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(bitmap, 0, 0, 9, 8);
+  if (roi) {
+    ctx.drawImage(
+      bitmap,
+      roi.x * bitmap.width, roi.y * bitmap.height,
+      roi.w * bitmap.width, roi.h * bitmap.height,
+      0, 0, 9, 8,
+    );
+  } else {
+    ctx.drawImage(bitmap, 0, 0, 9, 8);
+  }
   const data = ctx.getImageData(0, 0, 9, 8).data;
   const pixels = new Uint8Array(72);
   for (let i = 0; i < 72; i++) {
@@ -46,19 +57,19 @@ async function bitmapToBlob(bitmap: ImageBitmap): Promise<Blob> {
 }
 
 addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
-  const { id, anchor, candidates, candidateTimestamps, centerTimestamp } = event.data;
+  const { id, anchor, candidates, candidateTimestamps, centerTimestamp, roi } = event.data;
 
   try {
     if (!candidates.length) {
       throw new Error('no candidates');
     }
 
-    const anchorHash = dHash(toGrayscale9x8(anchor));
+    const anchorHash = dHash(toGrayscale9x8(anchor, roi));
 
     let bestIdx = 0;
     let bestDist = Infinity;
     for (let i = 0; i < candidates.length; i++) {
-      const dist = hammingDistance(anchorHash, dHash(toGrayscale9x8(candidates[i])));
+      const dist = hammingDistance(anchorHash, dHash(toGrayscale9x8(candidates[i], roi)));
       const tiebreakDist = Math.abs(candidateTimestamps[i] - centerTimestamp);
       if (dist < bestDist || (dist === bestDist && tiebreakDist < Math.abs(candidateTimestamps[bestIdx] - centerTimestamp))) {
         bestDist = dist;

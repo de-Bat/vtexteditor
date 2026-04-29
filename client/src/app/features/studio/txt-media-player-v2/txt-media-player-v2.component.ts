@@ -168,13 +168,13 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
               <span class="material-symbols-outlined">{{ textEditMode() ? 'edit_off' : 'edit' }}</span>
             </button>
 
-            <!-- Smart Cut -->
-            <div class="smart-cut-wrap">
-              <button class="hdr-btn" [class.active]="smartCutOpen()" (click)="toggleMenu('smartCut')" [disabled]="metadataPanelOpen()" title="Smart Cut">
+            <!-- Auto Clean -->
+            <div class="auto-clean-wrap">
+              <button class="hdr-btn" [class.active]="autoCleanOpen()" (click)="toggleMenu('autoClean')" [disabled]="metadataPanelOpen()" title="Auto Clean">
                 <span class="material-symbols-outlined">auto_fix_high</span>
               </button>
-              @if (smartCutOpen()) {
-                <div class="smart-cut-dropdown popover">
+              @if (autoCleanOpen()) {
+                <div class="auto-clean-dropdown popover">
                   <div class="sc-section-title">Filler Words — EN</div>
                   <div class="sc-chips">
                     @for (fw of FILLER_WORDS_EN; track fw) {
@@ -197,7 +197,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                       Silence
                     </button>
                   </div>
-                  <button class="sc-apply-btn" (click)="applySmartCut()">Apply Smart Cut</button>
+                  <button class="sc-apply-btn" (click)="applyAutoClean()">Apply Auto Clean</button>
                 </div>
               }
             </div>
@@ -257,7 +257,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 </div>
 
                 <div class="menu-item-group">
-                  <span class="menu-label">Smart Cut</span>
+                  <span class="menu-label">Auto Clean</span>
                   <div class="sc-toggles">
                     <button class="sc-toggle" [class.active]="highlightFillers()" (click)="highlightFillers.set(!highlightFillers())" [disabled]="metadataPanelOpen()">
                       <span class="material-symbols-outlined">visibility</span>
@@ -268,7 +268,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                       Silence
                     </button>
                   </div>
-                  <button class="sc-apply-btn" (click)="applySmartCut()" [disabled]="metadataPanelOpen()" style="margin-top:4px">Apply Smart Cut</button>
+                  <button class="sc-apply-btn" (click)="applyAutoClean()" [disabled]="metadataPanelOpen()" style="margin-top:4px">Apply Auto Clean</button>
                 </div>
 
                 <div class="menu-item-group">
@@ -393,6 +393,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 @if (fi.kind === 'time') {
                   <span class="inline-time" (click)="seekToTime(fi.time)">{{ fi.label }}</span>
                 } @else if (fi.kind === 'silence') {
+                  @if (!highlightSilence() || fi.duration >= silenceIntervalSec()) {
                   <span class="inline-silence"
                     [class.silence-playing]="activeSilence()?.id === fi.id"
                     [class.silence-hl]="highlightSilence() && fi.duration >= silenceIntervalSec()"
@@ -404,6 +405,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     <span class="material-symbols-outlined">hourglass_empty</span>
                     @if (fi.duration >= 0.5) { {{ fi.label }} }
                   </span>
+                  }
                 } @else if (fi.word.isRemoved) {
                   @let region = wordIdToRegion().get(fi.word.id);
                   <span class="filler-badge"
@@ -411,6 +413,8 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     [class.selected]="selectedWordIdSet().has(fi.word.id)"
                     [class.popover-open]="effectPopoverWordId() === fi.word.id"
                     [class.pending-add]="region?.pending && region?.pendingKind === 'add'"
+                    (mousedown)="onWordMouseDown(fi.word, $event)"
+                    (mouseenter)="onWordMouseEnter(fi.word)"
                     (click)="onRemovedWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)">
 
@@ -489,21 +493,23 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           </div>
         </div>
 
-        <!-- Silence marker (Always visible if exists) -->
+        <!-- Silence marker (hidden below threshold when highlight mode active) -->
         @if (item.silenceAfter; as sil) {
-          <div class="silence-row" [class.silence-playing]="activeSilence()?.id === sil.id">
-            <div class="silence-line"></div>
-            <div class="silence-pill"
-              [class.silence-playing]="activeSilence()?.id === sil.id"
-              [class.silence-hl]="highlightSilence() && sil.duration >= silenceIntervalSec()"
-              [style.--sil-prog]="activeSilence()?.id === sil.id ? activeSilence()!.progress : 0"
-              (click)="seekToTime(sil.midTime)">
-              <span class="material-symbols-outlined">timer</span>
-              <span class="silence-text">{{ sil.durationText }} Silence</span>
-              <span class="material-symbols-outlined silence-x">close</span>
+          @if (!highlightSilence() || sil.duration >= silenceIntervalSec()) {
+            <div class="silence-row" [class.silence-playing]="activeSilence()?.id === sil.id">
+              <div class="silence-line"></div>
+              <div class="silence-pill"
+                [class.silence-playing]="activeSilence()?.id === sil.id"
+                [class.silence-hl]="highlightSilence() && sil.duration >= silenceIntervalSec()"
+                [style.--sil-prog]="activeSilence()?.id === sil.id ? activeSilence()!.progress : 0"
+                (click)="seekToTime(sil.midTime)">
+                <span class="material-symbols-outlined">timer</span>
+                <span class="silence-text">{{ sil.durationText }} Silence</span>
+                <span class="material-symbols-outlined silence-x">close</span>
+              </div>
+              <div class="silence-line"></div>
             </div>
-            <div class="silence-line"></div>
-          </div>
+          }
         }
       }
 
@@ -810,14 +816,14 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }, { allowSignalWrites: true });
 
   /* ── Smart-Cut Signals ────────────────────────────────── */
-  /** Minimum silence gap (seconds) for smart-cut detection */
+  /** Minimum silence gap (seconds) for auto-clean detection */
   readonly silenceIntervalSec = signal(0.3);
   /** Show filler-word highlight overlays (orange underline) */
   readonly highlightFillers = signal(false);
   /** Show silence-gap highlight overlays (blue underline) */
   readonly highlightSilence = signal(false);
-  /** Whether Smart Cut dropdown is open */
-  readonly smartCutOpen = signal(false);
+  /** Whether Auto Clean dropdown is open */
+  readonly autoCleanOpen = signal(false);
   /** Whether the search input is expanded */
   readonly searchExpanded = signal(false);
   /** Whether the silence-interval popover is open */
@@ -832,7 +838,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /** Global default effect type — new regions inherit this. */
   readonly defaultEffectType = signal<EffectType>('clear-cut');
 
-  /** Whether the responsive "More" menu is open; mutual exclusion with silence/smart-cut */
+  /** Whether the responsive "More" menu is open; mutual exclusion with silence/auto-clean */
   readonly moreMenuOpen = signal(false);
   readonly isTranscriptOpen = signal(true);
 
@@ -1408,17 +1414,31 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     effect(() => {
       const ev = this.notebookService.noteJumpEvent();
       if (!ev) return;
-      
+
       const note = ev.note;
       const clip = this.clip(); // Track clip so effect re-runs when clip updates
+
+      // Clip note: seek directly to note timecode; no word traversal needed.
+      if (note.attachedToType === 'clip' && note.attachedToId === clip.id) {
+        setTimeout(() => {
+          this.mediaPlayer.seek(note.timecode || clip.startTime);
+          const firstSeg = clip.segments[0];
+          if (firstSeg) this.selectedSegmentId.set(firstSeg.id);
+          const firstWord = firstSeg?.words.find(w => !w.isRemoved);
+          if (firstWord) {
+            setTimeout(() => {
+              const el = document.getElementById(firstWord.id);
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 50);
+          }
+        }, 0);
+        return;
+      }
 
       let targetWord: Word | null = null;
       let targetSegment: Segment | null = null;
 
-      if (note.attachedToType === 'clip' && note.attachedToId === clip.id) {
-        targetSegment = clip.segments[0];
-        targetWord = targetSegment?.words[0] || null;
-      } else if (note.attachedToType === 'segment') {
+      if (note.attachedToType === 'segment') {
         targetSegment = clip.segments.find(s => s.id === note.attachedToId) || null;
         if (targetSegment) {
           targetWord = targetSegment.words[0] || null;
@@ -1442,7 +1462,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         if (!targetWord!.isRemoved) {
           this.mediaPlayer.seek(targetWord!.startTime);
         }
-        if (note.attachedToType === 'segment' && targetSegment) {
+        if (targetSegment) {
           this.selectedSegmentId.set(targetSegment.id);
         }
         setTimeout(() => {
@@ -1616,6 +1636,15 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       return;
     }
     if (this.textEditMode()) return;
+
+    if (this.metadataPanelOpen()) {
+      // Prevent click from bubbling to seg-block so segment selection isn't overridden.
+      event.stopPropagation();
+      // Keep metadata panel showing the parent segment.
+      const parentSeg = this.clip().segments.find(s => s.words.some(w => w.id === word.id));
+      if (parentSeg) this.selectedSegmentId.set(parentSeg.id);
+    }
+
     if (event.shiftKey && this.selectionAnchorWordId()) {
       const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
       this.selectedWordIds.set(range);
@@ -1870,18 +1899,18 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.effectPopoverWordId.set(null);
   }
 
-  toggleMenu(menu: 'smartCut' | 'silence' | 'more'): void {
-    if (menu === 'smartCut') {
-      this.smartCutOpen.set(!this.smartCutOpen());
+  toggleMenu(menu: 'autoClean' | 'silence' | 'more'): void {
+    if (menu === 'autoClean') {
+      this.autoCleanOpen.set(!this.autoCleanOpen());
       this.silenceControlOpen.set(false);
       this.moreMenuOpen.set(false);
     } else if (menu === 'silence') {
       this.silenceControlOpen.set(!this.silenceControlOpen());
-      this.smartCutOpen.set(false);
+      this.autoCleanOpen.set(false);
       this.moreMenuOpen.set(false);
     } else {
       this.moreMenuOpen.set(!this.moreMenuOpen());
-      this.smartCutOpen.set(false);
+      this.autoCleanOpen.set(false);
       this.silenceControlOpen.set(false);
     }
   }
@@ -1893,12 +1922,12 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.selectedFillers.set(current);
   }
 
-  applySmartCut(): void {
+  applyAutoClean(): void {
     const fillers = Array.from(this.selectedFillers()) as string[];
     const minSilence = this.silenceIntervalSec();
-    const result = this.cutRegionService.smartCut(this.clip(), fillers, minSilence, this.defaultEffectType());
+    const result = this.cutRegionService.autoClean(this.clip(), fillers, minSilence, this.defaultEffectType());
     this.applyCutRegionChange(result);
-    this.smartCutOpen.set(false);
+    this.autoCleanOpen.set(false);
     this.moreMenuOpen.set(false);
   }
 
@@ -1909,11 +1938,28 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   onRemovedWordClick(word: Word, event: MouseEvent): void {
     event.stopPropagation();
     if (this.textEditMode()) return;
-    if (this.effectPopoverWordId() === word.id) {
-      this.effectPopoverWordId.set(null);
-    } else {
-      this.effectPopoverWordId.set(word.id);
+
+    if (event.shiftKey && this.selectionAnchorWordId()) {
+      const range = this.getWordRange(this.selectionAnchorWordId()!, word.id);
+      this.selectedWordIds.set(range);
+      return;
     }
+
+    if (event.ctrlKey || event.metaKey) {
+      this.selectionAnchorWordId.set(word.id);
+      const currentSet = new Set(this.selectedWordIds());
+      if (currentSet.has(word.id)) {
+        currentSet.delete(word.id);
+      } else {
+        currentSet.add(word.id);
+      }
+      this.selectedWordIds.set(Array.from(currentSet));
+      return;
+    }
+
+    this.selectionAnchorWordId.set(word.id);
+    this.selectedWordIds.set([word.id]);
+    this.effectPopoverWordId.set(this.effectPopoverWordId() === word.id ? null : word.id);
   }
 
   setRegionEffect(regionId: string, type: EffectType): void {

@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, effect } from '@angular/core';
+import { Injectable, inject, signal, effect, untracked } from '@angular/core';
 import { Observable, tap, map } from 'rxjs';
 import { ApiService } from './api.service';
 import { ClipService } from './clip.service';
@@ -27,9 +27,10 @@ export class NotebookService {
 
   constructor() {
     effect(() => {
-      // Track clips signal — any mutation marks active notebook dirty
+      // Track clips signal — any mutation marks active notebook dirty.
+      // Use untracked for active() so save() calling active.set() doesn't re-trigger.
       this.clipService.clips();
-      if (!this._suppressDirty && this.active() !== null) {
+      if (!this._suppressDirty && untracked(() => this.active()) !== null) {
         this.isDirty.set(true);
       }
     });

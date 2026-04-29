@@ -186,31 +186,76 @@ export class CutRegionService {
 
   /**
    * Automatically detect and cut filler words and/or long silence gaps.
+   * Silence gaps become time-based cut regions (wordIds: [], startTime/endTime set).
    */
-  smartCut(clip: Clip, fillers: string[], minSilenceSec: number, defaultEffect: EffectType): { clip: Clip; entry: CutHistoryEntry } {
+  autoClean(clip: Clip, fillers: string[], minSilenceSec: number, defaultEffect: EffectType): { clip: Clip; entry: CutHistoryEntry } {
+    const clipBefore = clip;
     const fillerSet = new Set(fillers.map(f => f.toLowerCase()));
     const wordIdsToCut = new Set<string>();
+
+    // Track existing time-based regions to avoid duplicates
+    const existingTimeKeys = new Set(
+      (clip.cutRegions ?? [])
+        .filter(r => r.startTime !== undefined && r.endTime !== undefined)
+        .map(r => `${r.startTime}-${r.endTime}`)
+    );
+
+    const silenceRegions: CutRegion[] = [];
+
+    const collectSilences = (words: Word[]) => {
+      const visible = words.filter(w => !w.isRemoved);
+      for (let i = 1; i < visible.length; i++) {
+        const gapStart = visible[i - 1].endTime;
+        const gapEnd = visible[i].startTime;
+        if (gapEnd - gapStart >= minSilenceSec && !existingTimeKeys.has(`${gapStart}-${gapEnd}`)) {
+          silenceRegions.push({
+            id: crypto.randomUUID(),
+            wordIds: [],
+            startTime: gapStart,
+            endTime: gapEnd,
+            effectType: defaultEffect,
+            effectTypeOverridden: false,
+            effectDuration: this.autoEffectDuration((gapEnd - gapStart) * 1000),
+            durationFixed: false,
+          });
+          existingTimeKeys.add(`${gapStart}-${gapEnd}`);
+        }
+      }
+    };
 
     for (const seg of clip.segments) {
       // 1. Fillers
       for (const w of seg.words) {
+        if (w.isRemoved) continue;
         const text = w.text.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
         if (fillerSet.has(text)) wordIdsToCut.add(w.id);
       }
+      // 2. Intra-segment silences
+      collectSilences(seg.words);
+    }
 
-      // 2. Silence gaps (internal to segment)
-      const visibleWords = seg.words.filter(w => !w.isRemoved);
-      for (let i = 1; i < visibleWords.length; i++) {
-        const gap = visibleWords[i].startTime - visibleWords[i-1].endTime;
-        if (gap >= minSilenceSec) {
-          // We can't "cut" a gap that has no words in it using the word-based cut()
-          // without creating time-based regions. For now, we only cut words.
-        }
+    // 3. Inter-segment silences
+    for (let i = 1; i < clip.segments.length; i++) {
+      const prevWords = clip.segments[i - 1].words.filter(w => !w.isRemoved);
+      const nextWords = clip.segments[i].words.filter(w => !w.isRemoved);
+      if (prevWords.length && nextWords.length) {
+        collectSilences([prevWords[prevWords.length - 1], nextWords[0]]);
       }
     }
 
-    if (wordIdsToCut.size === 0) return { clip, entry: { kind: 'restore', regionsBefore: [], regionsAfter: [] } };
-    return this.cut(clip, Array.from(wordIdsToCut), defaultEffect);
+    if (wordIdsToCut.size === 0 && silenceRegions.length === 0) {
+      return { clip, entry: { kind: 'restore', regionsBefore: [], regionsAfter: [] } };
+    }
+
+    let workingClip = clip;
+    if (wordIdsToCut.size > 0) {
+      workingClip = this.cut(workingClip, Array.from(wordIdsToCut), defaultEffect).clip;
+    }
+    if (silenceRegions.length > 0) {
+      workingClip = this.syncIsRemoved({ ...workingClip, cutRegions: [...(workingClip.cutRegions ?? []), ...silenceRegions] });
+    }
+
+    return { clip: workingClip, entry: { kind: 'apply-batch', clipBefore, clipAfter: workingClip } };
   }
 
   /** Update all non-overridden regions to the new default effect type. No history — this is a preference. */

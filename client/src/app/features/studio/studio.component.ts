@@ -7,6 +7,7 @@ import {
   signal,
   HostListener,
   effect,
+  untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -434,7 +435,9 @@ export class StudioComponent implements OnInit {
       const ev = this.notebookService.noteJumpEvent();
       if (!ev) return;
       const note = ev.note;
-      const clips = this.clipService.clips();
+      // Use untracked so changes to clips or activeClipId don't re-trigger this effect
+      // and override manual clip selections made after the note jump.
+      const clips = untracked(() => this.clipService.clips());
       let targetClipId: string | null = null;
 
       if (note.attachedToType === 'clip') {
@@ -458,7 +461,7 @@ export class StudioComponent implements OnInit {
         }
       }
 
-      if (targetClipId && this.activeClipId() !== targetClipId) {
+      if (targetClipId && untracked(() => this.activeClipId()) !== targetClipId) {
         this.activeClipId.set(targetClipId);
       }
     }, { allowSignalWrites: true });
@@ -550,14 +553,10 @@ export class StudioComponent implements OnInit {
         this.rightSidebarWidth.set(Math.max(300, Math.min(newWidth, 800)));
       }
     } else if (this.isResizingPlugin) {
-      // Plugin Panel (right side, same logic as export panel)
-      if (this.isRtl()) {
-        const newWidth = this.startWidth + delta;
-        this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
-      } else {
-        const newWidth = this.startWidth - delta;
-        this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
-      }
+      // Plugin Panel: resizer is left of panel in both LTR and RTL layouts.
+      // Drag left (delta < 0) → panel grows; drag right (delta > 0) → panel shrinks.
+      const newWidth = this.startWidth - delta;
+      this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
     }
   }
 

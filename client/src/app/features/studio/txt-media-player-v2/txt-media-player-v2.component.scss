@@ -684,7 +684,7 @@ audio {
   }
 }
 
-/* Base style for popovers (Smart Cut & Silence) */
+/* Base style for popovers (Auto Clean & Silence) */
 .popover {
   position: absolute;
   top: calc(100% + 6px);
@@ -777,12 +777,12 @@ audio {
   color: var(--outline);
 }
 
-/* Smart Cut trigger & dropdown */
-.smart-cut-wrap {
+/* Auto Clean trigger & dropdown */
+.auto-clean-wrap {
   position: relative;
 }
 
-.smart-cut-dropdown {
+.auto-clean-dropdown {
   width: 280px;
   display: flex;
   flex-direction: column;
@@ -1901,17 +1901,16 @@ audio {
 /* ── Metadata Mode Lockdown ────────────────────────── */
 .transcript-section.metadata-mode {
   .word {
-    pointer-events: none; // Target the words specifically, not the whole flow
-    cursor: default;
+    cursor: pointer;
     background: transparent !important;
     text-shadow: none !important;
-    opacity: 0.7; // De-emphasize text when in metadata mode
-    
+    opacity: 0.7;
+
     &.highlighted {
       background: transparent !important;
       border-color: transparent !important;
     }
-    
+
     &.selected {
       background: transparent !important;
       outline: none !important;
@@ -1920,8 +1919,7 @@ audio {
 
   .seg-block {
     cursor: pointer;
-    // The seg-block will handle the click even if words are pointer-events: none
-    
+
     &:hover {
       background: rgba(255, 255, 255, 0.03);
     }

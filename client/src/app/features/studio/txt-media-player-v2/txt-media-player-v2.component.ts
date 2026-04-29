@@ -77,6 +77,16 @@ interface TrackItem {
 const FILLER_WORDS_EN = ['um', 'uh', 'like', 'you know', 'so', 'basically', 'actually', 'literally', 'right', 'okay', 'well', 'anyway'];
 const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו', 'נכון', 'אוקיי', 'טוב', 'ברור', 'שניה', 'רגע'];
 
+/* ── Cut Effect Options ─────────────────────────────────────── */
+interface CutOption { type: EffectType; label: string; icon: string; description: string; }
+const CUT_OPTIONS: CutOption[] = [
+  { type: 'clear-cut',  label: 'Clear Cut',   icon: 'content_cut',  description: 'Hard cut — no transition. Precise and clean, no audio bleed.' },
+  { type: 'fade-in',    label: 'Fade In',     icon: 'blur_on',      description: 'Audio fades in after the cut. Softens abrupt silence edges.' },
+  { type: 'cross-cut',  label: 'Cross-Cut',   icon: 'shuffle',      description: 'Overlaps outgoing and incoming audio with a smooth crossfade.' },
+  { type: 'smart',      label: 'Smart',       icon: 'auto_awesome', description: 'Auto-selects the best transition based on surrounding audio context.' },
+  { type: 'smart-cut',  label: 'Frame Match', icon: 'auto_fix_high',description: 'Finds the best matching video frame for a seamless visual cut. Falls back to cross-cut if no match found.' },
+];
+
 /* ── Component ──────────────────────────────────────────────── */
 
 @Component({
@@ -90,6 +100,8 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
   host: {
     '(window:mousemove)': 'onMouseMove($event)',
     '(window:mouseup)': 'onMouseUp()',
+    '(window:click)': 'onWindowClick($event)',
+    '(window:keydown.escape)': 'closeContextMenu()',
   },
   template: `
 <div class="player-v2" [class.rtl]="isRtl()" [class.resizing]="isResizing()">
@@ -155,18 +167,6 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         @if (!searchExpanded()) {
           <!-- Tools visible when search is NOT expanded -->
           <div class="hdr-group">
-            <!-- Live / Apply mode toggle -->
-            <div class="edit-mode-toggle" role="group" aria-label="Editing mode">
-              <button class="mode-pill"
-                [class.active]="editingMode() === 'live'"
-                (click)="setEditingMode('live')"
-                title="Live: changes apply immediately">Live</button>
-              <button class="mode-pill"
-                [class.active]="editingMode() === 'apply'"
-                (click)="setEditingMode('apply')"
-                title="Apply: changes are staged until you click Apply">Apply</button>
-            </div>
-
             <!-- Mode control -->
             <button class="hdr-btn" [class.active]="textEditMode()" (click)="textEditMode.set(!textEditMode())" [disabled]="metadataPanelOpen()" title="Toggle Edit Mode (E)">
               <span class="material-symbols-outlined">{{ textEditMode() ? 'edit_off' : 'edit' }}</span>
@@ -306,46 +306,6 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         }
       </div>
 
-      <!-- Row 2: Selection Actions (Only shown on selection) -->
-      <div class="header-row2 selection-toolbar" [class.visible]="selectedCount() > 0 && !metadataPanelOpen()">
-        <div class="hdr-group">
-          <button class="hdr-btn" (click)="removeSelected()" [disabled]="metadataPanelOpen()" title="Cut selected">
-            <span class="material-symbols-outlined">content_cut</span>
-          </button>
-          <button class="hdr-btn" (click)="restoreSelected()" title="Healing restore selected">
-            <span class="material-symbols-outlined">healing</span>
-          </button>
-          <button class="hdr-btn" [class.active]="jumpCutMode()" (click)="jumpCutMode.set(!jumpCutMode())" title="Jump-cut preview">
-            <span class="material-symbols-outlined">auto_awesome</span>
-          </button>
-        </div>
-
-        <div class="spacer"></div>
-
-        <!-- Effect Pills (Default selection effect) -->
-        <div class="effect-pills-wrap">
-          <button class="effect-pill" [class.active]="defaultEffectType() === 'clear-cut'"
-            (click)="setDefaultEffect('clear-cut')" title="Clear Cut">
-            <span class="material-symbols-outlined" style="font-size:1rem">content_cut</span>
-          </button>
-          <button class="effect-pill" [class.active]="defaultEffectType() === 'fade-in'"
-            (click)="setDefaultEffect('fade-in')" title="Fade In">
-            <span class="material-symbols-outlined" style="font-size:1rem">blur_on</span>
-          </button>
-          <button class="effect-pill" [class.active]="defaultEffectType() === 'cross-cut'"
-            (click)="setDefaultEffect('cross-cut')" title="Cross-Cut">
-            <span class="material-symbols-outlined" style="font-size:1rem">shuffle</span>
-          </button>
-          <button class="effect-pill" [class.active]="defaultEffectType() === 'smart'"
-            (click)="setDefaultEffect('smart')" title="Smart (auto)">
-            <span class="material-symbols-outlined" style="font-size:1rem">auto_awesome</span>
-          </button>
-          <button class="effect-pill" [class.active]="defaultEffectType() === 'smart-cut'"
-            (click)="setDefaultEffect('smart-cut')" title="Smart Cut (frame-match)">
-            <span class="material-symbols-outlined" style="font-size:1rem">auto_fix_high</span>
-          </button>
-        </div>
-      </div>
     </div>
 
     <!-- Scrollable Transcript -->
@@ -402,17 +362,40 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                   <span class="inline-time" (click)="seekToTime(fi.time)">{{ fi.label }}</span>
                 } @else if (fi.kind === 'silence') {
                   @if (!highlightSilence() || fi.duration >= silenceIntervalSec()) {
-                  <span class="inline-silence"
-                    [class.silence-playing]="activeSilence()?.id === fi.id"
-                    [class.silence-hl]="highlightSilence() && fi.duration >= silenceIntervalSec()"
-                    [class.compact]="fi.duration < 0.5"
-                    [style.--sil-prog]="activeSilence()?.id === fi.id ? activeSilence()!.progress : 0"
-                    [style.width.px]="silenceChipWidth(fi.duration)"
-                    [title]="fi.label"
-                    (click)="seekToTime(fi.midTime)">
-                    <span class="material-symbols-outlined">hourglass_empty</span>
-                    @if (fi.duration >= 0.5) { {{ fi.label }} }
-                  </span>
+                    @let silCut = getSilenceCutForGap(fi.gapStart, fi.gapEnd);
+                    @let silTrim = silenceTrims().get(fi.id);
+                    <span class="inline-silence"
+                      [class.silence-playing]="activeSilence()?.id === fi.id"
+                      [class.silence-hl]="highlightSilence() && fi.duration >= silenceIntervalSec()"
+                      [class.compact]="fi.duration < 0.5"
+                      [class.silence-cut]="!!silCut"
+                      [class.silence-trimmed]="!!silTrim && (silTrim.trimStart > 0 || silTrim.trimEnd > 0)"
+                      [style.--sil-prog]="activeSilence()?.id === fi.id ? activeSilence()!.progress : 0"
+                      [style.width.px]="silenceChipWidth(fi.duration)"
+                      [title]="fi.label + (silCut ? ' · Cut' : ' · Click scissors to cut')"
+                      (click)="seekToTime(fi.midTime)">
+                      <!-- Left resize handle -->
+                      <span class="sil-handle sil-handle--start"
+                        (mousedown)="onSilenceHandleMouseDown(fi, 'start', $event)"
+                        title="Drag to trim silence start"></span>
+                      <span class="material-symbols-outlined">hourglass_empty</span>
+                      @if (fi.duration >= 0.5) { {{ fi.label }} }
+                      <!-- Cut/restore toggle -->
+                      @if (fi.duration >= 0.3) {
+                        <button class="sil-cut-btn" (click)="toggleSilenceCut(fi); $event.stopPropagation()"
+                          [title]="silCut ? 'Restore silence gap' : 'Cut this silence gap'">
+                          <span class="material-symbols-outlined">{{ silCut ? 'content_paste' : 'content_cut' }}</span>
+                        </button>
+                      }
+                      <!-- Right resize handle -->
+                      <span class="sil-handle sil-handle--end"
+                        (mousedown)="onSilenceHandleMouseDown(fi, 'end', $event)"
+                        title="Drag to trim silence end"></span>
+                      <!-- Edited indicator -->
+                      @if (silCut) {
+                        <span class="sil-edited-dot" [title]="'Silence cut — ' + effectTypeLabel(silCut.effectType)"></span>
+                      }
+                    </span>
                   }
                 } @else if (fi.word.isRemoved) {
                   @let region = wordIdToRegion().get(fi.word.id);
@@ -424,10 +407,12 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     (mousedown)="onWordMouseDown(fi.word, $event)"
                     (mouseenter)="onWordMouseEnter(fi.word)"
                     (click)="onRemovedWordClick(fi.word, $event)"
-                    (dblclick)="toggleRemove(fi.word)">
+                    (dblclick)="toggleRemove(fi.word)"
+                    (contextmenu)="onWordContextMenu(fi.word, $event)">
 
-                    @if (region?.effectTypeOverridden && region?.effectType !== 'clear-cut') {
-                      <span class="effect-dot effect-dot--{{ region!.effectType }}" aria-hidden="true"></span>
+                    @if (region) {
+                      <span class="effect-dot effect-dot--{{ region.effectType }}"
+                        [title]="effectTypeLabel(region.effectType)"></span>
                     }
 
                     <span class="filler-text"
@@ -466,21 +451,34 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                       <div class="effect-popover" role="dialog" aria-label="Cut effect options" (click)="$event.stopPropagation()">
                         <div class="ep-row">
                           <div class="ep-pills" role="group" aria-label="Effect type">
-                            <button class="ep-pill" [class.active]="region.effectType === 'clear-cut'"
-                              (click)="setRegionEffect(region.id, 'clear-cut')">Clear Cut</button>
-                            <button class="ep-pill" [class.active]="region.effectType === 'fade-in'"
-                              (click)="setRegionEffect(region.id, 'fade-in')">Fade In</button>
-                            <button class="ep-pill" [class.active]="region.effectType === 'cross-cut'"
-                              (click)="setRegionEffect(region.id, 'cross-cut')">Cross</button>
-                            <button class="ep-pill" [class.active]="region.effectType === 'smart'"
-                              (click)="setRegionEffect(region.id, 'smart')">Smart</button>
-                            <button class="ep-pill" [class.active]="region.effectType === 'smart-cut'"
-                              (click)="setRegionEffect(region.id, 'smart-cut')"
-                              title="Find best matching resume frame. Falls back to cross-cut if no good match.">
-                              Frame Match
-                            </button>
+                            @for (opt of CUT_OPTIONS; track opt.type) {
+                              <button class="ep-pill" [class.active]="region.effectType === opt.type"
+                                (click)="setWordEffect(fi.word.id, opt.type)"
+                                [title]="opt.description">
+                                {{ opt.label }}
+                              </button>
+                            }
                           </div>
                         </div>
+                        @if (region.effectType === 'smart-cut' || region.effectType === 'smart') {
+                          <div class="ep-row ep-scene-row">
+                            <span class="ep-dur-label">Scene</span>
+                            <div class="ep-scene-pills" role="group">
+                              <button class="ep-pill"
+                                [class.active]="(region.sceneType ?? clip().sceneType ?? 'talking-head') === 'talking-head'"
+                                (click)="setRegionSceneType(region.id, 'talking-head')"
+                                title="Single person, face-centered matching">
+                                Solo
+                              </button>
+                              <button class="ep-pill"
+                                [class.active]="(region.sceneType ?? clip().sceneType ?? 'talking-head') === 'two-shot'"
+                                (click)="setRegionSceneType(region.id, 'two-shot')"
+                                title="Two people, wider frame matching">
+                                Two Shot
+                              </button>
+                            </div>
+                          </div>
+                        }
                         @if (region.effectType !== 'clear-cut') {
                           <div class="ep-row ep-dur-row">
                             <span class="ep-dur-label">Duration</span>
@@ -500,7 +498,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                             }
                           </div>
                         }
-                        @if (region.effectTypeOverridden || region.durationFixed) {
+                        @if (region.effectTypeOverridden || region.durationFixed || region.sceneType) {
                           <button class="ep-reset" (click)="resetRegionEffect(region.id)">Reset to default</button>
                         }
                       </div>
@@ -519,6 +517,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                     (mouseenter)="onWordMouseEnter(fi.word)"
                     (click)="onWordClick(fi.word, $event)"
                     (dblclick)="toggleRemove(fi.word)"
+                    (contextmenu)="onWordContextMenu(fi.word, $event)"
                     (blur)="onWordTextBlur(fi.word, $event)"
                     [attr.contenteditable]="textEditMode() ? 'plaintext-only' : 'false'"
                     [title]="fi.word.pendingText ? 'Original: ' + fi.word.text : (textEditMode() ? 'Click to edit' : 'Double-click to remove')"
@@ -588,6 +587,22 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
         <span class="material-symbols-outlined">track_changes</span>
       </button>
 
+      <!-- Live / Apply mode toggle -->
+      <div class="edit-mode-toggle edit-mode-toggle--compact" role="group" aria-label="Editing mode">
+        <button class="mode-pill mode-pill--icon"
+          [class.active]="editingMode() === 'live'"
+          (click)="setEditingMode('live')"
+          title="Live — changes apply immediately to the timeline">
+          <span class="material-symbols-outlined">bolt</span>
+        </button>
+        <button class="mode-pill mode-pill--icon"
+          [class.active]="editingMode() === 'apply'"
+          (click)="setEditingMode('apply')"
+          title="Apply — changes are staged until you confirm">
+          <span class="material-symbols-outlined">pending_actions</span>
+        </button>
+      </div>
+
       @if (highlightFillers()) {
         <span class="status-chip status-indicator filler-hl-indicator" title="Filler Words Highlighted">
           <span class="material-symbols-outlined" style="font-size:1rem;color:#f59e0b">visibility</span>
@@ -600,13 +615,82 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
           <span class="chip-label">Silence</span>
         </span>
       }
-
-      @if (jumpCutMode()) {
-        <span class="status-chip status-mode" title="Jump Cut Mode Active">
-          <span class="chip-label">Preview: Jump Cut</span>
-        </span>
-      }
     </div>
+
+    <!-- Floating Selection Toolbar -->
+    @if (selectedCount() > 0 && !metadataPanelOpen()) {
+      <div class="floating-sel-toolbar" role="toolbar" aria-label="Selection actions">
+        <!-- Cut split button -->
+        <div class="cut-split-wrap">
+          <button class="cut-action-btn"
+            (click)="removeSelected()"
+            [title]="'Cut ' + selectedCount() + ' selected words using ' + effectTypeLabel(defaultEffectType())">
+            <span class="material-symbols-outlined">{{ effectTypeIcon(defaultEffectType()) }}</span>
+            <span class="cut-label">{{ effectTypeLabel(defaultEffectType()) }}</span>
+          </button>
+          <button class="cut-chevron-btn"
+            (click)="cutDropdownOpen.set(!cutDropdownOpen()); $event.stopPropagation()"
+            aria-label="Change cut effect type"
+            [class.open]="cutDropdownOpen()">
+            <span class="material-symbols-outlined">arrow_drop_down</span>
+          </button>
+          @if (cutDropdownOpen()) {
+            <div class="cut-dropdown" role="menu" (click)="$event.stopPropagation()">
+              @for (opt of CUT_OPTIONS; track opt.type) {
+                <button class="cut-dropdown-item"
+                  [class.active]="defaultEffectType() === opt.type"
+                  (click)="setDefaultEffect(opt.type); cutDropdownOpen.set(false)"
+                  role="menuitem">
+                  <span class="material-symbols-outlined cut-opt-icon">{{ opt.icon }}</span>
+                  <div class="cut-opt-text">
+                    <span class="cut-opt-name">{{ opt.label }}</span>
+                    <span class="cut-opt-desc">{{ opt.description }}</span>
+                  </div>
+                  @if (defaultEffectType() === opt.type) {
+                    <span class="material-symbols-outlined cut-opt-check">check</span>
+                  }
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Restore -->
+        <button class="sel-action-btn" (click)="restoreSelected()" title="Restore selected words">
+          <span class="material-symbols-outlined">healing</span>
+          <span class="cut-label">Restore</span>
+        </button>
+
+        <span class="sel-count-badge">{{ selectedCount() }}</span>
+      </div>
+    }
+
+    <!-- Context Menu (right-click on word) -->
+    @if (selectionContextMenu(); as cmPos) {
+      <div class="sel-context-menu"
+        role="menu"
+        [style.left.px]="cmPos.x"
+        [style.top.px]="cmPos.y"
+        (click)="$event.stopPropagation()">
+        <button class="ctx-item" (click)="removeSelected(); closeContextMenu()" role="menuitem">
+          <span class="material-symbols-outlined">{{ effectTypeIcon(defaultEffectType()) }}</span>
+          Cut {{ selectedCount() > 1 ? selectedCount() + ' words' : 'word' }} — {{ effectTypeLabel(defaultEffectType()) }}
+        </button>
+        <button class="ctx-item" (click)="restoreSelected(); closeContextMenu()" role="menuitem">
+          <span class="material-symbols-outlined">healing</span>
+          Restore selected
+        </button>
+        <div class="ctx-divider"></div>
+        <div class="ctx-submenu-label">Change cut effect</div>
+        @for (opt of CUT_OPTIONS; track opt.type) {
+          <button class="ctx-item ctx-item--sub" [class.active]="defaultEffectType() === opt.type"
+            (click)="setDefaultEffect(opt.type)" role="menuitem">
+            <span class="material-symbols-outlined">{{ opt.icon }}</span>
+            {{ opt.label }}
+          </button>
+        }
+      </div>
+    }
 
     <!-- Floating Apply Pill (Apply mode with pending edits) -->
     @if (editingMode() === 'apply' && pendingEdits.hasPending(clip())) {
@@ -765,7 +849,7 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
             </span>
           }
         </div>
-        <div class="timeline-track" (click)="onTimelineClick($event)">
+        <div class="timeline-track" #timelineTrackEl (click)="onTimelineClick($event)">
         <div class="track-blocks">
           @for (item of trackItems(); track $index) {
             @if (item.kind === 'segment') {
@@ -780,6 +864,22 @@ const FILLER_WORDS_HE = ['אממ', 'אה', 'יעני', 'בעצם', 'כאילו',
                 [style.left.%]="item.leftPercent"
                 [style.width.%]="item.widthPercent"></div>
             }
+          }
+          <!-- Silence gap markers -->
+          @for (sil of silenceGapOverlays(); track sil.id) {
+            <div class="silence-gap-marker"
+              [class.silence-gap-marker--cut]="sil.isCut"
+              [style.left.%]="sil.leftPercent"
+              [style.width.%]="sil.widthPercent"
+              [title]="sil.isCut ? 'Silence cut — drag handles to trim' : 'Silence gap — drag to cut'"
+              (click)="toggleSilenceCut({id: sil.id, gapStart: sil.gapStart, gapEnd: sil.gapEnd, duration: sil.gapEnd - sil.gapStart}); $event.stopPropagation()">
+              <span class="tl-sil-handle tl-sil-handle--start"
+                (mousedown)="onSilenceTimelineHandleMouseDown(sil, 'start', $event)"
+                aria-label="Trim silence start"></span>
+              <span class="tl-sil-handle tl-sil-handle--end"
+                (mousedown)="onSilenceTimelineHandleMouseDown(sil, 'end', $event)"
+                aria-label="Trim silence end"></span>
+            </div>
           }
           <!-- Cut region overlays -->
           @for (overlay of cutRegionOverlays(); track overlay.regionId) {
@@ -809,6 +909,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   @ViewChild('transcriptEl') transcriptElRef!: ElementRef<HTMLDivElement>;
   @ViewChild('videoFrameEl') videoFrameRef!: ElementRef<HTMLDivElement>;
   @ViewChild('overlayCanvas') private overlayCanvasRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('timelineTrackEl') private timelineTrackRef?: ElementRef<HTMLDivElement>;
 
   /* ── Inputs ──────────────────────────────────────────── */
   readonly clip = input.required<Clip>();
@@ -831,6 +932,13 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly autoFollow = signal(true);
   readonly textEditMode = signal(false);
   readonly jumpCutMode = signal(false);
+  readonly cutDropdownOpen = signal(false);
+  readonly selectionContextMenu = signal<{ x: number; y: number } | null>(null);
+  readonly CUT_OPTIONS = CUT_OPTIONS;
+  readonly silenceEditId = signal<string | null>(null);
+  readonly silenceTrims = signal<Map<string, { trimStart: number; trimEnd: number }>>(new Map());
+  private silenceResizeDrag: { id: string; side: 'start' | 'end'; startX: number; gapStart: number; gapEnd: number; origTrimStart: number; origTrimEnd: number } | null = null;
+  private silenceTimelineDrag: { id: string; side: 'start' | 'end'; gapStart: number; gapEnd: number; origTrimStart: number; origTrimEnd: number; trackRect: DOMRect } | null = null;
   readonly showOverlay = signal(false);
   readonly searchQuery = signal('');
   readonly currentMatchIndex = signal(0);
@@ -1253,6 +1361,37 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       .filter((o): o is NonNullable<typeof o> => o !== null);
   });
 
+  /* ── Computed: Silence Gap Overlays for Timeline ──────── */
+  readonly silenceGapOverlays = computed(() => {
+    this.editVersion();
+    const clip = this.clip();
+    const dur = this.clipDuration();
+    if (dur <= 0) return [];
+    const clipStart = clip.startTime;
+    const cutTimeRegions = clip.cutRegions.filter(r => r.wordIds.length === 0 && r.startTime !== undefined && r.endTime !== undefined);
+
+    const overlays: Array<{ id: string; leftPercent: number; widthPercent: number; isCut: boolean; gapStart: number; gapEnd: number }> = [];
+
+    for (const seg of clip.segments) {
+      for (let i = 1; i < seg.words.length; i++) {
+        const gapStart = seg.words[i - 1].endTime;
+        const gapEnd = seg.words[i].startTime;
+        const gap = gapEnd - gapStart;
+        if (gap < INLINE_SILENCE_THRESHOLD_SEC) continue;
+        const isCut = cutTimeRegions.some(r => r.startTime! >= gapStart - 0.05 && r.endTime! <= gapEnd + 0.05);
+        overlays.push({
+          id: `sil-${seg.id}-${i}`,
+          leftPercent: ((gapStart - clipStart) / dur) * 100,
+          widthPercent: (gap / dur) * 100,
+          isCut,
+          gapStart,
+          gapEnd,
+        });
+      }
+    }
+    return overlays;
+  });
+
   /* ── Computed: Timeline Ruler Marks ──────────────────── */
   readonly rulerMarks = computed<Array<{ percent: number; label: string }>>(() => {
     const dur = this.clipDuration();
@@ -1621,6 +1760,47 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onMouseMove(event: MouseEvent): void {
+    if (this.silenceResizeDrag) {
+      const drag = this.silenceResizeDrag;
+      const delta = event.clientX - drag.startX;
+      const gapDuration = drag.gapEnd - drag.gapStart;
+      const deltaSec = Math.max(-drag.origTrimStart, Math.min(gapDuration - 0.1, delta / 60));
+      this.silenceTrims.update(m => {
+        const next = new Map(m);
+        const cur = next.get(drag.id) ?? { trimStart: 0, trimEnd: 0 };
+        if (drag.side === 'start') {
+          next.set(drag.id, { ...cur, trimStart: Math.max(0, drag.origTrimStart + deltaSec) });
+        } else {
+          next.set(drag.id, { ...cur, trimEnd: Math.max(0, drag.origTrimEnd - deltaSec) });
+        }
+        return next;
+      });
+      return;
+    }
+
+    if (this.silenceTimelineDrag) {
+      const drag = this.silenceTimelineDrag;
+      const dur = this.clipDuration();
+      if (dur <= 0) { this.silenceTimelineDrag = null; return; }
+      const x = event.clientX - drag.trackRect.left;
+      const ratio = Math.max(0, Math.min(1, x / drag.trackRect.width));
+      const time = this.clip().startTime + ratio * dur;
+      const gapDuration = drag.gapEnd - drag.gapStart;
+      this.silenceTrims.update(m => {
+        const next = new Map(m);
+        const cur = next.get(drag.id) ?? { trimStart: 0, trimEnd: 0 };
+        if (drag.side === 'start') {
+          const trimStart = Math.max(0, Math.min(gapDuration - 0.1, time - drag.gapStart));
+          next.set(drag.id, { ...cur, trimStart });
+        } else {
+          const trimEnd = Math.max(0, Math.min(gapDuration - 0.1, drag.gapEnd - time));
+          next.set(drag.id, { ...cur, trimEnd });
+        }
+        return next;
+      });
+      return;
+    }
+
     if (!this.isResizingMetadata && !this.isResizingTranscript) return;
 
     const delta = event.clientX - this.startX;
@@ -1645,6 +1825,28 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   }
 
   onMouseUp(): void {
+    if (this.silenceResizeDrag) {
+      const drag = this.silenceResizeDrag;
+      const trims = this.silenceTrims().get(drag.id) ?? { trimStart: 0, trimEnd: 0 };
+      if (drag.gapEnd - drag.gapStart - trims.trimStart - trims.trimEnd >= 0.05) {
+        this.cutSilenceGap({ id: drag.id, gapStart: drag.gapStart, gapEnd: drag.gapEnd, duration: drag.gapEnd - drag.gapStart }, trims.trimStart, trims.trimEnd);
+      }
+      this.silenceResizeDrag = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    if (this.silenceTimelineDrag) {
+      const drag = this.silenceTimelineDrag;
+      const trims = this.silenceTrims().get(drag.id) ?? { trimStart: 0, trimEnd: 0 };
+      if (drag.gapEnd - drag.gapStart - trims.trimStart - trims.trimEnd >= 0.05) {
+        this.cutSilenceGap({ id: drag.id, gapStart: drag.gapStart, gapEnd: drag.gapEnd, duration: drag.gapEnd - drag.gapStart }, trims.trimStart, trims.trimEnd);
+      }
+      this.silenceTimelineDrag = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
     if (this.isResizingMetadata || this.isResizingTranscript) {
       this.isResizingMetadata = false;
       this.isResizingTranscript = false;
@@ -2032,6 +2234,71 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.applyCutRegionChange(result);
   }
 
+  /** Per-word effect: splits the word out of its merged region if needed, then sets effect. */
+  setWordEffect(wordId: string, effectType: EffectType): void {
+    const clip = this.clip();
+    const region = clip.cutRegions.find(r => r.wordIds.includes(wordId));
+    if (!region) return;
+
+    if (region.wordIds.length === 1) {
+      this.setRegionEffect(region.id, effectType);
+      return;
+    }
+
+    const allWords = clip.segments.flatMap(s => s.words);
+    const w = allWords.find(w => w.id === wordId);
+    if (!w) return;
+
+    const updatedRegion: CutRegion = { ...region, wordIds: region.wordIds.filter(id => id !== wordId) };
+    const newRegion: CutRegion = {
+      id: crypto.randomUUID(),
+      wordIds: [wordId],
+      effectType,
+      effectTypeOverridden: true,
+      effectDuration: this.cutRegionService.autoEffectDuration((w.endTime - w.startTime) * 1000),
+      durationFixed: false,
+    };
+    const clipBefore = clip;
+    const clipAfter: Clip = {
+      ...clip,
+      cutRegions: [...clip.cutRegions.filter(r => r.id !== region.id), updatedRegion, newRegion],
+    };
+    this.applyCutRegionChange({ clip: clipAfter, entry: { kind: 'apply-batch', clipBefore, clipAfter } });
+    this.effectPopoverWordId.set(wordId);
+  }
+
+  setRegionSceneType(regionId: string, sceneType: string): void {
+    const clip = this.clip();
+    const clipBefore = clip;
+    const clipAfter: Clip = {
+      ...clip,
+      cutRegions: clip.cutRegions.map(r => r.id === regionId ? { ...r, sceneType } : r),
+    };
+    this.applyCutRegionChange({ clip: clipAfter, entry: { kind: 'apply-batch', clipBefore, clipAfter } });
+    // Re-enqueue smart cut with new scene type
+    const updatedRegion = clipAfter.cutRegions.find(r => r.id === regionId);
+    if (updatedRegion && (updatedRegion.effectType === 'smart-cut' || updatedRegion.effectType === 'smart')) {
+      this.smartCutQueue.invalidate(regionId);
+      this.smartCutQueue.enqueue(updatedRegion, clipAfter);
+    }
+  }
+
+  onSilenceTimelineHandleMouseDown(sil: { id: string; gapStart: number; gapEnd: number }, side: 'start' | 'end', event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const trackEl = this.timelineTrackRef?.nativeElement;
+    if (!trackEl) return;
+    const trims = this.silenceTrims().get(sil.id) ?? { trimStart: 0, trimEnd: 0 };
+    this.silenceTimelineDrag = {
+      id: sil.id, side,
+      gapStart: sil.gapStart, gapEnd: sil.gapEnd,
+      origTrimStart: trims.trimStart, origTrimEnd: trims.trimEnd,
+      trackRect: trackEl.getBoundingClientRect(),
+    };
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+  }
+
   setRegionDuration(regionId: string, duration: number): void {
     const result = this.cutRegionService.updateRegionDuration(this.clip(), regionId, duration);
     this.applyCutRegionChange(result);
@@ -2320,6 +2587,101 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     const regionEnd = region.endTime ?? Math.max(...region.wordIds.map(id => allWords.find(w => w.id === id)?.endTime ?? -Infinity));
     const kept = allWords.filter(w => !w.isRemoved && !regionSet.has(w.id) && w.startTime >= regionEnd);
     return kept.length ? kept[0].startTime : 0;
+  }
+
+  effectTypeLabel(type: EffectType): string {
+    return CUT_OPTIONS.find(o => o.type === type)?.label ?? type;
+  }
+
+  effectTypeIcon(type: EffectType): string {
+    return CUT_OPTIONS.find(o => o.type === type)?.icon ?? 'content_cut';
+  }
+
+  getSilenceCutForGap(gapStart: number, gapEnd: number): CutRegion | undefined {
+    return this.clip().cutRegions.find(r =>
+      r.wordIds.length === 0 &&
+      r.startTime !== undefined &&
+      r.endTime !== undefined &&
+      r.startTime >= gapStart - 0.05 &&
+      r.endTime <= gapEnd + 0.05
+    );
+  }
+
+  toggleSilenceCut(fi: { id: string; gapStart: number; gapEnd: number; duration: number }): void {
+    const existing = this.getSilenceCutForGap(fi.gapStart, fi.gapEnd);
+    if (existing) {
+      this.restoreSilenceGap(fi.gapStart, fi.gapEnd);
+    } else {
+      const trims = this.silenceTrims().get(fi.id) ?? { trimStart: 0, trimEnd: 0 };
+      this.cutSilenceGap(fi, trims.trimStart, trims.trimEnd);
+    }
+  }
+
+  cutSilenceGap(fi: { id: string; gapStart: number; gapEnd: number; duration: number }, trimStart: number, trimEnd: number): void {
+    const clipBefore = this.clip();
+    const existing = this.getSilenceCutForGap(fi.gapStart, fi.gapEnd);
+    const regionsWithout = existing ? clipBefore.cutRegions.filter(r => r.id !== existing.id) : clipBefore.cutRegions;
+    const cutStart = fi.gapStart + trimStart;
+    const cutEnd = fi.gapEnd - trimEnd;
+    if (cutEnd - cutStart < 0.05) return;
+    const newRegion: CutRegion = {
+      id: existing?.id ?? crypto.randomUUID(),
+      wordIds: [],
+      startTime: cutStart,
+      endTime: cutEnd,
+      effectType: this.defaultEffectType(),
+      effectTypeOverridden: false,
+      effectDuration: this.cutRegionService.autoEffectDuration((cutEnd - cutStart) * 1000),
+      durationFixed: false,
+    };
+    const clipAfter: Clip = { ...clipBefore, cutRegions: [...regionsWithout, newRegion] };
+    this.applyCutRegionChange({ clip: clipAfter, entry: { kind: 'apply-batch', clipBefore, clipAfter } });
+  }
+
+  restoreSilenceGap(gapStart: number, gapEnd: number): void {
+    const existing = this.getSilenceCutForGap(gapStart, gapEnd);
+    if (!existing) return;
+    const clipBefore = this.clip();
+    const clipAfter: Clip = { ...clipBefore, cutRegions: clipBefore.cutRegions.filter(r => r.id !== existing.id) };
+    this.applyCutRegionChange({ clip: clipAfter, entry: { kind: 'apply-batch', clipBefore, clipAfter } });
+  }
+
+  onSilenceHandleMouseDown(fi: { id: string; gapStart: number; gapEnd: number }, side: 'start' | 'end', event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const trims = this.silenceTrims().get(fi.id) ?? { trimStart: 0, trimEnd: 0 };
+    this.silenceResizeDrag = {
+      id: fi.id, side,
+      startX: event.clientX,
+      gapStart: fi.gapStart, gapEnd: fi.gapEnd,
+      origTrimStart: trims.trimStart, origTrimEnd: trims.trimEnd,
+    };
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+  }
+
+  onWordContextMenu(word: Word, event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.selectedWordIdSet().has(word.id)) {
+      this.selectedWordIds.set([word.id]);
+      this.selectionAnchorWordId.set(word.id);
+    }
+    this.selectionContextMenu.set({ x: event.clientX, y: event.clientY });
+    this.cutDropdownOpen.set(false);
+  }
+
+  closeContextMenu(): void {
+    this.selectionContextMenu.set(null);
+    this.cutDropdownOpen.set(false);
+  }
+
+  onWindowClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.sel-context-menu') && !target.closest('.cut-dropdown')) {
+      this.selectionContextMenu.set(null);
+      this.cutDropdownOpen.set(false);
+    }
   }
 
   previewSmartCut(regionId: string): void {

@@ -1,5 +1,5 @@
 import { Injectable, signal, inject, InjectionToken, Inject, Optional } from '@angular/core';
-import { Clip } from '../../../core/models/clip.model';
+import { Clip, SceneType } from '../../../core/models/clip.model';
 import { CutRegion } from '../../../core/models/cut-region.model';
 import { SmartCutCacheService } from './smart-cut-cache.service';
 import { SmartCutExtractor } from './smart-cut-extractor';
@@ -120,8 +120,9 @@ export class SmartCutQueueService {
       const cacheKey = `${item.clip.id}|${item.region.id}|${tBefore.toFixed(4)}|${tAfterCenter.toFixed(4)}`;
       const extractor = this.getExtractor(item.clip.id);
 
-      const sceneType = item.clip.sceneType ?? 'talking-head';
-      const roi = SMART_CUT_ROI[sceneType];
+      const rawScene = item.region.sceneType ?? item.clip.sceneType ?? 'talking-head';
+      const sceneType: SceneType = (rawScene === 'two-shot' ? 'two-shot' : 'talking-head') as SceneType;
+      const roi = SMART_CUT_ROI[sceneType] ?? SMART_CUT_ROI['talking-head'];
 
       const result = await extractor.extract({
         id: item.region.id,

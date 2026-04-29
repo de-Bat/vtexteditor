@@ -62,9 +62,9 @@ import { NotesPanelComponent } from '../notes-panel/notes-panel.component';
               <label for="scene-type-select">Scene type</label>
               <select
                 id="scene-type-select"
-                [value]="activeClip()?.sceneType ?? 'talking-head'"
+                [value]="activeClip().sceneType ?? 'talking-head'"
                 (change)="onSceneTypeChange($event)"
-                [attr.aria-label]="'Scene type for ' + activeClip()?.name"
+                [attr.aria-label]="'Scene type for ' + activeClip().name"
               >
                 <option value="talking-head" title="Focuses frame matching on the speaker's head and upper body">
                   Talking head

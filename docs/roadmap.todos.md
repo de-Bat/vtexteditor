@@ -77,3 +77,14 @@
 - [] notebook can contains notes
 
 ## AI features
+
+
+## Dashboard
+- anew panel with statistics, for example:
+  silence sections:: no, avg\min\max length
+  avg segments perclip
+  no of clips
+  silence sections per clip....
+
+  ## Notifcation\Errors
+   - a dedicated zone (panel like plugins, ...) that shows any msg (from error with the folllowing data error level, what , where happened)

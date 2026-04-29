@@ -9,6 +9,7 @@ export interface CutRegion {
   effectTypeOverridden: boolean;
   effectDuration: number;
   durationFixed: boolean;
+  sceneType?: string;
   pending?: boolean;
   pendingKind?: 'add' | 'remove';
   pendingTargetId?: string;

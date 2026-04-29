@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { Clip } from '../../../core/models/clip.model';
 import { MetadataEntry } from '../../../core/models/segment-metadata.model';
 import { ClipService } from '../../../core/services/clip.service';
+import { SmartCutQueueService } from '../txt-media-player/smart-cut-queue.service';
+import type { SceneType } from '../../../core/models/clip.model';
 import { MetadataEntryComponent } from './metadata-entry.component';
 import { MetadataAddFormComponent } from './metadata-add-form.component';
 import { NotesPanelComponent } from '../notes-panel/notes-panel.component';
@@ -55,6 +57,24 @@ import { NotesPanelComponent } from '../notes-panel/notes-panel.component';
         </div>
       } @else {
         <div class="panel-content">
+          @if (currentTab() === 'clip') {
+            <div class="scene-type-row">
+              <label for="scene-type-select">Scene type</label>
+              <select
+                id="scene-type-select"
+                [value]="activeClip()?.sceneType ?? 'talking-head'"
+                (change)="onSceneTypeChange($event)"
+                [attr.aria-label]="'Scene type for ' + activeClip()?.name"
+              >
+                <option value="talking-head" title="Focuses frame matching on the speaker's head and upper body">
+                  Talking head
+                </option>
+                <option value="two-shot" title="Uses full frame — smart cut falls back to cross-cut on camera switches">
+                  Two-shot / Interview
+                </option>
+              </select>
+            </div>
+          }
           @if (showAddForm()) {
             <app-metadata-add-form 
               [allowTrails]="currentTab() === 'clip'"
@@ -109,6 +129,7 @@ export class SegmentMetadataPanelComponent {
   readonly clips = input<Clip[]>([]);
 
   private readonly clipService = inject(ClipService);
+  private readonly queue = inject(SmartCutQueueService);
 
   protected readonly currentTab = signal<'clip' | 'segment' | 'notes'>('segment');
   protected readonly showAddForm = signal(false);
@@ -240,5 +261,16 @@ export class SegmentMetadataPanelComponent {
     const mins = Math.floor(s / 60);
     const secs = Math.floor(s % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  protected onSceneTypeChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    const sceneType = select.value as SceneType;
+    const clip = this.activeClip();
+    if (!clip) return;
+
+    this.clipService.updateSceneType(clip.id, sceneType);
+    this.queue.invalidateClip(clip.id, clip.cutRegions.map(r => r.id));
+    clip.cutRegions.forEach(r => this.queue.enqueue(r, { ...clip, sceneType }));
   }
 }

@@ -15,7 +15,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { Clip } from '../../../core/models/clip.model';
+import { Clip, SceneType } from '../../../core/models/clip.model';
 import { Word } from '../../../core/models/word.model';
 import { Segment } from '../../../core/models/segment.model';
 import { ClipService } from '../../../core/services/clip.service';
@@ -57,7 +57,7 @@ interface SegmentViewItem {
   colorIndex: number;
   top: number;
   bottom: number;
-  silenceAfter: { id: string; duration: number; durationText: string; midTime: number } | null;
+  silenceAfter: { id: string; duration: number; durationText: string; midTime: number; gapStart: number; gapEnd: number } | null;
 }
 
 /** Items rendered inside the word-flow: a word, a time marker, or a silence chip. */
@@ -199,6 +199,21 @@ const CUT_OPTIONS: CutOption[] = [
                     <button class="sc-toggle" [class.active]="highlightSilence()" (click)="highlightSilence.set(!highlightSilence())">
                       <span class="material-symbols-outlined">hourglass_empty</span>
                       Silence
+                    </button>
+                  </div>
+                  <div class="sc-section-title">Smart Cut Scene Style</div>
+                  <div class="sc-chips">
+                    <button class="sc-chip" 
+                      [class.selected]="(clip().sceneType ?? 'talking-head') === 'talking-head'"
+                      (click)="setClipSceneType('talking-head')">
+                      <span class="material-symbols-outlined">person</span>
+                      Solo
+                    </button>
+                    <button class="sc-chip" 
+                      [class.selected]="clip().sceneType === 'two-shot'"
+                      (click)="setClipSceneType('two-shot')">
+                      <span class="material-symbols-outlined">group</span>
+                      Two Shot
                     </button>
                   </div>
                   <button class="sc-apply-btn" (click)="applyAutoClean()">Apply Auto Clean</button>
@@ -371,7 +386,7 @@ const CUT_OPTIONS: CutOption[] = [
                       [class.silence-cut]="!!silCut"
                       [class.silence-trimmed]="!!silTrim && (silTrim.trimStart > 0 || silTrim.trimEnd > 0)"
                       [style.--sil-prog]="activeSilence()?.id === fi.id ? activeSilence()!.progress : 0"
-                      [style.width.px]="silenceChipWidth(fi.duration)"
+                      [style.width.px]="silenceChipWidth(fi.duration - (silTrim?.trimStart || 0) - (silTrim?.trimEnd || 0))"
                       [title]="fi.label + (silCut ? ' · Cut' : ' · Click scissors to cut')"
                       (click)="seekToTime(fi.midTime)">
                       <!-- Left resize handle -->
@@ -439,13 +454,7 @@ const CUT_OPTIONS: CutOption[] = [
                         }
                       </span>
                     }
-                    @if (region && (getSmartCutStatus(region.id) === 'done' || getSmartCutStatus(region.id) === 'computing')) {
-                      <button class="sc-preview-btn" (click)="previewSmartCut(region.id); $event.stopPropagation()"
-                        [attr.aria-label]="'Preview smart cut for region ' + region.id"
-                        title="Preview transition (Shift+P)">
-                        ▶
-                      </button>
-                    }
+
 
                     @if (effectPopoverWordId() === fi.word.id && region) {
                       <div class="effect-popover" role="dialog" aria-label="Cut effect options" (click)="$event.stopPropagation()">
@@ -531,16 +540,23 @@ const CUT_OPTIONS: CutOption[] = [
         <!-- Silence marker (hidden below threshold when highlight mode active) -->
         @if (item.silenceAfter; as sil) {
           @if (!highlightSilence() || sil.duration >= silenceIntervalSec()) {
+            @let silTrim = silenceTrims().get(sil.id);
             <div class="silence-row" [class.silence-playing]="activeSilence()?.id === sil.id">
               <div class="silence-line"></div>
               <div class="silence-pill"
                 [class.silence-playing]="activeSilence()?.id === sil.id"
                 [class.silence-hl]="highlightSilence() && sil.duration >= silenceIntervalSec()"
+                [class.silence-trimmed]="!!silTrim && (silTrim.trimStart > 0 || silTrim.trimEnd > 0)"
                 [style.--sil-prog]="activeSilence()?.id === sil.id ? activeSilence()!.progress : 0"
                 (click)="seekToTime(sil.midTime)">
+                <span class="sil-handle sil-handle--start"
+                  (mousedown)="onSilenceHandleMouseDown(sil, 'start', $event)"
+                  title="Drag to trim silence start"></span>
                 <span class="material-symbols-outlined">timer</span>
-                <span class="silence-text">{{ sil.durationText }} Silence</span>
-                <span class="material-symbols-outlined silence-x">close</span>
+                <span class="silence-text">{{ (sil.duration - (silTrim?.trimStart || 0) - (silTrim?.trimEnd || 0)).toFixed(1) }}s Silence</span>
+                <span class="sil-handle sil-handle--end"
+                  (mousedown)="onSilenceHandleMouseDown(sil, 'end', $event)"
+                  title="Drag to trim silence end"></span>
               </div>
               <div class="silence-line"></div>
             </div>
@@ -1037,8 +1053,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (this.editingMode() !== 'live') return [];
     const clip = this.clip();
     const intervals: Array<{ start: number; end: number }> = [];
+
+    // 1. Existing Cut Regions
     for (const region of clip.cutRegions ?? []) {
-      // Only skip committed / pending-add regions (not pending-remove which are being restored)
       if (region.pending && region.pendingKind === 'remove') continue;
       let start: number;
       let end: number;
@@ -1055,6 +1072,48 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       }
       if (end > start) intervals.push({ start, end });
     }
+
+    // 2. Active Silence Trims (simulated cuts for immediate feedback)
+    const trimsMap = this.silenceTrims();
+    if (trimsMap.size > 0) {
+      // Find gaps and apply trims as skip intervals
+      // Inner-segment
+      for (const seg of clip.segments) {
+        for (let i = 1; i < seg.words.length; i++) {
+          const id = `sil-${seg.id}-${i}`;
+          const t = trimsMap.get(id);
+          if (t && (t.trimStart > 0 || t.trimEnd > 0)) {
+            const gapStart = seg.words[i - 1].endTime;
+            const gapEnd = seg.words[i].startTime;
+            
+            // If there's an existing cut region for this gap, it's already in the list.
+            // But if we're dragging, we want the current trims to define the skip.
+            // In VTextStudio silence gaps, the part *between* trims is what's cut.
+            const cutStart = gapStart + t.trimStart;
+            const cutEnd = gapEnd - t.trimEnd;
+            if (cutEnd > cutStart + 0.05) {
+              intervals.push({ start: cutStart, end: cutEnd });
+            }
+          }
+        }
+      }
+      // Inter-segment
+      const segments = clip.segments;
+      for (let i = 0; i < segments.length - 1; i++) {
+        const id = `sil-after-${segments[i].id}`;
+        const t = trimsMap.get(id);
+        if (t && (t.trimStart > 0 || t.trimEnd > 0)) {
+          const gapStart = segments[i].endTime;
+          const gapEnd = segments[i+1].startTime;
+          const cutStart = gapStart + t.trimStart;
+          const cutEnd = gapEnd - t.trimEnd;
+          if (cutEnd > cutStart + 0.05) {
+            intervals.push({ start: cutStart, end: cutEnd });
+          }
+        }
+      }
+    }
+
     return intervals;
   });
 
@@ -1378,17 +1437,50 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         const gapEnd = seg.words[i].startTime;
         const gap = gapEnd - gapStart;
         if (gap < INLINE_SILENCE_THRESHOLD_SEC) continue;
-        const isCut = cutTimeRegions.some(r => r.startTime! >= gapStart - 0.05 && r.endTime! <= gapEnd + 0.05);
+
+        const id = `sil-${seg.id}-${i}`;
+        const trims = this.silenceTrims().get(id) ?? { trimStart: 0, trimEnd: 0 };
+        const displayStart = gapStart + trims.trimStart;
+        const displayEnd = gapEnd - trims.trimEnd;
+        const displayGap = Math.max(0, displayEnd - displayStart);
+
+        const isCut = cutTimeRegions.some(r => r.startTime! >= gapStart - 0.1 && r.endTime! <= gapEnd + 0.1);
         overlays.push({
-          id: `sil-${seg.id}-${i}`,
-          leftPercent: ((gapStart - clipStart) / dur) * 100,
-          widthPercent: (gap / dur) * 100,
+          id,
+          leftPercent: ((displayStart - clipStart) / dur) * 100,
+          widthPercent: (displayGap / dur) * 100,
           isCut,
           gapStart,
           gapEnd,
         });
       }
     }
+
+    // Inter-segment gaps (silence between segments)
+    const segments = clip.segments;
+    for (let i = 0; i < segments.length - 1; i++) {
+      const gapStart = segments[i].endTime;
+      const gapEnd = segments[i + 1].startTime;
+      const gap = gapEnd - gapStart;
+      if (gap < SILENCE_THRESHOLD_SEC) continue;
+
+      const id = `sil-after-${segments[i].id}`;
+      const trims = this.silenceTrims().get(id) ?? { trimStart: 0, trimEnd: 0 };
+      const displayStart = gapStart + trims.trimStart;
+      const displayEnd = gapEnd - trims.trimEnd;
+      const displayGap = Math.max(0, displayEnd - displayStart);
+
+      const isCut = cutTimeRegions.some(r => r.startTime! >= gapStart - 0.1 && r.endTime! <= gapEnd + 0.1);
+      overlays.push({
+        id,
+        leftPercent: ((displayStart - clipStart) / dur) * 100,
+        widthPercent: (displayGap / dur) * 100,
+        isCut,
+        gapStart,
+        gapEnd,
+      });
+    }
+
     return overlays;
   });
 
@@ -1457,6 +1549,8 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
             duration: gap,
             durationText: gap.toFixed(1) + 's',
             midTime: segment.endTime + gap / 2,
+            gapStart: segment.endTime,
+            gapEnd: nextStart,
           };
         }
       }
@@ -1764,7 +1858,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       const drag = this.silenceResizeDrag;
       const delta = event.clientX - drag.startX;
       const gapDuration = drag.gapEnd - drag.gapStart;
-      const deltaSec = Math.max(-drag.origTrimStart, Math.min(gapDuration - 0.1, delta / 60));
+      let deltaSec = delta / 60;
+      if (this.isRtl()) deltaSec = -deltaSec;
+
       this.silenceTrims.update(m => {
         const next = new Map(m);
         const cur = next.get(drag.id) ?? { trimStart: 0, trimEnd: 0 };
@@ -2267,7 +2363,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.effectPopoverWordId.set(wordId);
   }
 
-  setRegionSceneType(regionId: string, sceneType: string): void {
+  setRegionSceneType(regionId: string, sceneType: SceneType): void {
     const clip = this.clip();
     const clipBefore = clip;
     const clipAfter: Clip = {
@@ -2281,6 +2377,22 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       this.smartCutQueue.invalidate(regionId);
       this.smartCutQueue.enqueue(updatedRegion, clipAfter);
     }
+  }
+
+  setClipSceneType(sceneType: SceneType): void {
+    const clip = this.clip();
+    this.clipService.updateSceneType(clip.id, sceneType);
+    
+    // Invalidate existing smart cut tasks and re-enqueue with new global scene type
+    const regionIds = clip.cutRegions.map(r => r.id);
+    this.smartCutQueue.invalidateClip(clip.id, regionIds);
+    
+    clip.cutRegions.forEach(r => {
+      // Only re-enqueue if it's a smart cut
+      if (r.effectType === 'smart-cut' || r.effectType === 'smart') {
+        this.smartCutQueue.enqueue(r, { ...clip, sceneType });
+      }
+    });
   }
 
   onSilenceTimelineHandleMouseDown(sil: { id: string; gapStart: number; gapEnd: number }, side: 'start' | 'end', event: MouseEvent): void {

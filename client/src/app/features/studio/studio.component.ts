@@ -26,6 +26,8 @@ import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.mode
 import { SettingsService } from '../../core/services/settings.service';
 import { NotebookService } from '../../core/services/notebook.service';
 import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
+import { NotificationsPanelComponent } from './notifications-panel/notifications-panel.component';
+import { NotificationService } from '../../core/services/notification.service';
 
 @Component({
   selector: 'app-studio',
@@ -39,6 +41,7 @@ import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
     StoryReviewPanelComponent,
     PluginPanelComponent,
     NotebookTabsComponent,
+    NotificationsPanelComponent,
   ],
   template: `
     <div class="studio-layout">
@@ -68,6 +71,20 @@ import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
             <span>Export</span>
+          </button>
+          <button
+            class="export-toggle-btn"
+            type="button"
+            [class.active]="showNotificationsPanel()"
+            (click)="showNotificationsPanel.update(v => !v)"
+            title="Toggle Notifications Panel"
+            [attr.aria-label]="'Toggle notifications panel, ' + notifications.history().length + ' notifications'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span>Notifications</span>
+            @if (notifications.history().length > 0) {
+              <span class="notif-badge" aria-hidden="true">{{ notifications.history().length }}</span>
+            }
           </button>
 
         </nav>
@@ -161,6 +178,15 @@ import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
           ></div>
         }
 
+        <!-- Notifications Panel Resizer -->
+        @if (showNotificationsPanel()) {
+          <div
+            class="resizer notif-resizer"
+            [style.order]="6"
+            (mousedown)="startResizing('notifications', $event)"
+          ></div>
+        }
+
         <!-- Export Panel (Order 7 in LTR, 3 in RTL) -->
         @if (projectService.project(); as proj) {
           <aside class="side-panel-wrapper export-wrapper"
@@ -177,6 +203,21 @@ import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
             </div>
           </aside>
         }
+
+        <!-- Notifications Panel -->
+        <aside
+          class="side-panel-wrapper notif-wrapper"
+          [class.opened]="showNotificationsPanel()"
+          [style.order]="isRtl() ? 2 : 9"
+          [style.width.px]="showNotificationsPanel() ? notifPanelWidth() : 0"
+          aria-label="Notifications"
+        >
+          <div class="panel-content">
+            <app-notifications-panel
+              (close)="showNotificationsPanel.set(false)"
+            />
+          </div>
+        </aside>
 
         @if (showReviewPanel() && pendingProposal()) {
           <aside class="review-panel-wrapper">
@@ -253,6 +294,20 @@ import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
         svg { opacity: 1; color: var(--color-accent); }
       }
     }
+    .notif-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      background: var(--color-error);
+      color: #fff;
+      font-size: .6rem;
+      font-weight: 700;
+      line-height: 1;
+    }
     .studio-body {
       display: flex;
       flex: 1;
@@ -276,6 +331,10 @@ import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
       &.plugin-wrapper {
         width: 0;
         &.opened { width: 400px; }
+      }
+      &.notif-wrapper {
+        width: 0;
+        &.opened { width: 320px; }
       }
       
       .panel-content {
@@ -376,6 +435,9 @@ export class StudioComponent implements OnInit {
   readonly showReviewPanel = signal(false);
   readonly showExportPanel = signal(false);
   readonly showPluginsPanel = signal(false);
+  readonly showNotificationsPanel = signal(false);
+  readonly notifPanelWidth = signal(320);
+  readonly notifications = inject(NotificationService);
 
   readonly pluginsPanelWidth = signal(400);
 
@@ -386,6 +448,7 @@ export class StudioComponent implements OnInit {
   private isResizingLeft = false;
   private isResizingRight = false;
   private isResizingPlugin = false;
+  private isResizingNotif = false;
   private startX = 0;
   private startWidth = 0;
 
@@ -508,7 +571,7 @@ export class StudioComponent implements OnInit {
     });
   }
 
-  startResizing(side: 'left' | 'right' | 'plugin', event: MouseEvent): void {
+  startResizing(side: 'left' | 'right' | 'plugin' | 'notifications', event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
     this.isResizing.set(true);
@@ -520,9 +583,12 @@ export class StudioComponent implements OnInit {
     } else if (side === 'right') {
       this.isResizingRight = true;
       this.startWidth = this.rightSidebarWidth();
-    } else {
+    } else if (side === 'plugin') {
       this.isResizingPlugin = true;
       this.startWidth = this.pluginsPanelWidth();
+    } else {
+      this.isResizingNotif = true;
+      this.startWidth = this.notifPanelWidth();
     }
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
@@ -530,7 +596,7 @@ export class StudioComponent implements OnInit {
 
   @HostListener('window:mousemove', ['$event'])
   onMouseMove(event: MouseEvent): void {
-    if (!this.isResizingLeft && !this.isResizingRight && !this.isResizingPlugin) return;
+    if (!this.isResizingLeft && !this.isResizingRight && !this.isResizingPlugin && !this.isResizingNotif) return;
 
     const delta = event.clientX - this.startX;
 
@@ -557,15 +623,19 @@ export class StudioComponent implements OnInit {
       // Drag left (delta < 0) → panel grows; drag right (delta > 0) → panel shrinks.
       const newWidth = this.startWidth - delta;
       this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
+    } else if (this.isResizingNotif) {
+      const newWidth = this.startWidth - delta;
+      this.notifPanelWidth.set(Math.max(280, Math.min(newWidth, 600)));
     }
   }
 
   @HostListener('window:mouseup')
   onMouseUp(): void {
-    if (this.isResizingLeft || this.isResizingRight || this.isResizingPlugin) {
+    if (this.isResizingLeft || this.isResizingRight || this.isResizingPlugin || this.isResizingNotif) {
       this.isResizingLeft = false;
       this.isResizingRight = false;
       this.isResizingPlugin = false;
+      this.isResizingNotif = false;
       this.isResizing.set(false);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';

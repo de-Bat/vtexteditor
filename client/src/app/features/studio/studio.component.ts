@@ -182,7 +182,7 @@ import { NotificationService } from '../../core/services/notification.service';
         @if (showNotificationsPanel()) {
           <div
             class="resizer notif-resizer"
-            [style.order]="isRtl() ? 3 : 8"
+            [style.order]="8"
             (mousedown)="startResizing('notifications', $event)"
           ></div>
         }
@@ -208,7 +208,7 @@ import { NotificationService } from '../../core/services/notification.service';
         @if (showNotificationsPanel()) {
           <aside
             class="side-panel-wrapper notif-wrapper opened"
-            [style.order]="isRtl() ? 2 : 9"
+            [style.order]="9"
             [style.width.px]="notifPanelWidth()"
             aria-label="Notifications"
           >
@@ -333,11 +333,6 @@ import { NotificationService } from '../../core/services/notification.service';
         width: 0;
         &.opened { width: 400px; }
       }
-      &.notif-wrapper {
-        width: 0;
-        &.opened { width: 320px; }
-      }
-      
       .panel-content {
         /* Matching the premium scrollbar from transcript */
         &::-webkit-scrollbar { width: 4px; }
@@ -625,7 +620,7 @@ export class StudioComponent implements OnInit {
       const newWidth = this.startWidth - delta;
       this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
     } else if (this.isResizingNotif) {
-      const newWidth = this.startWidth - delta;
+      const newWidth = this.isRtl() ? this.startWidth + delta : this.startWidth - delta;
       this.notifPanelWidth.set(Math.max(280, Math.min(newWidth, 600)));
     }
   }

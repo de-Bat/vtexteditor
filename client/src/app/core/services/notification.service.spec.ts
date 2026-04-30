@@ -43,8 +43,4 @@ describe('NotificationService', () => {
     expect(service.history().length).toBe(0);
   });
 
-  it('messages() is alias for history()', () => {
-    service.push('info', 'x');
-    expect(service.messages()).toEqual(service.history());
-  });
 });

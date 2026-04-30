@@ -21,7 +21,7 @@ import { NotificationService } from '../../../core/services/notification.service
       </div>
 
       <!-- List -->
-      <div class="np-scroll-area" role="log" aria-label="Notifications">
+      <div class="np-scroll-area" role="log" aria-live="polite" aria-relevant="additions" aria-label="Notifications">
         @if (notifications.history().length === 0) {
           <div class="np-empty">No notifications</div>
         } @else {

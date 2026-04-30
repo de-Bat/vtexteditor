@@ -1,30 +1,32 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 
 export interface ToastMessage {
   id: number;
   type: 'error' | 'info' | 'success';
   text: string;
+  timestamp: Date;
 }
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
-  readonly messages = signal<ToastMessage[]>([]);
+  readonly history = signal<ToastMessage[]>([]);
+  readonly messages = computed(() => this.history());
   private nextId = 1;
 
-  push(type: ToastMessage['type'], text: string, durationMs = 4000): void {
+  push(type: ToastMessage['type'], text: string): void {
     const id = this.nextId++;
-    this.messages.update((list) => [...list, { id, type, text }]);
-
-    if (durationMs > 0) {
-      setTimeout(() => this.dismiss(id), durationMs);
-    }
+    this.history.update((list) => [...list, { id, type, text, timestamp: new Date() }]);
   }
 
   error(text: string): void {
-    this.push('error', text, 5000);
+    this.push('error', text);
   }
 
   dismiss(id: number): void {
-    this.messages.update((list) => list.filter((msg) => msg.id !== id));
+    this.history.update((list) => list.filter((msg) => msg.id !== id));
+  }
+
+  clearAll(): void {
+    this.history.set([]);
   }
 }

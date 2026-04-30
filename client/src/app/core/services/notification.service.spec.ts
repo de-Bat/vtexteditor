@@ -20,10 +20,13 @@ describe('NotificationService', () => {
 
   it('push() does NOT auto-dismiss', () => {
     vi.useFakeTimers();
-    service.push('info', 'stay');
-    vi.advanceTimersByTime(10000);
-    expect(service.history().length).toBe(1);
-    vi.useRealTimers();
+    try {
+      service.push('info', 'stay');
+      vi.advanceTimersByTime(10000);
+      expect(service.history().length).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('dismiss() removes by id', () => {

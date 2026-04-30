@@ -10,6 +10,7 @@ export interface ToastMessage {
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
   readonly history = signal<ToastMessage[]>([]);
+  /** @deprecated Remove after ToastStackComponent is deleted (Task 2). */
   readonly messages = computed(() => this.history());
   private nextId = 1;
 

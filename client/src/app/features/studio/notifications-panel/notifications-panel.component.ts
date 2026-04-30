@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, output } from '@angular/core';
-import { NotificationService, ToastMessage } from '../../../core/services/notification.service';
+import { NotificationService } from '../../../core/services/notification.service';
 
 @Component({
   selector: 'app-notifications-panel',
@@ -12,22 +12,22 @@ import { NotificationService, ToastMessage } from '../../../core/services/notifi
         <span class="np-title">Notifications</span>
         <div class="np-header-actions">
           @if (notifications.history().length > 0) {
-            <button class="btn-clear" (click)="notifications.clearAll()" aria-label="Clear all notifications">
+            <button type="button" class="btn-clear" (click)="notifications.clearAll()" aria-label="Clear all notifications">
               Clear all
             </button>
           }
-          <button class="btn-close" (click)="close.emit()" aria-label="Close notifications panel">×</button>
+          <button type="button" class="btn-close" (click)="close.emit()" aria-label="Close notifications panel">×</button>
         </div>
       </div>
 
       <!-- List -->
-      <div class="np-scroll-area" role="log" aria-live="polite" aria-label="Notifications">
+      <div class="np-scroll-area" role="log" aria-label="Notifications">
         @if (notifications.history().length === 0) {
           <div class="np-empty">No notifications</div>
         } @else {
           @for (msg of notifications.history(); track msg.id) {
             <div class="np-row" [attr.data-type]="msg.type">
-              <div class="np-row-icon" [attr.aria-label]="msg.type">
+              <div class="np-row-icon" aria-hidden="true">
                 @if (msg.type === 'success') {
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 } @else if (msg.type === 'error') {
@@ -41,6 +41,7 @@ import { NotificationService, ToastMessage } from '../../../core/services/notifi
                 <span class="np-row-time">{{ formatTime(msg.timestamp) }}</span>
               </div>
               <button
+                type="button"
                 class="btn-dismiss"
                 (click)="notifications.dismiss(msg.id)"
                 aria-label="Dismiss notification"
@@ -158,10 +159,10 @@ import { NotificationService, ToastMessage } from '../../../core/services/notifi
       align-items: center;
       justify-content: center;
       margin-top: 1px;
-      .np-row[data-type="success"] & { color: var(--color-success); background: rgba(76,175,130,.12); }
-      .np-row[data-type="error"] &   { color: var(--color-error);   background: var(--color-error-subtle); }
-      .np-row[data-type="info"] &    { color: var(--color-muted);   background: var(--color-surface-alt); }
     }
+    .np-row[data-type="success"] .np-row-icon { color: var(--color-success); background: rgba(76,175,130,.12); }
+    .np-row[data-type="error"]   .np-row-icon { color: var(--color-error);   background: var(--color-error-subtle); }
+    .np-row[data-type="info"]    .np-row-icon { color: var(--color-muted);   background: var(--color-surface-alt); }
     .np-row-body {
       flex: 1;
       min-width: 0;

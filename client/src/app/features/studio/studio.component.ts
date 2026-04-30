@@ -182,12 +182,12 @@ import { NotificationService } from '../../core/services/notification.service';
         @if (showNotificationsPanel()) {
           <div
             class="resizer notif-resizer"
-            [style.order]="8"
+            [style.order]="isRtl() ? 2.7 : 8"
             (mousedown)="startResizing('notifications', $event)"
           ></div>
         }
 
-        <!-- Export Panel (Order 7 in LTR, 3 in RTL) -->
+        <!-- Export Panel (Order 5 in LTR, 3 in RTL) -->
         @if (projectService.project(); as proj) {
           <aside class="side-panel-wrapper export-wrapper"
             [class.opened]="showExportPanel()"
@@ -208,7 +208,7 @@ import { NotificationService } from '../../core/services/notification.service';
         @if (showNotificationsPanel()) {
           <aside
             class="side-panel-wrapper notif-wrapper opened"
-            [style.order]="9"
+            [style.order]="isRtl() ? 2.3 : 9"
             [style.width.px]="notifPanelWidth()"
             aria-label="Notifications"
           >
@@ -620,7 +620,7 @@ export class StudioComponent implements OnInit {
       const newWidth = this.startWidth - delta;
       this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
     } else if (this.isResizingNotif) {
-      const newWidth = this.isRtl() ? this.startWidth + delta : this.startWidth - delta;
+      const newWidth = this.startWidth - delta;
       this.notifPanelWidth.set(Math.max(280, Math.min(newWidth, 600)));
     }
   }

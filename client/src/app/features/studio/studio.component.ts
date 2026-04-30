@@ -182,7 +182,7 @@ import { NotificationService } from '../../core/services/notification.service';
         @if (showNotificationsPanel()) {
           <div
             class="resizer notif-resizer"
-            [style.order]="6"
+            [style.order]="isRtl() ? 3 : 8"
             (mousedown)="startResizing('notifications', $event)"
           ></div>
         }
@@ -205,19 +205,20 @@ import { NotificationService } from '../../core/services/notification.service';
         }
 
         <!-- Notifications Panel -->
-        <aside
-          class="side-panel-wrapper notif-wrapper"
-          [class.opened]="showNotificationsPanel()"
-          [style.order]="isRtl() ? 2 : 9"
-          [style.width.px]="showNotificationsPanel() ? notifPanelWidth() : 0"
-          aria-label="Notifications"
-        >
-          <div class="panel-content">
-            <app-notifications-panel
-              (close)="showNotificationsPanel.set(false)"
-            />
-          </div>
-        </aside>
+        @if (showNotificationsPanel()) {
+          <aside
+            class="side-panel-wrapper notif-wrapper opened"
+            [style.order]="isRtl() ? 2 : 9"
+            [style.width.px]="notifPanelWidth()"
+            aria-label="Notifications"
+          >
+            <div class="panel-content">
+              <app-notifications-panel
+                (close)="showNotificationsPanel.set(false)"
+              />
+            </div>
+          </aside>
+        }
 
         @if (showReviewPanel() && pendingProposal()) {
           <aside class="review-panel-wrapper">
@@ -436,10 +437,10 @@ export class StudioComponent implements OnInit {
   readonly showExportPanel = signal(false);
   readonly showPluginsPanel = signal(false);
   readonly showNotificationsPanel = signal(false);
-  readonly notifPanelWidth = signal(320);
   readonly notifications = inject(NotificationService);
 
   readonly pluginsPanelWidth = signal(400);
+  readonly notifPanelWidth = signal(320);
 
   // Resizing signals
   readonly leftSidebarWidth = signal(320);

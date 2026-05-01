@@ -130,6 +130,30 @@ import { NotificationService } from '../../core/services/notification.service';
           ></div>
         }
 
+        <!-- Notifications Panel (To the right of clips) -->
+        <aside
+          class="side-panel-wrapper notif-wrapper"
+          [class.opened]="showNotificationsPanel()"
+          [style.order]="isRtl() ? 4 : 2.3"
+          [style.width.px]="showNotificationsPanel() ? notifPanelWidth() : 0"
+          aria-label="Notifications"
+        >
+          <div class="panel-content">
+            <app-notifications-panel
+              (close)="showNotificationsPanel.set(false)"
+            />
+          </div>
+        </aside>
+
+        <!-- Notifications Panel Resizer -->
+        @if (showNotificationsPanel()) {
+          <div
+            class="resizer notif-resizer"
+            [style.order]="isRtl() ? 4.5 : 2.7"
+            (mousedown)="startResizing('notifications', $event)"
+          ></div>
+        }
+
         <!-- Player Panel (Order 2 in LTR, 5 in RTL) -->
         <section class="player-panel" [style.order]="isRtl() ? 7 : 3">
           @if (activeClip()) {
@@ -144,54 +168,20 @@ import { NotificationService } from '../../core/services/notification.service';
           }
         </section>
 
-        <!-- Plugin Panel Resizer -->
-        @if (showPluginsPanel()) {
-          <div
-            class="resizer plugin-resizer"
-            [style.order]="isRtl() ? 2 : 6"
-            (mousedown)="startResizing('plugin', $event)"
-          ></div>
-        }
-
-        <!-- Plugin Panel -->
-        @if (projectService.project(); as proj) {
-          <aside class="side-panel-wrapper plugin-wrapper"
-            [class.opened]="showPluginsPanel()"
-            [style.order]="isRtl() ? 1 : 7"
-            [style.width.px]="showPluginsPanel() ? pluginsPanelWidth() : 0">
-            <div class="panel-content">
-              <app-plugin-panel
-                [projectId]="proj.id"
-                (close)="showPluginsPanel.set(false)"
-                (outputPanelOpen)="pluginsPanelWidth.set($event ? 750 : 400)"
-              />
-            </div>
-          </aside>
-        }
-
-        <!-- Right Resizer (Export) -->
+        <!-- Export Panel Resizer -->
         @if (showExportPanel()) {
           <div
             class="resizer export-resizer"
-            [style.order]="4"
+            [style.order]="isRtl() ? 2 : 4"
             (mousedown)="startResizing('right', $event)"
           ></div>
         }
 
-        <!-- Notifications Panel Resizer -->
-        @if (showNotificationsPanel()) {
-          <div
-            class="resizer notif-resizer"
-            [style.order]="isRtl() ? 2.7 : 8"
-            (mousedown)="startResizing('notifications', $event)"
-          ></div>
-        }
-
-        <!-- Export Panel (Order 5 in LTR, 3 in RTL) -->
+        <!-- Export Panel (Order 5 in LTR, 1 in RTL) -->
         @if (projectService.project(); as proj) {
           <aside class="side-panel-wrapper export-wrapper"
             [class.opened]="showExportPanel()"
-            [style.order]="isRtl() ? 3 : 5"
+            [style.order]="isRtl() ? 1 : 5"
             [style.width.px]="showExportPanel() ? rightSidebarWidth() : 0">
             <div class="panel-content">
               <app-export-panel
@@ -204,21 +194,32 @@ import { NotificationService } from '../../core/services/notification.service';
           </aside>
         }
 
-        <!-- Notifications Panel -->
-        @if (showNotificationsPanel()) {
-          <aside
-            class="side-panel-wrapper notif-wrapper opened"
-            [style.order]="isRtl() ? 2.3 : 9"
-            [style.width.px]="notifPanelWidth()"
-            aria-label="Notifications"
-          >
+        <!-- Plugin Panel Resizer -->
+        @if (showPluginsPanel()) {
+          <div
+            class="resizer plugin-resizer"
+            [style.order]="isRtl() ? 4 : 6"
+            (mousedown)="startResizing('plugin', $event)"
+          ></div>
+        }
+
+        <!-- Plugin Panel (Order 7 in LTR, 3 in RTL) -->
+        @if (projectService.project(); as proj) {
+          <aside class="side-panel-wrapper plugin-wrapper"
+            [class.opened]="showPluginsPanel()"
+            [style.order]="isRtl() ? 3 : 7"
+            [style.width.px]="showPluginsPanel() ? pluginsPanelWidth() : 0">
             <div class="panel-content">
-              <app-notifications-panel
-                (close)="showNotificationsPanel.set(false)"
+              <app-plugin-panel
+                [projectId]="proj.id"
+                (close)="showPluginsPanel.set(false)"
+                (outputPanelOpen)="pluginsPanelWidth.set($event ? 750 : 400)"
               />
             </div>
           </aside>
         }
+
+
 
         @if (showReviewPanel() && pendingProposal()) {
           <aside class="review-panel-wrapper">
@@ -327,11 +328,21 @@ import { NotificationService } from '../../core/services/notification.service';
       &.clips-wrapper.opened { width: 320px; }
       &.export-wrapper {
         width: 0;
+        border-right: none;
+        border-left: 1px solid var(--color-border);
         &.opened { width: 400px; }
       }
       &.plugin-wrapper {
         width: 0;
+        border-right: none;
+        border-left: 1px solid var(--color-border);
         &.opened { width: 400px; }
+      }
+      &.notif-wrapper {
+        width: 0;
+        border-left: none;
+        border-right: 1px solid var(--color-border);
+        &.opened { width: 320px; }
       }
       .panel-content {
         /* Matching the premium scrollbar from transcript */
@@ -620,8 +631,14 @@ export class StudioComponent implements OnInit {
       const newWidth = this.startWidth - delta;
       this.pluginsPanelWidth.set(Math.max(400, Math.min(newWidth, 1000)));
     } else if (this.isResizingNotif) {
-      const newWidth = this.startWidth - delta;
-      this.notifPanelWidth.set(Math.max(280, Math.min(newWidth, 600)));
+      // Notif Panel: now to the right of clips (resizer is on the right edge of panel in LTR)
+      if (this.isRtl()) {
+        const newWidth = this.startWidth - delta;
+        this.notifPanelWidth.set(Math.max(280, Math.min(newWidth, 600)));
+      } else {
+        const newWidth = this.startWidth + delta;
+        this.notifPanelWidth.set(Math.max(280, Math.min(newWidth, 600)));
+      }
     }
   }
 

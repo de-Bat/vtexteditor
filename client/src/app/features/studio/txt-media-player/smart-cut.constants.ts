@@ -22,6 +22,9 @@ export const SMART_CUT_DEBOUNCE_MS = 250;
 export const SMART_CUT_PREVIEW_PREROLL_MS = 500;
 export const SMART_CUT_PREVIEW_POSTROLL_MS = 500;
 export const SMART_CUT_WORD_BUFFER_MS = 50;
+export const SILENCE_SNAP_MIN_MS   = 40;
+export const SILENCE_SNAP_FRACTION = 0.5;
+export const CUT_MICRO_FADE_MS     = 30;
 
 export interface SmartCutRoi {
   x: number;  // normalized 0–1 from left

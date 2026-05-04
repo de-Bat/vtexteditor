@@ -10,6 +10,7 @@ import {
   SMART_CUT_AUDIO_FADEIN_MS,
   SMART_CUT_OVERLAY_FADE_MS,
   SMART_CUT_SEEK_TIMEOUT_MS,
+  CUT_MICRO_FADE_MS,
 } from './smart-cut.constants';
 
 @Injectable({ providedIn: 'root' })
@@ -161,12 +162,17 @@ export class EffectPlayerService implements OnDestroy {
 
   private playResolvedEffect(resolved: ResolvedEffect, regionEnd: number): Observable<number> {
     if (resolved.effectType === 'clear-cut') {
+      this.applyMicroFadeIn();
       return of(regionEnd);
     }
     if (resolved.effectType === 'fade-in') {
       this.startFadeOut(resolved.durationMs);
       return timer(resolved.durationMs).pipe(
-        tap(() => this.resetAll()),
+        tap(() => {
+          this.videoOpacity.set(1);
+          this.videoFilter.set('none');
+          this.applyMicroFadeIn();
+        }),
         map(() => regionEnd)
       );
     }
@@ -265,5 +271,13 @@ export class EffectPlayerService implements OnDestroy {
       this.overlayCanvas.style.transition = '';
       this.overlayCanvas.style.opacity = '0';
     }
+  }
+
+  private applyMicroFadeIn(): void {
+    if (!this.gainNode || !this.audioCtx) return;
+    const now = this.audioCtx.currentTime;
+    this.gainNode.gain.cancelScheduledValues(now);
+    this.gainNode.gain.setValueAtTime(0, now);
+    this.gainNode.gain.linearRampToValueAtTime(1, now + CUT_MICRO_FADE_MS / 1000);
   }
 }

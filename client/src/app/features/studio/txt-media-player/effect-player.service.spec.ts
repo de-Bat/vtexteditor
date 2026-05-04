@@ -78,3 +78,33 @@ describe('EffectPlayerService', () => {
     });
   });
 });
+
+describe('micro-fade — observable timing unchanged', () => {
+  let svc: EffectPlayerService;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('clear-cut still emits regionEnd synchronously', async () => {
+    svc = new EffectPlayerService(mockSmartEffect({ effectType: 'clear-cut', durationMs: 0 }));
+    const region = makeRegion('clear-cut');
+    let seekTo = -1;
+    svc.playEffect(region, undefined, 7.25).subscribe(v => { seekTo = v; });
+    await vi.runAllTimersAsync();
+    expect(seekTo).toBe(7.25);
+  });
+
+  it('fade-in still emits regionEnd after durationMs', async () => {
+    svc = new EffectPlayerService(mockSmartEffect({ effectType: 'fade-in', durationMs: 300 }));
+    const region = makeRegion('smart'); // mock resolves to fade-in
+    let seekTo = -1;
+    svc.playEffect(region, {} as any, 4.0).subscribe(v => { seekTo = v; });
+    await vi.advanceTimersByTimeAsync(299);
+    expect(seekTo).toBe(-1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(seekTo).toBe(4.0);
+  });
+});

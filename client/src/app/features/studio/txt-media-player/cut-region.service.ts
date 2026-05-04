@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Clip } from '../../../core/models/clip.model';
 import { Word } from '../../../core/models/word.model';
 import { CutRegion, EffectType } from '../../../core/models/cut-region.model';
+import { computeSeamlessBoundaries } from './seamless-boundaries';
 
 export type CutHistoryEntry =
   | { kind: 'cut';         regionAfter: CutRegion; regionsBefore: CutRegion[] }
@@ -50,6 +51,15 @@ export class CutRegionService {
       durationFixed: false,
       ...(pending ? { pending: true as const, pendingKind: 'add' as const } : {}),
     };
+
+    // Silence-snap: set startTime/endTime to silence midpoints when gap is sufficient
+    if (!pending) {
+      const snapped = computeSeamlessBoundaries(allWords, mergedWordIds);
+      if (snapped) {
+        regionAfter.startTime = snapped.startTime;
+        regionAfter.endTime   = snapped.endTime;
+      }
+    }
 
     const remaining = (clip.cutRegions ?? []).filter((r) => !touched.includes(r));
     const newClip = this.syncIsRemoved({ ...clip, cutRegions: [...remaining, regionAfter] });

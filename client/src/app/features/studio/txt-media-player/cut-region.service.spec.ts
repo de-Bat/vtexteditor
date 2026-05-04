@@ -130,6 +130,51 @@ describe('CutRegionService', () => {
     });
   });
 
+  describe('cut() — silence-snap', () => {
+    it('sets startTime/endTime to silence midpoints when gap >= 40ms', () => {
+      // gap before cut: 1.15 - 1.0 = 150ms; gap after cut: 3.1 - 3.0 = 100ms
+      const clip = makeClip([
+        { id: 'w0', startTime: 0,    endTime: 1.0  },
+        { id: 'w1', startTime: 1.15, endTime: 2.0  },
+        { id: 'w2', startTime: 2.1,  endTime: 3.0  },
+        { id: 'w3', startTime: 3.1,  endTime: 4.0  },
+      ]);
+      const { clip: result } = svc.cut(clip, ['w1', 'w2'], 'clear-cut');
+      const region = result.cutRegions[0];
+      expect(region.startTime).toBeCloseTo(1.075, 4); // 1.0 + 0.15*0.5
+      expect(region.endTime).toBeCloseTo(3.05, 4);    // 3.0 + 0.1*0.5
+    });
+
+    it('leaves startTime/endTime undefined when silence < 40ms', () => {
+      const clip = makeClip([
+        { id: 'w0', startTime: 0,    endTime: 1.0   },
+        { id: 'w1', startTime: 1.01, endTime: 2.0   },
+        { id: 'w2', startTime: 2.01, endTime: 3.0   },
+        { id: 'w3', startTime: 3.01, endTime: 4.0   },
+      ]);
+      const { clip: result } = svc.cut(clip, ['w1', 'w2'], 'clear-cut');
+      const region = result.cutRegions[0];
+      expect(region.startTime).toBeUndefined();
+      expect(region.endTime).toBeUndefined();
+    });
+
+    it('preserves existing startTime/endTime on time-based silence regions', () => {
+      const clip = makeClip([
+        { id: 'w0', startTime: 0, endTime: 1.0 },
+        { id: 'w1', startTime: 2.0, endTime: 3.0 },
+      ]);
+      const silenceRegion = {
+        id: 'sr1', wordIds: [] as string[], startTime: 1.0, endTime: 2.0,
+        effectType: 'clear-cut' as const, effectTypeOverridden: false, effectDuration: 100, durationFixed: false,
+      };
+      const clipWithSilence = { ...clip, cutRegions: [silenceRegion] };
+      const { clip: result } = svc.cut(clipWithSilence, ['w1'], 'fade-in');
+      const silenceR = result.cutRegions.find(r => r.id === 'sr1')!;
+      expect(silenceR.startTime).toBe(1.0);
+      expect(silenceR.endTime).toBe(2.0);
+    });
+  });
+
   describe('pending cut / restore', () => {
     it('cut with pending=true creates a pending-add region, not committed', () => {
       const clip = makeClip([{ id: 'w0' }, { id: 'w1' }, { id: 'w2' }]);

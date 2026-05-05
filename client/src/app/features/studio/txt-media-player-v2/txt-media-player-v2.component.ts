@@ -371,6 +371,41 @@ const CUT_OPTIONS: CutOption[] = [
               <span class="material-symbols-outlined seg-more">more_horiz</span>
             </div>
 
+            <!-- Segment toolbar: tab selector + context badge + scene type -->
+            @if (seg.id === selectedSegmentId() && metadataPanelOpen()) {
+              <div class="seg-toolbar" (click)="$event.stopPropagation()">
+                <div class="seg-tab-sel" role="tablist" aria-label="Metadata panel view">
+                  <button class="seg-tab-btn" role="tab" [class.active]="metadataTab() === 'clip'"
+                    (click)="metadataTab.set('clip')" title="Clip">
+                    <span class="material-symbols-outlined">movie</span>
+                  </button>
+                  <button class="seg-tab-btn" role="tab" [class.active]="metadataTab() === 'segment'"
+                    (click)="metadataTab.set('segment')" title="Segment">
+                    <span class="material-symbols-outlined">segment</span>
+                  </button>
+                  <button class="seg-tab-btn" role="tab" [class.active]="metadataTab() === 'notes'"
+                    (click)="metadataTab.set('notes')" title="Notes">
+                    <span class="material-symbols-outlined">notes</span>
+                  </button>
+                </div>
+                @if (metadataTab() === 'clip') {
+                  <span class="seg-ctx-badge seg-ctx-badge--clip">{{ clip().name }}</span>
+                  <div class="seg-scene-type" role="group" aria-label="Scene type">
+                    <button class="seg-scene-btn" [class.active]="(clip().sceneType ?? 'talking-head') === 'talking-head'"
+                      (click)="setClipSceneType('talking-head')" title="Solo — single person, face-centered">
+                      <span class="material-symbols-outlined">person</span>
+                    </button>
+                    <button class="seg-scene-btn" [class.active]="clip().sceneType === 'two-shot'"
+                      (click)="setClipSceneType('two-shot')" title="Two Shot — wider frame">
+                      <span class="material-symbols-outlined">group</span>
+                    </button>
+                  </div>
+                } @else if (metadataTab() === 'segment') {
+                  <span class="seg-ctx-badge">{{ formatTimeShort(seg.startTime) }}&ndash;{{ formatTimeShort(seg.endTime) }}</span>
+                }
+              </div>
+            }
+
             <div class="word-flow">
               @for (fi of buildFlowItems(seg); track fi.kind === 'word' ? fi.word.id : fi.id) {
                 @if (fi.kind === 'time') {
@@ -379,22 +414,23 @@ const CUT_OPTIONS: CutOption[] = [
                   @if (!highlightSilence() || fi.duration >= silenceIntervalSec()) {
                     @let silCut = getSilenceCutForGap(fi.gapStart, fi.gapEnd);
                     @let silTrim = silenceTrims().get(fi.id);
+                    @let remainingDur = fi.duration - (silTrim?.trimStart || 0) - (silTrim?.trimEnd || 0);
                     <span class="inline-silence"
                       [class.silence-playing]="activeSilence()?.id === fi.id"
                       [class.silence-hl]="highlightSilence() && fi.duration >= silenceIntervalSec()"
-                      [class.compact]="fi.duration < 0.5"
+                      [class.compact]="remainingDur < 0.5"
                       [class.silence-cut]="!!silCut"
                       [class.silence-trimmed]="!!silTrim && (silTrim.trimStart > 0 || silTrim.trimEnd > 0)"
                       [style.--sil-prog]="activeSilence()?.id === fi.id ? activeSilence()!.progress : 0"
-                      [style.width.px]="silenceChipWidth(fi.duration - (silTrim?.trimStart || 0) - (silTrim?.trimEnd || 0))"
-                      [title]="fi.label + (silCut ? ' · Cut' : ' · Click scissors to cut')"
+                      [style.width.px]="silenceChipWidth(remainingDur)"
+                      [title]="remainingDur.toFixed(1) + 's' + (silCut ? ' · Cut' : ' · Click scissors to cut')"
                       (click)="seekToTime(fi.midTime)">
                       <!-- Left resize handle -->
                       <span class="sil-handle sil-handle--start"
                         (mousedown)="onSilenceHandleMouseDown(fi, 'start', $event)"
                         title="Drag to trim silence start"></span>
                       <span class="material-symbols-outlined">hourglass_empty</span>
-                      @if (fi.duration >= 0.5) { {{ fi.label }} }
+                      @if (remainingDur >= 0.5) { {{ remainingDur.toFixed(1) + 's' }} }
                       <!-- Cut/restore toggle -->
                       @if (fi.duration >= 0.3) {
                         <button class="sil-cut-btn" (click)="toggleSilenceCut(fi); $event.stopPropagation()"
@@ -425,8 +461,9 @@ const CUT_OPTIONS: CutOption[] = [
                     (dblclick)="toggleRemove(fi.word)"
                     (contextmenu)="onWordContextMenu(fi.word, $event)">
 
-                    @if (region) {
+                    @if (region && (region.effectType !== 'smart-cut' && region.effectType !== 'smart' || getSmartCutStatus(region.id) === 'done' || !getSmartCutStatus(region.id))) {
                       <span class="effect-dot effect-dot--{{ region.effectType }}"
+                        [class.sc-done]="getSmartCutStatus(region.id) === 'done'"
                         [title]="effectTypeLabel(region.effectType)"></span>
                     }
 
@@ -440,19 +477,21 @@ const CUT_OPTIONS: CutOption[] = [
                     </button>
 
                     @if (region && getSmartCutStatus(region.id); as scStatus) {
-                      <span
-                        class="sc-status-dot sc-status-dot--{{ scStatus }}"
-                        [attr.aria-label]="'Smart cut: ' + scStatus"
-                        [title]="'Smart cut: ' + scStatus"
-                        (mouseenter)="loadSmartCutThumbs(region.id, clip().id, getRegionTBefore(region), getRegionTAfterCenter(region))">
-                        @if (smartCutThumbs()[region.id]; as thumbs) {
-                          <span class="sc-thumb-popover">
-                            <img [src]="thumbs.pre" alt="Pre-cut frame" width="160" height="90">
-                            <span class="sc-thumb-arrow">→</span>
-                            <img [src]="thumbs.post" alt="Post-cut frame" width="160" height="90">
-                          </span>
-                        }
-                      </span>
+                      @if (scStatus !== 'done') {
+                        <span
+                          class="sc-status-dot sc-status-dot--{{ scStatus }}"
+                          [attr.aria-label]="'Smart cut: ' + scStatus"
+                          [title]="'Smart cut: ' + scStatus"
+                          (mouseenter)="loadSmartCutThumbs(region.id, clip().id, getRegionTBefore(region), getRegionTAfterCenter(region))">
+                          @if (smartCutThumbs()[region.id]; as thumbs) {
+                            <span class="sc-thumb-popover">
+                              <img [src]="thumbs.pre" alt="Pre-cut frame" width="160" height="90">
+                              <span class="sc-thumb-arrow">→</span>
+                              <img [src]="thumbs.post" alt="Post-cut frame" width="160" height="90">
+                            </span>
+                          }
+                        </span>
+                      }
                     }
 
 
@@ -759,6 +798,8 @@ const CUT_OPTIONS: CutOption[] = [
         <app-segment-metadata-panel
           [segmentId]="selectedSegmentId()"
           [clips]="[clip()]"
+          [activeTab]="metadataTab()"
+          (tabChange)="metadataTab.set($event)"
         />
       }
     </div>
@@ -930,6 +971,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /* ── Inputs ──────────────────────────────────────────── */
   readonly clip = input.required<Clip>();
   readonly metadataPanelOpen = signal(false);
+  readonly metadataTab = signal<'clip' | 'segment' | 'notes'>('segment');
   readonly isRtl = input(false);
 
   /* ── Palette (exposed for template) ──────────────────── */
@@ -1053,8 +1095,26 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (this.editingMode() !== 'live') return [];
     const clip = this.clip();
     const intervals: Array<{ start: number; end: number }> = [];
+    const trimsMap = this.silenceTrims();
 
-    // 1. Existing Cut Regions
+    // Collect gap bounds for all active trims so we can exclude their cutRegions from step 1.
+    // Any time-based cutRegion that falls within an active-trim gap is superseded by the drag.
+    type TrimmedGap = { gapStart: number; gapEnd: number; trimStart: number; trimEnd: number };
+    const trimmedGaps: TrimmedGap[] = [];
+    if (trimsMap.size > 0) {
+      for (const seg of clip.segments) {
+        for (let i = 1; i < seg.words.length; i++) {
+          const t = trimsMap.get(`sil-${seg.id}-${i}`);
+          if (t) trimmedGaps.push({ gapStart: seg.words[i - 1].endTime, gapEnd: seg.words[i].startTime, trimStart: t.trimStart, trimEnd: t.trimEnd });
+        }
+      }
+      for (let i = 0; i < clip.segments.length - 1; i++) {
+        const t = trimsMap.get(`sil-after-${clip.segments[i].id}`);
+        if (t) trimmedGaps.push({ gapStart: clip.segments[i].endTime, gapEnd: clip.segments[i + 1].startTime, trimStart: t.trimStart, trimEnd: t.trimEnd });
+      }
+    }
+
+    // 1. Existing Cut Regions — skip time-based regions superseded by an active trim drag
     for (const region of clip.cutRegions ?? []) {
       if (region.pending && region.pendingKind === 'remove') continue;
       let start: number;
@@ -1062,6 +1122,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       if (region.startTime !== undefined && region.endTime !== undefined) {
         start = region.startTime;
         end = region.endTime;
+        if (trimmedGaps.some(g => start >= g.gapStart - 0.05 && end <= g.gapEnd + 0.05)) continue;
       } else {
         const wordMap = new Map<string, Word>();
         for (const seg of clip.segments) for (const w of seg.words) wordMap.set(w.id, w);
@@ -1073,45 +1134,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
       if (end > start) intervals.push({ start, end });
     }
 
-    // 2. Active Silence Trims (simulated cuts for immediate feedback)
-    const trimsMap = this.silenceTrims();
-    if (trimsMap.size > 0) {
-      // Find gaps and apply trims as skip intervals
-      // Inner-segment
-      for (const seg of clip.segments) {
-        for (let i = 1; i < seg.words.length; i++) {
-          const id = `sil-${seg.id}-${i}`;
-          const t = trimsMap.get(id);
-          if (t && (t.trimStart > 0 || t.trimEnd > 0)) {
-            const gapStart = seg.words[i - 1].endTime;
-            const gapEnd = seg.words[i].startTime;
-            
-            // If there's an existing cut region for this gap, it's already in the list.
-            // But if we're dragging, we want the current trims to define the skip.
-            // In VTextStudio silence gaps, the part *between* trims is what's cut.
-            const cutStart = gapStart + t.trimStart;
-            const cutEnd = gapEnd - t.trimEnd;
-            if (cutEnd > cutStart + 0.05) {
-              intervals.push({ start: cutStart, end: cutEnd });
-            }
-          }
-        }
-      }
-      // Inter-segment
-      const segments = clip.segments;
-      for (let i = 0; i < segments.length - 1; i++) {
-        const id = `sil-after-${segments[i].id}`;
-        const t = trimsMap.get(id);
-        if (t && (t.trimStart > 0 || t.trimEnd > 0)) {
-          const gapStart = segments[i].endTime;
-          const gapEnd = segments[i+1].startTime;
-          const cutStart = gapStart + t.trimStart;
-          const cutEnd = gapEnd - t.trimEnd;
-          if (cutEnd > cutStart + 0.05) {
-            intervals.push({ start: cutStart, end: cutEnd });
-          }
-        }
-      }
+    // 2. Active Silence Trims — provide real-time feedback during drag, superseding cutRegions above
+    for (const { gapStart, gapEnd, trimStart, trimEnd } of trimmedGaps) {
+      const cutStart = gapStart + trimStart;
+      const cutEnd = gapEnd - trimEnd;
+      if (cutEnd > cutStart + 0.05) intervals.push({ start: cutStart, end: cutEnd });
     }
 
     return intervals;
@@ -1611,6 +1638,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
    *  follow-up click from collapsing the drag selection to a single word. */
   private justCompletedDrag = false;
 
+  /** Debounce word seek so double-click (toggle-remove) doesn't jump the video. */
+  private wordSeekTimer: ReturnType<typeof setTimeout> | null = null;
+
   private readonly playbackWatch = effect(() => {
     const t = this.currentTime();
     const clip = this.clip();
@@ -1653,10 +1683,12 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     }
   }, { allowSignalWrites: true });
 
-  /** Reset selection state when the clip changes */
+  /** Computed so clipSwitchWatch only tracks the ID, not full clip reference. */
+  private readonly _clipId = computed(() => this.clip().id);
+
+  /** Reset selection state when the clip SWITCHES (not on cut-region edits). */
   private readonly clipSwitchWatch = effect(() => {
-    const clipId = this.clip().id;
-    // Untrack other signals so we don't reset when they change
+    const _clipId = this._clipId(); // only changes when switching to a different clip
     this.selectedSegmentId.set(null);
     this.selectedWordIds.set([]);
     this.selectionAnchorWordId.set(null);
@@ -1812,6 +1844,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     }
   }
 
+  private readonly autoSwitchMetadataTab = effect(() => {
+    if (this.metadataTab() === 'notes') return;
+    this.metadataTab.set(this.selectedSegmentId() ? 'segment' : 'clip');
+  }, { allowSignalWrites: true });
+
   toggleMetadataPanel(): void {
     const opening = !this.metadataPanelOpen();
     if (opening) {
@@ -1857,17 +1894,27 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     if (this.silenceResizeDrag) {
       const drag = this.silenceResizeDrag;
       const delta = event.clientX - drag.startX;
-      const gapDuration = drag.gapEnd - drag.gapStart;
-      let deltaSec = delta / 60;
-      if (this.isRtl()) deltaSec = -deltaSec;
+      const deltaSec = delta / 60;
 
       this.silenceTrims.update(m => {
         const next = new Map(m);
         const cur = next.get(drag.id) ?? { trimStart: 0, trimEnd: 0 };
-        if (drag.side === 'start') {
-          next.set(drag.id, { ...cur, trimStart: Math.max(0, drag.origTrimStart + deltaSec) });
+        if (this.isRtl()) {
+          // RTL: physical-left (side='start') = temporal END; physical-right (side='end') = temporal START.
+          // Drag left (delta<0, deltaSec<0) on left handle → expand chip left → trimEnd must decrease → += deltaSec.
+          // Drag right (delta>0, deltaSec>0) on right handle → expand chip right → trimStart must decrease → -= deltaSec.
+          if (drag.side === 'start') {
+            next.set(drag.id, { ...cur, trimEnd: Math.max(0, drag.origTrimEnd + deltaSec) });
+          } else {
+            next.set(drag.id, { ...cur, trimStart: Math.max(0, drag.origTrimStart - deltaSec) });
+          }
         } else {
-          next.set(drag.id, { ...cur, trimEnd: Math.max(0, drag.origTrimEnd - deltaSec) });
+          // LTR: left handle = temporal START, right handle = temporal END.
+          if (drag.side === 'start') {
+            next.set(drag.id, { ...cur, trimStart: Math.max(0, drag.origTrimStart + deltaSec) });
+          } else {
+            next.set(drag.id, { ...cur, trimEnd: Math.max(0, drag.origTrimEnd - deltaSec) });
+          }
         }
         return next;
       });
@@ -2026,7 +2073,15 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
     this.selectionAnchorWordId.set(word.id);
     this.selectedWordIds.set([word.id]);
-    if (!word.isRemoved) this.mediaPlayer.seek(word.startTime);
+    if (!word.isRemoved) {
+      // Debounce so a double-click (toggle-remove) doesn't cause a spurious seek
+      if (this.wordSeekTimer) clearTimeout(this.wordSeekTimer);
+      const seekTarget = word.startTime;
+      this.wordSeekTimer = setTimeout(() => {
+        this.wordSeekTimer = null;
+        this.mediaPlayer.seek(seekTarget);
+      }, 220);
+    }
     this.effectPopoverWordId.set(null);
     this.notebookService.selectEntity('word', word.id);
   }
@@ -2169,11 +2224,18 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
 
   toggleRemove(word: Word): void {
     if (this.textEditMode()) return;
+    // Cancel pending seek from the click event(s) that fired before this dblclick
+    if (this.wordSeekTimer) { clearTimeout(this.wordSeekTimer); this.wordSeekTimer = null; }
     const pending = this.editingMode() === 'apply';
     if (word.isRemoved) {
       this.applyCutRegionChange(this.cutRegionService.restore(this.clip(), [word.id], pending));
     } else {
       this.applyCutRegionChange(this.cutRegionService.cut(this.clip(), [word.id], this.defaultEffectType(), pending));
+    }
+    // Word is in DOM (user just clicked it) — scroll it into view without pre-jumping to segment top
+    if (this.transcriptElRef) {
+      const wordEl = this.transcriptElRef.nativeElement.querySelector(`[id="${word.id}"]`) as HTMLElement | null;
+      wordEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }
 
@@ -2401,6 +2463,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     const trackEl = this.timelineTrackRef?.nativeElement;
     if (!trackEl) return;
     const trims = this.silenceTrims().get(sil.id) ?? { trimStart: 0, trimEnd: 0 };
+    // Seed the trims map immediately so liveSkipIntervals supersedes the existing cutRegion from drag start
+    if (!this.silenceTrims().has(sil.id)) {
+      this.silenceTrims.update(m => { const next = new Map(m); next.set(sil.id, trims); return next; });
+    }
     this.silenceTimelineDrag = {
       id: sil.id, side,
       gapStart: sil.gapStart, gapEnd: sil.gapEnd,
@@ -2600,7 +2666,11 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
           this.effectPlayer.playEffect(r, this.clip(), end).subscribe({
             next: (seekTo) => {
               this.effectInProgress.set(false);
-              this.mediaPlayer.seek(seekTo);
+              // Skip seek if video is already at the target (smart-cut seeks internally).
+              // A redundant seek fires a 'seeked' event and may briefly blank the frame.
+              if (Math.abs(this.currentTime() - seekTo) > 0.05) {
+                this.mediaPlayer.seek(seekTo);
+              }
             }
           });
         }
@@ -2762,6 +2832,10 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     event.preventDefault();
     event.stopPropagation();
     const trims = this.silenceTrims().get(fi.id) ?? { trimStart: 0, trimEnd: 0 };
+    // Seed the trims map immediately so liveSkipIntervals supersedes the existing cutRegion from drag start
+    if (!this.silenceTrims().has(fi.id)) {
+      this.silenceTrims.update(m => { const next = new Map(m); next.set(fi.id, trims); return next; });
+    }
     this.silenceResizeDrag = {
       id: fi.id, side,
       startX: event.clientX,

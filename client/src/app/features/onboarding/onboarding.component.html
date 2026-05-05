@@ -33,6 +33,11 @@
         <div class="projects-loading">
           <span class="spinner"></span> Loading projects&hellip;
         </div>
+      } @else if (projects().length === 0) {
+        <div class="projects-empty">
+          <p class="empty-msg">No projects yet. Upload a media file to get started.</p>
+          <button class="btn-primary" (click)="currentStep.set('upload')">+ New Project</button>
+        </div>
       } @else {
         <div class="projects-grid">
           @for (p of projects(); track p.id) {

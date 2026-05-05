@@ -87,4 +87,6 @@
   silence sections per clip....
 
   ## Notifcation\Errors
-   - a dedicated zone (panel like plugins, ...) that shows any msg (from error with the folllowing data error level, what , where happened)
+   - a dedicated zone (panel like plugins, ...) that shows any msg (from error with the folllowing data error level, what , where happened
+   
+   )

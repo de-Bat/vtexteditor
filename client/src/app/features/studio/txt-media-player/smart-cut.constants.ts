@@ -1,6 +1,6 @@
 import type { SceneType } from '../../../core/models/clip.model';
 
-export const SMART_CUT_WINDOW_MS = 150;
+export const SMART_CUT_WINDOW_MS = 400;
 export const SMART_CUT_FRAME_INTERVAL_MS = 16;
 export const SMART_CUT_MIN_WINDOW_MS = 60;
 export const SMART_CUT_MIN_REGION_MS = 100;

@@ -17,74 +17,28 @@ import { NotesPanelComponent } from '../notes-panel/notes-panel.component';
   template: `
     <div class="panel-container">
       <div class="panel-content-wrapper">
-        <div class="panel-tabs">
-          <button class="tab-btn" [class.active]="currentTab() === 'clip'" (click)="setTab('clip')">
-            <span class="material-symbols-outlined">movie</span>
-            Clip
-          </button>
-          <button class="tab-btn" [class.active]="currentTab() === 'segment'" (click)="setTab('segment')">
-            <span class="material-symbols-outlined">segment</span>
-            Segments
-          </button>
-          <button class="tab-btn" [class.active]="currentTab() === 'notes'" (click)="setTab('notes')">
-            <span class="material-symbols-outlined">notes</span>
-            Notes
-          </button>
-        </div>
 
-        <div class="panel-header">
-          @if (currentTab() === 'segment') {
-            @if (segment(); as res) {
-              <span class="range-badge">
-                 {{ formatSecs(res.segment.startTime) }} &ndash; {{ formatSecs(res.segment.endTime) }}
-              </span>
-            } @else {
-              <span class="range-badge range-empty">NO SELECTION</span>
-            }
-          } @else {
-            <span class="range-badge clip-badge">{{ (activeClip()).name }}</span>
-          }
-        </div>
-
-      @if (currentTab() === 'notes') {
+      @if (activeTab() === 'notes') {
         <div class="panel-content notes-tab-content">
           <app-notes-panel />
         </div>
-      } @else if (currentTab() === 'segment' && !segment()) {
+      } @else if (activeTab() === 'segment' && !segment()) {
         <div class="panel-empty">
           <span class="material-symbols-outlined large-icon">segment</span>
           <p>Select a segment in the transcript to manage its metadata.</p>
         </div>
       } @else {
         <div class="panel-content">
-          @if (currentTab() === 'clip') {
-            <div class="scene-type-row">
-              <label for="scene-type-select">Scene type</label>
-              <select
-                id="scene-type-select"
-                [value]="activeClip().sceneType ?? 'talking-head'"
-                (change)="onSceneTypeChange($event)"
-                [attr.aria-label]="'Scene type for ' + activeClip().name"
-              >
-                <option value="talking-head" title="Focuses frame matching on the speaker's head and upper body">
-                  Talking head
-                </option>
-                <option value="two-shot" title="Uses full frame — smart cut falls back to cross-cut on camera switches">
-                  Two-shot / Interview
-                </option>
-              </select>
-            </div>
-          }
           @if (showAddForm()) {
-            <app-metadata-add-form 
-              [allowTrails]="currentTab() === 'clip'"
-              (submitted)="onAdd($event)" 
-              (cancelled)="showAddForm.set(false)" 
+            <app-metadata-add-form
+              [allowTrails]="activeTab() === 'clip'"
+              (submitted)="onAdd($event)"
+              (cancelled)="showAddForm.set(false)"
             />
           } @else {
             <button type="button" class="add-meta-btn" (click)="showAddForm.set(true)">
               <span class="material-symbols-outlined">add</span>
-              Add {{ currentTab() === 'clip' ? 'Clip' : 'Segment' }} Metadata
+              Add {{ activeTab() === 'clip' ? 'Clip' : 'Segment' }} Metadata
             </button>
           }
 
@@ -131,17 +85,15 @@ export class SegmentMetadataPanelComponent {
   private readonly clipService = inject(ClipService);
   private readonly queue = inject(SmartCutQueueService);
 
-  protected readonly currentTab = signal<'clip' | 'segment' | 'notes'>('segment');
+  readonly activeTab = input<'clip' | 'segment' | 'notes'>('segment');
+  readonly tabChange = output<'clip' | 'segment' | 'notes'>();
+
   protected readonly showAddForm = signal(false);
   protected readonly collapsedSections = signal<Set<string>>(new Set());
 
-  private readonly autoSwitchTab = effect(() => {
-    if (this.currentTab() === 'notes') return; // Don't auto-switch if on notes tab
-    if (this.segmentId()) {
-      this.currentTab.set('segment');
-    } else {
-      this.currentTab.set('clip');
-    }
+  private readonly resetFormOnTabChange = effect(() => {
+    this.activeTab();
+    this.showAddForm.set(false);
   }, { allowSignalWrites: true });
 
   protected readonly activeClip = computed(() => {
@@ -159,7 +111,7 @@ export class SegmentMetadataPanelComponent {
   });
 
   protected readonly groupedEntries = computed(() => {
-    const isClip = this.currentTab() === 'clip';
+    const isClip = this.activeTab() === 'clip';
     let metadata: Record<string, MetadataEntry[]> = {};
     
     if (isClip) {
@@ -183,7 +135,7 @@ export class SegmentMetadataPanelComponent {
   });
 
   protected setTab(tab: 'clip' | 'segment' | 'notes'): void {
-    this.currentTab.set(tab);
+    this.tabChange.emit(tab);
     this.showAddForm.set(false);
   }
 
@@ -195,7 +147,7 @@ export class SegmentMetadataPanelComponent {
   }
 
   protected onEdit(updatedEntry: MetadataEntry): void {
-    const isClip = this.currentTab() === 'clip';
+    const isClip = this.activeTab() === 'clip';
     const sourceId = updatedEntry.sourcePluginId;
 
     if (isClip) {
@@ -215,7 +167,7 @@ export class SegmentMetadataPanelComponent {
   }
 
   protected onDelete(entryToDelete: MetadataEntry): void {
-    const isClip = this.currentTab() === 'clip';
+    const isClip = this.activeTab() === 'clip';
     const sourceId = entryToDelete.sourcePluginId;
 
     if (isClip) {
@@ -235,7 +187,7 @@ export class SegmentMetadataPanelComponent {
   }
 
   protected onAdd(newEntry: MetadataEntry): void {
-    const isClip = this.currentTab() === 'clip';
+    const isClip = this.activeTab() === 'clip';
 
     if (isClip) {
       const clip = this.activeClip();

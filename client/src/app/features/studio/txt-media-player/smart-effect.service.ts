@@ -9,6 +9,7 @@ export interface ResolvedEffect {
   effectType: Exclude<EffectType, 'smart'>;  // includes 'smart-cut' as a resolved target
   durationMs: number;
   resumeOffsetMs?: number;  // only present when effectType === 'smart-cut'
+  score?: number;           // dHash score; only present when effectType === 'smart-cut'
 }
 
 @Injectable({ providedIn: 'root' })
@@ -46,7 +47,7 @@ export class SmartEffectService {
     const isExplicit = region.effectType === 'smart-cut' && cached.score <= SMART_CUT_MAX_USABLE;
     if (!isAutoEligible && !isExplicit) return null;
 
-    return { effectType: 'smart-cut' as Exclude<EffectType, 'smart'>, durationMs: 300, resumeOffsetMs: cached.resumeOffsetMs / 1000 };
+    return { effectType: 'smart-cut' as Exclude<EffectType, 'smart'>, durationMs: 300, resumeOffsetMs: cached.resumeOffsetMs / 1000, score: cached.score };
   }
 
   private resolveSync(clip: Clip, region: CutRegion): ResolvedEffect {

@@ -24,6 +24,7 @@ export class SmartCutQueueService {
   private extractors = new Map<string, SmartCutExtractor>();
   private readonly extractorFactory: ExtractorFactory;
   private invalidatedRegions = new Set<string>();
+  private pendingCacheChecks = new Map<string, QueueItem>();
 
   constructor(
     @Optional() @Inject(SMART_CUT_CACHE_OVERRIDE) cacheOverride?: SmartCutCacheService,
@@ -42,26 +43,55 @@ export class SmartCutQueueService {
   }
 
   enqueue(region: CutRegion, clip: Clip): void {
+    // Cancel any in-flight debounce or cache check for this region
     const existing = this.debounceTimers.get(region.id);
-    if (existing) clearTimeout(existing);
+    if (existing) { clearTimeout(existing); this.debounceTimers.delete(region.id); }
+    this.pendingCacheChecks.delete(region.id);
 
+    const tBefore = this.getTBefore(clip, region);
+    const tAfterCenter = this.getTAfterCenter(clip, region);
+
+    if (tBefore === null || tAfterCenter === null) {
+      this.updateStatus(region.id, 'unsupported');
+      return;
+    }
+
+    const cacheKey = `${clip.id}|${region.id}|${tBefore.toFixed(4)}|${tAfterCenter.toFixed(4)}`;
+    this.pendingCacheChecks.set(region.id, { region, clip });
+
+    // Check cache before showing 'queued' — avoids blink when result is already computed
+    this.cache.get(cacheKey).then(cached => {
+      if (!this.pendingCacheChecks.has(region.id)) return; // superseded by newer call/invalidation
+      this.pendingCacheChecks.delete(region.id);
+      if (this.invalidatedRegions.has(region.id)) { this.invalidatedRegions.delete(region.id); return; }
+
+      if (cached) {
+        this.updateStatus(region.id, cached.score > SMART_CUT_MAX_USABLE ? 'error' : 'done');
+        return;
+      }
+
+      this.scheduleExtraction(region, clip);
+    }).catch(() => {
+      if (!this.pendingCacheChecks.has(region.id)) return;
+      this.pendingCacheChecks.delete(region.id);
+      this.scheduleExtraction(region, clip);
+    });
+  }
+
+  private scheduleExtraction(region: CutRegion, clip: Clip): void {
     this.updateStatus(region.id, 'queued');
-
     const timer = setTimeout(() => {
       this.debounceTimers.delete(region.id);
       this.pendingQueue.push({ region, clip });
       this.processNext();
     }, SMART_CUT_DEBOUNCE_MS);
-
     this.debounceTimers.set(region.id, timer);
   }
 
   invalidate(regionId: string): void {
     const timer = this.debounceTimers.get(regionId);
-    if (timer) {
-      clearTimeout(timer);
-      this.debounceTimers.delete(regionId);
-    }
+    if (timer) { clearTimeout(timer); this.debounceTimers.delete(regionId); }
+    this.pendingCacheChecks.delete(regionId);
     this.pendingQueue = this.pendingQueue.filter(item => item.region.id !== regionId);
     const s = this.statusMap();
     const { [regionId]: _, ...rest } = s;
@@ -90,6 +120,7 @@ export class SmartCutQueueService {
     this.extractors.clear();
     this.debounceTimers.forEach(timer => clearTimeout(timer));
     this.debounceTimers.clear();
+    this.pendingCacheChecks.clear();
     this.pendingQueue = [];
   }
 

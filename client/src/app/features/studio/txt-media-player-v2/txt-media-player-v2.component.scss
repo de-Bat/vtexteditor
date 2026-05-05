@@ -1870,7 +1870,17 @@ audio {
   &--fade-in    { background: var(--primary, #ba9eff); }
   &--cross-cut  { background: var(--tertiary, #ff716a); }
   &--smart      { background: #34d399; }
-  &--smart-cut  { background: #fbbf24; }
+  &--smart-cut  { animation: effect-dot-blink 1.4s ease-in-out infinite; background: #fbbf24; }
+
+  &--smart-cut.sc-done {
+    animation: none;
+    background: #fbbf24;
+  }
+}
+
+@keyframes effect-dot-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
 }
 
 .filler-badge {
@@ -2163,6 +2173,99 @@ audio {
 .seg-block.selected-for-meta {
   background: rgba(186, 158, 255, 0.03);
   border-right: 2px solid var(--primary);
+}
+
+.seg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.seg-tab-sel {
+  display: flex;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.seg-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--outline);
+  transition: background 150ms, color 150ms;
+
+  .material-symbols-outlined { font-size: 15px; }
+
+  &.active {
+    background: var(--surface-container-high, #2b2930);
+    color: var(--primary, #ba9eff);
+  }
+
+  &:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--on-surface-variant);
+  }
+}
+
+.seg-ctx-badge {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--secondary, #9093ff);
+  background: rgba(144, 147, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+
+  &.seg-ctx-badge--clip {
+    color: var(--primary, #ba9eff);
+    background: rgba(186, 158, 255, 0.1);
+  }
+}
+
+.seg-scene-type {
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.seg-scene-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--outline);
+  transition: background 150ms, color 150ms;
+
+  .material-symbols-outlined { font-size: 15px; }
+
+  &.active {
+    background: var(--surface-container-high, #2b2930);
+    color: var(--primary, #ba9eff);
+  }
+
+  &:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--on-surface-variant);
+  }
 }
 
 /* ── Sidebar Panels ─────────────────────────────────── */

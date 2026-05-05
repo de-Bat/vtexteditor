@@ -52,8 +52,9 @@ export class CutRegionService {
       ...(pending ? { pending: true as const, pendingKind: 'add' as const } : {}),
     };
 
-    // Silence-snap: set startTime/endTime to silence midpoints when gap is sufficient
-    if (!pending) {
+    // Silence-snap: set startTime/endTime to silence midpoints when gap is sufficient.
+    // Skip for smart-cut/smart — frame matching requires exact word boundaries.
+    if (!pending && mergedEffectType !== 'smart-cut' && mergedEffectType !== 'smart') {
       const snapped = computeSeamlessBoundaries(allWords, mergedWordIds);
       if (snapped) {
         regionAfter.startTime = snapped.startTime;
@@ -163,6 +164,13 @@ export class CutRegionService {
     if (!region) return { clip, entry: { kind: 'edit-effect', regionId, before: {}, after: {} } };
     const before: Partial<CutRegion> = { effectType: region.effectType, effectTypeOverridden: region.effectTypeOverridden };
     const after: Partial<CutRegion> = { effectType, effectTypeOverridden: true };
+    // Frame matching requires exact word boundaries — strip silence-snap expanded startTime/endTime
+    if (effectType === 'smart-cut' || effectType === 'smart') {
+      before.startTime = region.startTime;
+      before.endTime = region.endTime;
+      after.startTime = undefined;
+      after.endTime = undefined;
+    }
     const newClip = this.patchRegion(clip, regionId, after);
     return { clip: newClip, entry: { kind: 'edit-effect', regionId, before, after } };
   }
@@ -191,6 +199,12 @@ export class CutRegionService {
     if (!region) return { clip, entry: { kind: 'edit-effect', regionId, before: {}, after: {} } };
     const before: Partial<CutRegion> = { effectType: region.effectType, effectTypeOverridden: region.effectTypeOverridden };
     const after: Partial<CutRegion> = { effectType: defaultEffectType, effectTypeOverridden: false };
+    if (defaultEffectType === 'smart-cut' || defaultEffectType === 'smart') {
+      before.startTime = region.startTime;
+      before.endTime = region.endTime;
+      after.startTime = undefined;
+      after.endTime = undefined;
+    }
     return { clip: this.patchRegion(clip, regionId, after), entry: { kind: 'edit-effect', regionId, before, after } };
   }
 
@@ -355,7 +369,15 @@ export class CutRegionService {
   private patchRegion(clip: Clip, regionId: string, patch: Partial<CutRegion>): Clip {
     return {
       ...clip,
-      cutRegions: clip.cutRegions.map((r) => (r.id === regionId ? { ...r, ...patch } : r)),
+      cutRegions: clip.cutRegions.map((r) => {
+        if (r.id !== regionId) return r;
+        const merged = { ...r, ...patch };
+        // Remove keys explicitly set to undefined (e.g. clearing silence-snap startTime/endTime)
+        for (const key of Object.keys(patch) as (keyof CutRegion)[]) {
+          if (patch[key] === undefined) delete (merged as Partial<CutRegion>)[key];
+        }
+        return merged;
+      }),
     };
   }
 

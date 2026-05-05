@@ -10,6 +10,7 @@ import {
   SMART_CUT_AUDIO_FADEIN_MS,
   SMART_CUT_OVERLAY_FADE_MS,
   SMART_CUT_SEEK_TIMEOUT_MS,
+  SMART_CUT_MAX_USABLE,
   CUT_MICRO_FADE_MS,
 } from './smart-cut.constants';
 
@@ -182,14 +183,16 @@ export class EffectPlayerService implements OnDestroy {
       return timer(resolved.durationMs).pipe(map(() => regionEnd));
     }
     if ((resolved.effectType as string) === 'smart-cut') {
-      return this.playSmartCut(regionEnd, resolved.resumeOffsetMs ?? 0);
+      return this.playSmartCut(regionEnd, resolved.resumeOffsetMs ?? 0, resolved.score ?? 0);
     }
     return of(regionEnd);
   }
 
-  private playSmartCut(regionEnd: number, resumeOffsetMs: number): Observable<number> {
-    // resumeOffsetMs is in seconds at the ResolvedEffect level
-    const resumeTarget = regionEnd + resumeOffsetMs;
+  private playSmartCut(regionEnd: number, resumeOffsetMs: number, score = 0): Observable<number> {
+    // resumeOffsetMs is in seconds. Clamp so we never seek back inside the cut region.
+    const resumeTarget = Math.max(regionEnd, regionEnd + resumeOffsetMs);
+    // Scale overlay fade by match quality: perfect (score=0) → 150ms, rough (score=24) → 400ms
+    const overlayFadeMs = Math.round(150 + (score / SMART_CUT_MAX_USABLE) * 250);
 
     return new Observable<number>(observer => {
       // 1. Capture current frame to overlay
@@ -209,7 +212,7 @@ export class EffectPlayerService implements OnDestroy {
       const seekTimeout = setTimeout(() => {
         if (seekSettled) return;
         seekSettled = true;
-        this.afterSeek(resumeTarget, observer);
+        this.afterSeek(resumeTarget, overlayFadeMs, observer);
       }, SMART_CUT_SEEK_TIMEOUT_MS);
 
       const onSeeked = () => {
@@ -217,7 +220,15 @@ export class EffectPlayerService implements OnDestroy {
         seekSettled = true;
         clearTimeout(seekTimeout);
         this.mediaEl!.removeEventListener('seeked', onSeeked);
-        this.afterSeek(resumeTarget, observer);
+        // Wait for browser to actually paint the new frame before fading overlay.
+        // requestVideoFrameCallback fires after the frame is composited — eliminates
+        // the flash that occurs when seeked fires before GPU presents the frame.
+        if (this.mediaEl && 'requestVideoFrameCallback' in this.mediaEl) {
+          (this.mediaEl as HTMLVideoElement & { requestVideoFrameCallback(cb: () => void): void })
+            .requestVideoFrameCallback(() => this.afterSeek(resumeTarget, overlayFadeMs, observer));
+        } else {
+          this.afterSeek(resumeTarget, overlayFadeMs, observer);
+        }
       };
 
       if (this.mediaEl) {
@@ -225,14 +236,15 @@ export class EffectPlayerService implements OnDestroy {
         this.mediaEl.currentTime = resumeTarget;
       } else {
         clearTimeout(seekTimeout);
-        this.afterSeek(resumeTarget, observer);
+        this.afterSeek(resumeTarget, overlayFadeMs, observer);
       }
     });
   }
 
-  private afterSeek(resumeTarget: number, observer: { next: (v: number) => void; complete: () => void }): void {
-    // 4. Ramp audio back to 1
-    const fadeInSec = SMART_CUT_AUDIO_FADEIN_MS / 1000;
+  private afterSeek(resumeTarget: number, overlayFadeMs: number, observer: { next: (v: number) => void; complete: () => void }): void {
+    // 4. Ramp audio back to 1 — match fade duration to overlay for rough cuts
+    const fadeInMs = Math.max(SMART_CUT_AUDIO_FADEIN_MS, overlayFadeMs);
+    const fadeInSec = fadeInMs / 1000;
     if (this.gainNode && this.audioCtx) {
       const now = this.audioCtx.currentTime;
       this.gainNode.gain.cancelScheduledValues(now);
@@ -241,13 +253,13 @@ export class EffectPlayerService implements OnDestroy {
     }
 
     // 5. Fade overlay out
-    this.scheduleOverlayClear(SMART_CUT_OVERLAY_FADE_MS);
+    this.scheduleOverlayClear(overlayFadeMs);
 
     // 6. Complete after overlay fades
     setTimeout(() => {
       observer.next(resumeTarget);
       observer.complete();
-    }, Math.max(SMART_CUT_AUDIO_FADEIN_MS, SMART_CUT_OVERLAY_FADE_MS));
+    }, Math.max(fadeInMs, overlayFadeMs));
   }
 
   private captureToOverlay(): void {

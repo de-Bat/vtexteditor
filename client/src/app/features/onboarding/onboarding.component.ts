@@ -79,14 +79,10 @@ export class OnboardingComponent implements OnInit {
       next: (list) => {
         this.projects.set(list);
         this.loading.set(false);
-        if (list.length === 0) {
-          this.currentStep.set('upload');
-        }
       },
       error: () => {
         this.loading.set(false);
         this.loadError.set('Could not load projects. Please try again.');
-        this.currentStep.set('upload');
       },
     });
   }

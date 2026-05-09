@@ -1,13 +1,12 @@
 import os
 import cv2
-from fastapi import HTTPException
 
 
 def extract_frames_to_dir(media_path: str, out_dir: str) -> dict:
     cap = cv2.VideoCapture(media_path)
     if not cap.isOpened():
         cap.release()
-        raise HTTPException(status_code=400, detail="Cannot open media file")
+        raise ValueError("Cannot open media file")
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -36,7 +35,7 @@ def extract_frames_to_dir(media_path: str, out_dir: str) -> dict:
     cap.release()
 
     if total_frames <= 0:
-        raise HTTPException(status_code=400, detail="Video contains no readable frames")
+        raise ValueError("no frames: video contains no readable frames")
 
     return {
         "total_frames": total_frames,

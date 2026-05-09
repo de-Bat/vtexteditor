@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import os
+import pytest
+from unittest.mock import patch, MagicMock
 from utils.frames import extract_frames_to_dir
 
 
@@ -30,9 +32,25 @@ def test_extract_frames_creates_jpegs(tmp_path):
 
 
 def test_extract_frames_bad_path(tmp_path):
-    from fastapi import HTTPException
-    import pytest
     out_dir = str(tmp_path / "frames")
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(ValueError):
         extract_frames_to_dir("/no/such/file.mp4", out_dir)
-    assert exc_info.value.status_code == 400
+
+
+def test_extract_frames_empty_video_raises(tmp_path):
+    """Test that a video with zero readable frames raises ValueError."""
+    out_dir = str(tmp_path / "frames")
+
+    mock_cap = MagicMock()
+    mock_cap.isOpened.return_value = True
+    mock_cap.get.side_effect = lambda prop: {
+        cv2.CAP_PROP_FPS: 30.0,
+        cv2.CAP_PROP_FRAME_COUNT: 0,
+        cv2.CAP_PROP_FRAME_WIDTH: 160,
+        cv2.CAP_PROP_FRAME_HEIGHT: 120,
+    }.get(prop, 0)
+    mock_cap.read.return_value = (False, None)  # No frames readable
+
+    with patch("utils.frames.cv2.VideoCapture", return_value=mock_cap):
+        with pytest.raises(ValueError, match="no frames"):
+            extract_frames_to_dir("/fake/video.mp4", out_dir)

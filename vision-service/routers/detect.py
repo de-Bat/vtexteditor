@@ -24,6 +24,7 @@ class DetectedObject(BaseModel):
 def detect(req: DetectRequest) -> list[DetectedObject]:
     cap = cv2.VideoCapture(req.mediaPath)
     if not cap.isOpened():
+        cap.release()
         raise HTTPException(status_code=400, detail=f"Cannot open media: {req.mediaPath}")
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0

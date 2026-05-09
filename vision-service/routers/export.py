@@ -66,6 +66,14 @@ def export_masked(req: ExportRequest):
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+        # Load masks before opening writer — if mask load fails, no partial file created
+        try:
+            mask_lookup = _load_all_masks(mask_dir, req.objects)
+        except Exception as exc:
+            cap.release()
+            yield _sse({"type": "error", "message": f"Failed to load masks: {exc}"})
+            return
+
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         writer = cv2.VideoWriter(
             output_path,
@@ -74,8 +82,7 @@ def export_masked(req: ExportRequest):
             (w, h),
         )
 
-        mask_lookup = _load_all_masks(mask_dir, req.objects)
-
+        completed = False
         try:
             for frame_idx in range(total_frames):
                 ret, frame = cap.read()
@@ -97,10 +104,14 @@ def export_masked(req: ExportRequest):
                     pct = int((frame_idx / max(total_frames, 1)) * 100)
                     yield _sse({"type": "progress", "percent": pct})
 
+            completed = True
+        except Exception as exc:
+            yield _sse({"type": "error", "message": str(exc)})
         finally:
             cap.release()
             writer.release()
 
-        yield _sse({"type": "complete", "percent": 100, "exportId": req.exportId})
+        if completed:
+            yield _sse({"type": "complete", "percent": 100, "exportId": req.exportId})
 
     return StreamingResponse(generate(), media_type="text/event-stream")

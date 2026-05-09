@@ -77,3 +77,29 @@ def test_export_bad_media_path(tmp_path, monkeypatch):
         "objects": [],
     })
     assert response.status_code == 400
+
+
+def test_export_no_mask_for_object_passes_through(tmp_path, monkeypatch):
+    """When an object has no mask file, its frames are passed through unmodified."""
+    storage_root = str(tmp_path / "storage")
+    monkeypatch.setenv("STORAGE_ROOT", storage_root)
+
+    video_path = str(tmp_path / "src.mp4")
+    make_test_video(video_path)
+    # No mask files written — mask_dir doesn't even exist
+
+    from main import app
+    client = TestClient(app)
+    response = client.post("/export-masked", json={
+        "mediaPath": video_path,
+        "projectId": "proj1",
+        "exportId": "exp2",
+        "maskSessionId": "sess1",
+        "objects": [{"id": "obj_no_mask", "effect": "blur", "fillColor": None}],
+    })
+
+    assert response.status_code == 200
+    events = parse_sse_events(response.content)
+    assert any(e.get("type") == "complete" for e in events)
+    output_path = os.path.join(storage_root, "projects", "proj1", "exports", "exp2-masked.mp4")
+    assert os.path.exists(output_path)

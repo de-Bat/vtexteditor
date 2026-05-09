@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import shutil
@@ -65,8 +66,12 @@ def track(req: TrackRequest):
 
             yield _sse({"type": "progress", "percent": 25, "phase": "tracking"})
 
+            # Build int→str mapping for SAM2 IDs
+            obj_int_ids = {i: obj.id for i, obj in enumerate(req.objects)}
+
             prompts = [
                 {
+                    "obj_int_id": i,
                     "obj_id": obj.id,
                     "box": np.array(
                         [obj.bbox[0] * w, obj.bbox[1] * h,
@@ -75,7 +80,7 @@ def track(req: TrackRequest):
                         dtype=np.float32,
                     ),
                 }
-                for obj in req.objects
+                for i, obj in enumerate(req.objects)
             ]
 
             predictor = get_sam2()
@@ -84,14 +89,19 @@ def track(req: TrackRequest):
             all_masks: dict[str, dict[int, np.ndarray]] = {obj.id: {} for obj in req.objects}
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            with torch.inference_mode(), torch.autocast(device, dtype=torch.bfloat16):
+            autocast_ctx = (
+                torch.autocast("cuda", dtype=torch.bfloat16)
+                if device == "cuda"
+                else contextlib.nullcontext()
+            )
+            with torch.inference_mode(), autocast_ctx:
                 # Forward pass
                 state = predictor.init_state(video_path=frame_dir)
                 for p in prompts:
                     predictor.add_new_points_or_box(
                         inference_state=state,
                         frame_idx=keyframe_idx,
-                        obj_id=p["obj_id"],
+                        obj_id=p["obj_int_id"],
                         box=p["box"],
                     )
 
@@ -99,13 +109,14 @@ def track(req: TrackRequest):
                 for i, (frame_idx, obj_ids, mask_logits) in enumerate(
                     predictor.propagate_in_video(state, start_frame_idx=keyframe_idx)
                 ):
-                    for oi, obj_id in enumerate(obj_ids):
+                    for oi, obj_int_id in enumerate(obj_ids):
+                        str_obj_id = obj_int_ids[int(obj_int_id)]
                         raw = mask_logits[oi] > 0
                         if isinstance(raw, torch.Tensor):
                             mask = raw.squeeze().cpu().numpy().astype(bool)
                         else:
                             mask = np.asarray(raw).squeeze().astype(bool)
-                        all_masks[str(obj_id)][frame_idx] = mask
+                        all_masks[str_obj_id][frame_idx] = mask
                     pct = 25 + int((i / remaining_forward) * 35)
                     yield _sse({"type": "progress", "percent": min(pct, 60), "phase": "forward"})
 
@@ -115,7 +126,7 @@ def track(req: TrackRequest):
                     predictor.add_new_points_or_box(
                         inference_state=state,
                         frame_idx=keyframe_idx,
-                        obj_id=p["obj_id"],
+                        obj_id=p["obj_int_id"],
                         box=p["box"],
                     )
 
@@ -123,13 +134,14 @@ def track(req: TrackRequest):
                 for i, (frame_idx, obj_ids, mask_logits) in enumerate(
                     predictor.propagate_in_video(state, start_frame_idx=keyframe_idx, reverse=True)
                 ):
-                    for oi, obj_id in enumerate(obj_ids):
+                    for oi, obj_int_id in enumerate(obj_ids):
+                        str_obj_id = obj_int_ids[int(obj_int_id)]
                         raw = mask_logits[oi] > 0
                         if isinstance(raw, torch.Tensor):
                             mask = raw.squeeze().cpu().numpy().astype(bool)
                         else:
                             mask = np.asarray(raw).squeeze().astype(bool)
-                        all_masks[str(obj_id)][frame_idx] = mask
+                        all_masks[str_obj_id][frame_idx] = mask
                     pct = 60 + int((i / remaining_backward) * 30)
                     yield _sse({"type": "progress", "percent": min(pct, 90), "phase": "backward"})
 

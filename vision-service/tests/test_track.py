@@ -31,7 +31,7 @@ def test_track_returns_sse_stream_and_saves_masks(tmp_path):
 
     def fake_propagate(state, start_frame_idx=0, reverse=False):
         for i in range(3):
-            yield i, ["obj1"], [mock_mask]
+            yield i, [0], [mock_mask]
 
     mock_predictor = MagicMock()
     mock_predictor.init_state.return_value = mock_state

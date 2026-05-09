@@ -50,7 +50,7 @@ function makeRegion(wordIds: string[]): CutRegion {
 
 describe('SmartEffectService', () => {
   let svc: SmartEffectService;
-  beforeEach(() => { svc = new SmartEffectService(new SmartCutCacheService(new IDBFactory()), mockSettings); });
+  beforeEach(() => { svc = new SmartEffectService(new SmartCutCacheService(new IDBFactory()), mockSettings as any); });
 
   it('rule 1: cross-segment cut → cross-cut 350ms', async () => {
     const clip = makeClip([

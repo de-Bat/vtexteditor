@@ -1,10 +1,12 @@
 // client/src/app/features/studio/txt-media-player/smart-effect.service.ts
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, InjectionToken, Optional, Inject } from '@angular/core';
 import { Clip } from '../../../core/models/clip.model';
 import { CutRegion, EffectType } from '../../../core/models/cut-region.model';
 import { SmartCutCacheService } from './smart-cut-cache.service';
 import { SMART_CUT_AUTO_THRESHOLD, SMART_CUT_MAX_USABLE } from './smart-cut.constants';
 import { SettingsService } from '../../../core/services/settings.service';
+
+export const SMART_EFFECT_SETTINGS_OVERRIDE = new InjectionToken<Pick<SettingsService, 'smartCutAutoUpgrade'>>('SMART_EFFECT_SETTINGS_OVERRIDE');
 
 export interface ResolvedEffect {
   effectType: Exclude<EffectType, 'smart'>;  // includes 'smart-cut' as a resolved target
@@ -19,8 +21,8 @@ export class SmartEffectService {
   private readonly settings: Pick<SettingsService, 'smartCutAutoUpgrade'>;
 
   constructor(
-    cacheOverride?: SmartCutCacheService,
-    settingsOverride?: Pick<SettingsService, 'smartCutAutoUpgrade'>,
+    @Optional() cacheOverride?: SmartCutCacheService,
+    @Optional() @Inject(SMART_EFFECT_SETTINGS_OVERRIDE) settingsOverride?: Pick<SettingsService, 'smartCutAutoUpgrade'>,
   ) {
     this.cache = cacheOverride ?? inject(SmartCutCacheService);
     this.settings = settingsOverride ?? inject(SettingsService);

@@ -12,8 +12,8 @@ export const VisionService = {
     const storageRoot = path.resolve(process.cwd(), '..', 'storage');
 
     const proc = spawn(
-      'uvicorn',
-      ['main:app', '--port', String(VISION_PORT), '--host', '127.0.0.1'],
+      'python',
+      ['-m', 'uvicorn', 'main:app', '--port', String(VISION_PORT), '--host', '127.0.0.1'],
       {
         cwd: process.cwd().replace(/[\\/]server$/, '') + '/vision-service',
         stdio: ['ignore', 'pipe', 'pipe'],

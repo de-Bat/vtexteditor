@@ -90,7 +90,7 @@ export class VisionPanelComponent implements OnInit {
       }
     } catch (err) {
       this.panelState.set('idle');
-      this.notifications.add({ message: `Detection failed: ${err}`, level: 'error' });
+      this.notifications.push('error', `Detection failed: ${err}`);
     }
   }
 
@@ -155,7 +155,7 @@ export class VisionPanelComponent implements OnInit {
       }
     } catch (err) {
       this.panelState.set('detected');
-      this.notifications.add({ message: `Tracking failed: ${err}`, level: 'error' });
+      this.notifications.push('error', `Tracking failed: ${err}`);
     }
   }
 
@@ -174,7 +174,7 @@ export class VisionPanelComponent implements OnInit {
       this.inpaintFallback.set(usedInpaintFallback);
       this.panelState.set('preview');
     } catch (err) {
-      this.notifications.add({ message: `Preview failed: ${err}`, level: 'error' });
+      this.notifications.push('error', `Preview failed: ${err}`);
     }
   }
 
@@ -206,7 +206,7 @@ export class VisionPanelComponent implements OnInit {
       }
     } catch (err) {
       this.panelState.set('preview');
-      this.notifications.add({ message: `Export failed: ${err}`, level: 'error' });
+      this.notifications.push('error', `Export failed: ${err}`);
     }
   }
 }

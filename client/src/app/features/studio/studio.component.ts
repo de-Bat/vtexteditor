@@ -164,13 +164,13 @@ import { DetectedObject, TrackedRange } from '../../core/models/vision.model';
         <section class="player-panel" [style.order]="isRtl() ? 7 : 3">
           @if (activeClip()) {
             <app-txt-media-player-v2
-              #mediaPlayer
               [clip]="activeClip()!"
               [isRtl]="isRtl()"
               [visionObjects]="visionObjects()"
               [visionTrackedRange]="visionTrackedRange()"
               [visionPanelVisible]="showVisionPanel()"
               (toggleVision)="showVisionPanel.update(v => !v)"
+              (currentTimeChange)="playerCurrentTime.set($event)"
             />
           } @else {
             <div class="empty-player">
@@ -248,7 +248,7 @@ import { DetectedObject, TrackedRange } from '../../core/models/vision.model';
               [projectId]="proj.id"
               [clipId]="activeClipId()!"
               [mediaPath]="proj.mediaPath"
-              [currentTime]="mediaPlayer.currentTime()" 
+              [currentTime]="playerCurrentTime()"
               (objectsChange)="onVisionObjectsChange($event)"
               (trackedRangeChange)="onVisionTrackedRangeChange($event)"
             />
@@ -494,6 +494,7 @@ export class StudioComponent implements OnInit {
   readonly pluginsPanelWidth = signal(400);
   readonly notifPanelWidth = signal(320);
   readonly visionPanelWidth = signal(240);
+  readonly playerCurrentTime = signal(0);
 
   // Resizing signals
   readonly leftSidebarWidth = signal(320);

@@ -1003,6 +1003,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly visionTrackedRange = input<TrackedRange | null>(null);
   readonly visionPanelVisible = input(false);
   readonly toggleVision = output<void>();
+  readonly currentTimeChange = output<number>();
 
   /* ── Palette (exposed for template) ──────────────────── */
   readonly SEGMENT_PALETTE = SEGMENT_PALETTE;
@@ -1753,6 +1754,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
     this.duration = this.mediaPlayer.duration;
     this.playbackRate = this.mediaPlayer.playbackRate;
     this.volume = this.mediaPlayer.volume;
+    effect(() => this.currentTimeChange.emit(this.currentTime()));
     this.handleKeydown = this.keyboardShortcuts.createPlayerHandler({
       togglePlay: () => this.togglePlay(),
       seekRelative: (s) => this.mediaPlayer.seek(Math.max(0, this.currentTime() + s)),

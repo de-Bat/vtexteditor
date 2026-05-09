@@ -67,7 +67,10 @@ def preview(req: PreviewRequest) -> PreviewResponse:
         mask = _load_mask_for_frame(mask_dir, obj.id, frame_idx)
         if mask is None:
             continue
-        result = apply_effect(result, mask, obj.effect, obj.fillColor)
+        try:
+            result = apply_effect(result, mask, obj.effect, obj.fillColor)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     _, png_bytes = cv2.imencode(".png", result)
     return PreviewResponse(previewPng=base64.b64encode(png_bytes).decode())

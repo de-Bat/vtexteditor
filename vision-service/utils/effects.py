@@ -34,4 +34,4 @@ def apply_effect(
         return apply_fill(frame, mask, color)
     elif effect == "inpaint":
         return apply_inpaint(frame, mask)
-    return frame
+    raise ValueError(f"Unknown effect: {effect!r}")

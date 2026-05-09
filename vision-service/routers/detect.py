@@ -1,7 +1,7 @@
 import uuid
 import cv2
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from models.yolo_model import get_yolo
 
@@ -10,7 +10,7 @@ router = APIRouter()
 
 class DetectRequest(BaseModel):
     mediaPath: str
-    frameTime: float  # seconds
+    frameTime: float = Field(..., ge=0.0, description="Timestamp in seconds")
 
 
 class DetectedObject(BaseModel):
@@ -25,7 +25,7 @@ def detect(req: DetectRequest) -> list[DetectedObject]:
     cap = cv2.VideoCapture(req.mediaPath)
     if not cap.isOpened():
         cap.release()
-        raise HTTPException(status_code=400, detail=f"Cannot open media: {req.mediaPath}")
+        raise HTTPException(status_code=400, detail="Cannot open media file")
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     cap.set(cv2.CAP_PROP_POS_FRAMES, int(req.frameTime * fps))
@@ -33,7 +33,7 @@ def detect(req: DetectRequest) -> list[DetectedObject]:
     cap.release()
 
     if not ret:
-        raise HTTPException(status_code=400, detail=f"Cannot read frame at {req.frameTime}s")
+        raise HTTPException(status_code=400, detail="Cannot read frame at requested time")
 
     h, w = frame.shape[:2]
     model = get_yolo()

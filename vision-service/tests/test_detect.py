@@ -15,10 +15,8 @@ def make_test_video(path: str, width=320, height=240, frames=30, fps=30):
 def make_mock_yolo_results(label="person", conf=0.92, x1=50, y1=60, x2=150, y2=200):
     box = MagicMock()
     box.xyxy = [MagicMock(tolist=lambda: [float(x1), float(y1), float(x2), float(y2)])]
-    box.cls = [MagicMock()]
-    box.cls[0].__int__ = lambda self: 0
-    box.conf = [MagicMock()]
-    box.conf[0].__float__ = lambda self: conf
+    box.cls = [0]
+    box.conf = [conf]
     result = MagicMock()
     result.boxes = [box]
     result.names = {0: label}

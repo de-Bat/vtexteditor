@@ -31,7 +31,10 @@ export class SseService implements OnDestroy {
 
     ['pipeline:progress', 'pipeline:complete', 'pipeline:error',
       'export:progress', 'export:complete', 'export:error',
-      'plugin:input-requested', 'plugin:input-received'].forEach(forward);
+      'plugin:input-requested', 'plugin:input-received',
+      'vision:detecting', 'vision:tracking', 'vision:preview-ready',
+      'vision:export-progress', 'vision:complete', 'vision:error', 'vision:warning',
+    ].forEach(forward);
   }
 
   disconnect(): void {

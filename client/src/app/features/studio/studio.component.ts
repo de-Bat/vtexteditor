@@ -5,7 +5,6 @@ import {
   computed,
   inject,
   signal,
-  HostListener,
   effect,
   untracked,
 } from '@angular/core';
@@ -29,11 +28,15 @@ import { NotebookService } from '../../core/services/notebook.service';
 import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
 import { NotificationsPanelComponent } from './notifications-panel/notifications-panel.component';
 import { NotificationService } from '../../core/services/notification.service';
-import { DetectedObject } from '../../core/models/vision.model';
+import { DetectedObject, TrackedRange } from '../../core/models/vision.model';
 
 @Component({
   selector: 'app-studio',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(window:mousemove)': 'onMouseMove($event)',
+    '(window:mouseup)': 'onMouseUp()',
+  },
   imports: [
     CommonModule,
     RouterLink,
@@ -65,17 +68,6 @@ import { DetectedObject } from '../../core/models/vision.model';
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
             <span>Plugins</span>
-          </button>
-          <button
-            class="export-toggle-btn"
-            [class.active]="showVisionPanel()"
-            (click)="showVisionPanel.update(v => !v)"
-            title="Toggle Vision Panel"
-          >
-            <span class="material-symbols-outlined" style="font-size: 16px;">
-              {{ showVisionPanel() ? 'visibility' : 'visibility_off' }}
-            </span>
-            <span>Vision</span>
           </button>
           <button
             class="export-toggle-btn"
@@ -176,6 +168,9 @@ import { DetectedObject } from '../../core/models/vision.model';
               [clip]="activeClip()!"
               [isRtl]="isRtl()"
               [visionObjects]="visionObjects()"
+              [visionTrackedRange]="visionTrackedRange()"
+              [visionPanelVisible]="showVisionPanel()"
+              (toggleVision)="showVisionPanel.update(v => !v)"
             />
           } @else {
             <div class="empty-player">
@@ -235,17 +230,27 @@ import { DetectedObject } from '../../core/models/vision.model';
           </aside>
         }
 
+        <!-- Vision Panel Resizer (Order 7.5 in LTR, 2.5 in RTL) -->
+        @if (showVisionPanel()) {
+          <div
+            class="resizer vision-resizer"
+            [style.order]="isRtl() ? 2.5 : 7.5"
+            (mousedown)="startResizing('vision', $event)"
+          ></div>
+        }
+
         <!-- Vision Panel (Order 8 in LTR, 2 in RTL) -->
         @if (showVisionPanel() && projectService.project(); as proj) {
           <aside class="side-panel-wrapper vision-wrapper opened"
             [style.order]="isRtl() ? 2 : 8"
-            [style.width.px]="240">
+            [style.width.px]="visionPanelWidth()">
             <app-vision-panel
               [projectId]="proj.id"
               [clipId]="activeClipId()!"
               [mediaPath]="proj.mediaPath"
               [currentTime]="mediaPlayer.currentTime()" 
               (objectsChange)="onVisionObjectsChange($event)"
+              (trackedRangeChange)="onVisionTrackedRangeChange($event)"
             />
           </aside>
         }
@@ -476,13 +481,19 @@ export class StudioComponent implements OnInit {
   readonly notifications = inject(NotificationService);
 
   readonly visionObjects = signal<DetectedObject[]>([]);
+  readonly visionTrackedRange = signal<TrackedRange | null>(null);
 
   onVisionObjectsChange(objects: DetectedObject[]): void {
     this.visionObjects.set(objects);
   }
 
+  onVisionTrackedRangeChange(range: TrackedRange | null): void {
+    this.visionTrackedRange.set(range);
+  }
+
   readonly pluginsPanelWidth = signal(400);
   readonly notifPanelWidth = signal(320);
+  readonly visionPanelWidth = signal(240);
 
   // Resizing signals
   readonly leftSidebarWidth = signal(320);
@@ -492,6 +503,7 @@ export class StudioComponent implements OnInit {
   private isResizingRight = false;
   private isResizingPlugin = false;
   private isResizingNotif = false;
+  private isResizingVision = false;
   private startX = 0;
   private startWidth = 0;
 
@@ -537,6 +549,14 @@ export class StudioComponent implements OnInit {
     private sseService: SseService,
     private settingsService: SettingsService,
   ) {
+    effect(() => {
+      const ev = this.sseService.lastEvent();
+      if (!ev) return;
+      if (ev.type === 'vision:complete' || ev.type === 'vision:error') {
+        // Vision events reach studio via SseService broadcast for future consumer use
+      }
+    });
+
     effect(() => {
       const ev = this.notebookService.noteJumpEvent();
       if (!ev) return;
@@ -614,7 +634,7 @@ export class StudioComponent implements OnInit {
     });
   }
 
-  startResizing(side: 'left' | 'right' | 'plugin' | 'notifications', event: MouseEvent): void {
+  startResizing(side: 'left' | 'right' | 'plugin' | 'notifications' | 'vision', event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
     this.isResizing.set(true);
@@ -629,6 +649,9 @@ export class StudioComponent implements OnInit {
     } else if (side === 'plugin') {
       this.isResizingPlugin = true;
       this.startWidth = this.pluginsPanelWidth();
+    } else if (side === 'vision') {
+      this.isResizingVision = true;
+      this.startWidth = this.visionPanelWidth();
     } else {
       this.isResizingNotif = true;
       this.startWidth = this.notifPanelWidth();
@@ -637,9 +660,8 @@ export class StudioComponent implements OnInit {
     document.body.style.userSelect = 'none';
   }
 
-  @HostListener('window:mousemove', ['$event'])
   onMouseMove(event: MouseEvent): void {
-    if (!this.isResizingLeft && !this.isResizingRight && !this.isResizingPlugin && !this.isResizingNotif) return;
+    if (!this.isResizingLeft && !this.isResizingRight && !this.isResizingPlugin && !this.isResizingNotif && !this.isResizingVision) return;
 
     const delta = event.clientX - this.startX;
 
@@ -675,16 +697,20 @@ export class StudioComponent implements OnInit {
         const newWidth = this.startWidth + delta;
         this.notifPanelWidth.set(Math.max(280, Math.min(newWidth, 600)));
       }
+    } else if (this.isResizingVision) {
+      // Vision Panel: resizer is left of panel — drag left grows, drag right shrinks
+      const newWidth = this.startWidth - delta;
+      this.visionPanelWidth.set(Math.max(200, Math.min(newWidth, 600)));
     }
   }
 
-  @HostListener('window:mouseup')
   onMouseUp(): void {
-    if (this.isResizingLeft || this.isResizingRight || this.isResizingPlugin || this.isResizingNotif) {
+    if (this.isResizingLeft || this.isResizingRight || this.isResizingPlugin || this.isResizingNotif || this.isResizingVision) {
       this.isResizingLeft = false;
       this.isResizingRight = false;
       this.isResizingPlugin = false;
       this.isResizingNotif = false;
+      this.isResizingVision = false;
       this.isResizing.set(false);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';

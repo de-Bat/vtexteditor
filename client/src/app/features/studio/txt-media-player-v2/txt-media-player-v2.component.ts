@@ -9,6 +9,7 @@ import {
   effect,
   inject,
   input,
+  output,
   signal,
   DestroyRef,
   Injector,
@@ -34,7 +35,7 @@ import { SmartCutQueueService } from '../txt-media-player/smart-cut-queue.servic
 import { SmartCutCacheService } from '../txt-media-player/smart-cut-cache.service';
 import { SMART_CUT_PREVIEW_PREROLL_MS, SMART_CUT_PREVIEW_POSTROLL_MS } from '../txt-media-player/smart-cut.constants';
 import { VisionOverlayComponent } from './vision-overlay.component';
-import { DetectedObject } from '../../../core/models/vision.model';
+import { DetectedObject, TrackedRange } from '../../../core/models/vision.model';
 
 /* ── Palette & Constants ────────────────────────────────────── */
 
@@ -262,6 +263,13 @@ const CUT_OPTIONS: CutOption[] = [
               <span class="material-symbols-outlined">redo</span>
             </button>
           </div>
+
+          <!-- Vision toggle -->
+          <div class="hdr-group hdr-divider">
+            <button class="hdr-btn" [class.active]="visionPanelVisible()" (click)="toggleVision.emit()" title="Toggle Vision Panel">
+              <span class="material-symbols-outlined">{{ visionPanelVisible() ? 'visibility' : 'visibility_off' }}</span>
+            </button>
+          </div>
         } @else {
           <!-- Search is expanded -> Collapse ALL tools into more menu -->
           <div class="more-menu-wrap">
@@ -317,6 +325,14 @@ const CUT_OPTIONS: CutOption[] = [
                       <span class="material-symbols-outlined">redo</span>
                     </button>
                   </div>
+                </div>
+
+                <div class="menu-item-group">
+                  <span class="menu-label">Vision</span>
+                  <button class="hdr-btn w-full" [class.active]="visionPanelVisible()" (click)="toggleVision.emit()" style="justify-content:flex-start; width:100%; gap:8px; padding:0 8px">
+                    <span class="material-symbols-outlined">{{ visionPanelVisible() ? 'visibility' : 'visibility_off' }}</span>
+                    <span>{{ visionPanelVisible() ? 'Hide Vision Panel' : 'Show Vision Panel' }}</span>
+                  </button>
                 </div>
               </div>
             }
@@ -824,7 +840,7 @@ const CUT_OPTIONS: CutOption[] = [
         (mouseleave)="showOverlay.set(false)">
 
         @if (isVideo()) {
-          <div style="position:relative; width:100%; height:100%;">
+          <div class="video-wrapper">
             <video
               #mediaEl
               class="video-el"
@@ -839,6 +855,8 @@ const CUT_OPTIONS: CutOption[] = [
               [objects]="visionObjects()"
               [videoWidth]="mediaEl.videoWidth || 0"
               [videoHeight]="mediaEl.videoHeight || 0"
+              [currentTime]="currentTime()"
+              [trackedRange]="visionTrackedRange()"
             />
           </div>
         } @else {
@@ -982,6 +1000,9 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly metadataTab = signal<'clip' | 'segment' | 'notes'>('segment');
   readonly isRtl = input(false);
   readonly visionObjects = input<DetectedObject[]>([]);
+  readonly visionTrackedRange = input<TrackedRange | null>(null);
+  readonly visionPanelVisible = input(false);
+  readonly toggleVision = output<void>();
 
   /* ── Palette (exposed for template) ──────────────────── */
   readonly SEGMENT_PALETTE = SEGMENT_PALETTE;

@@ -1,5 +1,5 @@
 .vision-panel {
-  width: 240px;
+  width: 100%;
   background: #13131f;
   border-left: 1px solid #2a2a4a;
   display: flex;
@@ -198,6 +198,26 @@
 
   .material-symbols-outlined { font-size: 16px; }
   &:hover { background: #059669; }
+}
+
+.inline-notice {
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1.4;
+
+  &.info {
+    background: #1e2a3a;
+    color: #7dd3fc;
+    border: 1px solid #1e4470;
+  }
+
+  &.warn {
+    background: #2a1e0a;
+    color: #fbbf24;
+    border: 1px solid #78420a;
+  }
 }
 
 .spinning {

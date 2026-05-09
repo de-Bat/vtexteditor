@@ -16,9 +16,34 @@ def apply_fill(frame: np.ndarray, mask: np.ndarray, hex_color: str) -> np.ndarra
     return np.where(mask_3ch, color_frame, frame)
 
 
-def apply_inpaint(frame: np.ndarray, mask: np.ndarray) -> np.ndarray:
+_lama_instance = None
+_lama_available: bool | None = None  # None = not yet probed
+
+
+def _get_lama():
+    global _lama_instance, _lama_available
+    if _lama_available is None:
+        try:
+            from simple_lama_inpainting import SimpleLama  # type: ignore[import]
+            _lama_instance = SimpleLama()
+            _lama_available = True
+        except ImportError:
+            _lama_available = False
+    return _lama_instance if _lama_available else None
+
+
+def apply_inpaint(frame: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, bool]:
+    """Returns (result, used_fallback). used_fallback=True when LaMa unavailable."""
+    lama = _get_lama()
+    if lama is not None:
+        from PIL import Image  # type: ignore[import]
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(img_rgb)
+        mask_pil = Image.fromarray((mask * 255).astype(np.uint8))
+        result_pil = lama(pil_img, mask_pil)
+        return cv2.cvtColor(np.array(result_pil), cv2.COLOR_RGB2BGR), False
     mask_uint8 = (mask * 255).astype(np.uint8)
-    return cv2.inpaint(frame, mask_uint8, inpaintRadius=5, flags=cv2.INPAINT_TELEA)
+    return cv2.inpaint(frame, mask_uint8, inpaintRadius=5, flags=cv2.INPAINT_TELEA), True
 
 
 def apply_effect(
@@ -26,12 +51,13 @@ def apply_effect(
     mask: np.ndarray,
     effect: str,
     fill_color: str | None = None,
-) -> np.ndarray:
+) -> tuple[np.ndarray, bool]:
+    """Returns (result_frame, used_inpaint_fallback)."""
     if effect == "blur":
-        return apply_blur(frame, mask)
+        return apply_blur(frame, mask), False
     elif effect == "fill":
         color = fill_color or "#000000"
-        return apply_fill(frame, mask, color)
+        return apply_fill(frame, mask, color), False
     elif effect == "inpaint":
         return apply_inpaint(frame, mask)
     raise ValueError(f"Unknown effect: {effect!r}")

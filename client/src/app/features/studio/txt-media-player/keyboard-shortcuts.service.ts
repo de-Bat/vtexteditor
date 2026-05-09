@@ -7,6 +7,10 @@ export interface PlayerShortcutHandlers {
   undo: () => void;
   redo: () => void;
   toggleMetadata: () => void;
+  toggleEditMode?: () => void;
+  toggleAutoFollow?: () => void;
+  jumpToStart?: () => void;
+  restoreAll?: () => void;
   'shift.p'?: () => void;
 }
 
@@ -42,18 +46,58 @@ export class KeyboardShortcutsService {
         return;
       }
 
+      // J / L: fine-step seek (1s), complementing Arrow keys (5s)
+      if (event.key.toLowerCase() === 'j' && !isCtrlOrMeta && !event.shiftKey) {
+        event.preventDefault();
+        handlers.seekRelative(-1);
+        return;
+      }
+      if (event.key.toLowerCase() === 'l' && !isCtrlOrMeta && !event.shiftKey) {
+        event.preventDefault();
+        handlers.seekRelative(1);
+        return;
+      }
+
       if (event.key === 'ArrowLeft') {
+        event.preventDefault();
         handlers.seekRelative(-5);
         return;
       }
       if (event.key === 'ArrowRight') {
+        event.preventDefault();
         handlers.seekRelative(5);
+        return;
+      }
+
+      // 0 — jump to clip start
+      if (event.key === '0' && !isCtrlOrMeta) {
+        event.preventDefault();
+        handlers.jumpToStart?.();
         return;
       }
 
       if ((event.key === 'Delete' || event.key === 'Backspace') && !isCtrlOrMeta) {
         event.preventDefault();
         handlers.removeSelection();
+        return;
+      }
+
+      if (event.key.toLowerCase() === 'e' && !isCtrlOrMeta && !event.shiftKey) {
+        event.preventDefault();
+        handlers.toggleEditMode?.();
+        return;
+      }
+
+      if (event.key.toLowerCase() === 'f' && !isCtrlOrMeta && !event.shiftKey) {
+        event.preventDefault();
+        handlers.toggleAutoFollow?.();
+        return;
+      }
+
+      // Shift+R — restore all removed words
+      if (event.key.toLowerCase() === 'r' && event.shiftKey && !isCtrlOrMeta) {
+        event.preventDefault();
+        handlers.restoreAll?.();
         return;
       }
 

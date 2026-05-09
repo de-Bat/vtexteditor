@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from utils.effects import apply_effect
+from utils.validation import validate_id, validate_path_within
 
 router = APIRouter()
 
@@ -27,11 +28,16 @@ class PreviewRequest(BaseModel):
 
 class PreviewResponse(BaseModel):
     previewPng: str  # base64-encoded PNG
+    usedInpaintFallback: bool = False
 
 
 def _mask_dir(project_id: str, session_id: str) -> str:
+    validate_id(project_id, "projectId")
+    validate_id(session_id, "maskSessionId")
     storage_root = os.environ.get("STORAGE_ROOT", "storage")
-    return os.path.join(storage_root, "projects", project_id, "vision", session_id, "masks")
+    result = os.path.join(storage_root, "projects", project_id, "vision", session_id, "masks")
+    validate_path_within(result, storage_root)
+    return result
 
 
 def _load_mask_for_frame(mask_dir: str, obj_id: str, frame_idx: int) -> np.ndarray | None:
@@ -48,6 +54,9 @@ def _load_mask_for_frame(mask_dir: str, obj_id: str, frame_idx: int) -> np.ndarr
 
 @router.post("/preview", response_model=PreviewResponse)
 def preview(req: PreviewRequest) -> PreviewResponse:
+    for obj in req.objects:
+        validate_id(obj.id, f"objects[].id ({obj.id!r})")
+
     cap = cv2.VideoCapture(req.mediaPath)
     if not cap.isOpened():
         raise HTTPException(status_code=400, detail="Cannot open media file")
@@ -63,14 +72,20 @@ def preview(req: PreviewRequest) -> PreviewResponse:
 
     mask_dir = _mask_dir(req.projectId, req.maskSessionId)
     result = frame.copy()
+    used_inpaint_fallback = False
     for obj in req.objects:
         mask = _load_mask_for_frame(mask_dir, obj.id, frame_idx)
         if mask is None:
             continue
         try:
-            result = apply_effect(result, mask, obj.effect, obj.fillColor)
+            result, fallback = apply_effect(result, mask, obj.effect, obj.fillColor)
+            if fallback:
+                used_inpaint_fallback = True
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
     _, png_bytes = cv2.imencode(".png", result)
-    return PreviewResponse(previewPng=base64.b64encode(png_bytes).decode())
+    return PreviewResponse(
+        previewPng=base64.b64encode(png_bytes).decode(),
+        usedInpaintFallback=used_inpaint_fallback,
+    )

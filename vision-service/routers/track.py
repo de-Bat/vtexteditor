@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 
+import cv2
 import numpy as np
 import torch
 from fastapi import APIRouter, HTTPException
@@ -12,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from models.sam2_model import get_sam2
 from utils.frames import extract_frames_to_dir
+from utils.validation import validate_id, validate_path_within
 
 router = APIRouter()
 
@@ -34,14 +36,20 @@ def _sse(data: dict) -> str:
 
 
 def _mask_dir(project_id: str, session_id: str) -> str:
+    validate_id(project_id, "projectId")
+    validate_id(session_id, "maskSessionId")
     storage_root = os.environ.get("STORAGE_ROOT", "storage")
-    return os.path.join(storage_root, "projects", project_id, "vision", session_id, "masks")
+    result = os.path.join(storage_root, "projects", project_id, "vision", session_id, "masks")
+    validate_path_within(result, storage_root)
+    return result
 
 
 @router.post("/track")
 def track(req: TrackRequest):
+    for obj in req.objects:
+        validate_id(obj.id, f"objects[].id ({obj.id!r})")
+
     # Validate media path before streaming
-    import cv2
     cap = cv2.VideoCapture(req.mediaPath)
     if not cap.isOpened():
         raise HTTPException(status_code=400, detail="Cannot open media file")
@@ -87,6 +95,7 @@ def track(req: TrackRequest):
             os.makedirs(mask_output_dir, exist_ok=True)
 
             all_masks: dict[str, dict[int, np.ndarray]] = {obj.id: {} for obj in req.objects}
+            total_processed = 0
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
             autocast_ctx = (
@@ -117,8 +126,10 @@ def track(req: TrackRequest):
                         else:
                             mask = np.asarray(raw).squeeze().astype(bool)
                         all_masks[str_obj_id][frame_idx] = mask
+                    total_processed += 1
                     pct = 25 + int((i / remaining_forward) * 35)
-                    yield _sse({"type": "progress", "percent": min(pct, 60), "phase": "forward"})
+                    yield _sse({"type": "progress", "percent": min(pct, 60), "phase": "forward",
+                                "framesProcessed": total_processed, "totalFrames": total_frames})
 
                 # Backward pass
                 state = predictor.init_state(video_path=frame_dir)
@@ -142,8 +153,10 @@ def track(req: TrackRequest):
                         else:
                             mask = np.asarray(raw).squeeze().astype(bool)
                         all_masks[str_obj_id][frame_idx] = mask
+                    total_processed += 1
                     pct = 60 + int((i / remaining_backward) * 30)
-                    yield _sse({"type": "progress", "percent": min(pct, 90), "phase": "backward"})
+                    yield _sse({"type": "progress", "percent": min(pct, 90), "phase": "backward",
+                                "framesProcessed": min(total_processed, total_frames), "totalFrames": total_frames})
 
             # Save masks
             for obj_id, frame_masks in all_masks.items():
@@ -157,7 +170,17 @@ def track(req: TrackRequest):
                     masks=mask_array,
                 )
 
-            yield _sse({"type": "complete", "percent": 100})
+            all_tracked: set[int] = set()
+            for fm in all_masks.values():
+                all_tracked.update(fm.keys())
+            if all_tracked and len(all_tracked) < total_frames:
+                yield _sse({"type": "warning", "message": f"Tracked {len(all_tracked)}/{total_frames} frames"})
+            complete: dict = {"type": "complete", "percent": 100}
+            if all_tracked:
+                complete["firstFrameIdx"] = int(min(all_tracked))
+                complete["lastFrameIdx"] = int(max(all_tracked))
+                complete["fps"] = float(fps)
+            yield _sse(complete)
 
         except Exception as exc:
             yield _sse({"type": "error", "message": str(exc)})

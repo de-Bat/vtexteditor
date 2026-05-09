@@ -1,5 +1,9 @@
+import contextlib
 import json
 import os
+import shutil
+import subprocess
+import tempfile
 
 import cv2
 import numpy as np
@@ -8,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from utils.effects import apply_effect
+from utils.validation import validate_id, validate_path_within
 
 router = APIRouter()
 
@@ -31,9 +36,14 @@ def _sse(data: dict) -> str:
 
 
 def _export_paths(project_id: str, export_id: str, session_id: str) -> tuple[str, str]:
+    validate_id(project_id, "projectId")
+    validate_id(export_id, "exportId")
+    validate_id(session_id, "maskSessionId")
     storage_root = os.environ.get("STORAGE_ROOT", "storage")
     mask_dir = os.path.join(storage_root, "projects", project_id, "vision", session_id, "masks")
     output_path = os.path.join(storage_root, "projects", project_id, "exports", f"{export_id}-masked.mp4")
+    validate_path_within(mask_dir, storage_root)
+    validate_path_within(output_path, storage_root)
     return mask_dir, output_path
 
 
@@ -58,6 +68,7 @@ def export_masked(req: ExportRequest):
     cap_check.release()
 
     def generate():
+        # _export_paths validates IDs and boundary — safe to use directly
         mask_dir, output_path = _export_paths(req.projectId, req.exportId, req.maskSessionId)
 
         cap = cv2.VideoCapture(req.mediaPath)
@@ -75,8 +86,9 @@ def export_masked(req: ExportRequest):
             return
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        tmp_video = tempfile.mktemp(suffix="-noaudio.mp4")
         writer = cv2.VideoWriter(
-            output_path,
+            tmp_video,
             cv2.VideoWriter_fourcc(*"mp4v"),
             fps,
             (w, h),
@@ -94,14 +106,14 @@ def export_masked(req: ExportRequest):
                     mask = mask_lookup.get(obj.id, {}).get(frame_idx)
                     if mask is not None:
                         try:
-                            result = apply_effect(result, mask, obj.effect, obj.fillColor)
+                            result, _ = apply_effect(result, mask, obj.effect, obj.fillColor)
                         except ValueError:
                             pass  # skip unknown effects silently during export
 
                 writer.write(result)
 
                 if frame_idx % 10 == 0:
-                    pct = int((frame_idx / max(total_frames, 1)) * 100)
+                    pct = int((frame_idx / max(total_frames, 1)) * 90)
                     yield _sse({"type": "progress", "percent": pct})
 
             completed = True
@@ -110,8 +122,35 @@ def export_masked(req: ExportRequest):
         finally:
             cap.release()
             writer.release()
+            if not completed:
+                with contextlib.suppress(FileNotFoundError):
+                    os.remove(tmp_video)
 
         if completed:
+            yield _sse({"type": "progress", "percent": 92})
+            # Mux original audio back using ffmpeg
+            try:
+                subprocess.run(
+                    [
+                        "ffmpeg", "-y",
+                        "-i", tmp_video,
+                        "-i", req.mediaPath,
+                        "-map", "0:v:0",
+                        "-map", "1:a?",
+                        "-c:v", "copy",
+                        "-c:a", "aac",
+                        "-shortest",
+                        output_path,
+                    ],
+                    check=True,
+                    capture_output=True,
+                )
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                # ffmpeg unavailable or audio mux failed — use silent video
+                shutil.move(tmp_video, output_path)
+            else:
+                with contextlib.suppress(FileNotFoundError):
+                    os.remove(tmp_video)
             yield _sse({"type": "complete", "percent": 100, "exportId": req.exportId})
 
     return StreamingResponse(generate(), media_type="text/event-stream")

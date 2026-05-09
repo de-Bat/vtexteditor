@@ -9,7 +9,14 @@ export type SseEventType =
   | 'export:complete'
   | 'export:error'
   | 'plugin:input-requested'
-  | 'plugin:input-received';
+  | 'plugin:input-received'
+  | 'vision:detecting'
+  | 'vision:tracking'
+  | 'vision:preview-ready'
+  | 'vision:export-progress'
+  | 'vision:complete'
+  | 'vision:error'
+  | 'vision:warning';
 
 export interface SseEvent {
   type: SseEventType;

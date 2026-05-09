@@ -36,3 +36,14 @@ coverage/
 
 # Git worktrees
 .worktrees/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Superpowers brainstorm artifacts
+.superpowers/brainstorm/
+
+# Local Claude settings
+.claude/settings.local.json

@@ -1,0 +1,155 @@
+<div class="vision-panel">
+  <div class="panel-header">
+    <span class="material-symbols-outlined">visibility</span>
+    <span class="panel-title">Vision</span>
+  </div>
+
+  <!-- OFFLINE -->
+  @if (panelState() === 'offline') {
+    <div class="state-message offline">
+      <span class="material-symbols-outlined">warning</span>
+      <p>Vision service offline</p>
+      <small>Start: <code>cd vision-service && uvicorn main:app --port 3001</code></small>
+    </div>
+  }
+
+  <!-- IDLE / DETECTING -->
+  @if (panelState() === 'idle' || panelState() === 'detecting') {
+    <div class="panel-body">
+      <button
+        class="btn-primary"
+        [disabled]="panelState() === 'detecting'"
+        (click)="detect()"
+      >
+        @if (panelState() === 'detecting') {
+          <span class="material-symbols-outlined spinning">progress_activity</span>
+          Detecting…
+        } @else {
+          <span class="material-symbols-outlined">manage_search</span>
+          Detect Objects
+        }
+      </button>
+      @if (noObjectsMessage()) {
+        <p class="inline-notice info">{{ noObjectsMessage() }}</p>
+      }
+    </div>
+  }
+
+  <!-- DETECTED / TRACKING / PREVIEW / EXPORTING / EXPORT-DONE -->
+  @if (['detected','tracking','preview','exporting','export-done'].includes(panelState())) {
+    <div class="panel-body">
+
+      <!-- Object list -->
+      <div class="object-list">
+        @for (obj of objects(); track obj.id) {
+          <div class="object-row" [class.disabled]="!obj.maskEnabled">
+            <div class="object-header">
+              <input
+                type="checkbox"
+                [checked]="obj.maskEnabled"
+                (change)="toggleObject(obj.id)"
+              />
+              <span class="obj-label">{{ obj.label }}</span>
+              <span class="obj-conf">{{ (obj.confidence * 100).toFixed(0) }}%</span>
+            </div>
+            @if (obj.maskEnabled) {
+              <div class="effect-row">
+                @for (eff of ['blur','inpaint','fill']; track eff) {
+                  <button
+                    class="effect-pill"
+                    [class.active]="obj.effect === eff"
+                    (click)="setEffect(obj.id, $any(eff))"
+                  >{{ eff }}</button>
+                }
+                @if (obj.effect === 'fill') {
+                  <input
+                    type="color"
+                    [value]="obj.fillColor"
+                    (input)="setFillColor(obj.id, $any($event.target).value)"
+                    class="color-picker"
+                  />
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Re-detect -->
+      <button class="btn-secondary" (click)="detect()" [disabled]="panelState() === 'tracking' || panelState() === 'exporting'">
+        ↺ Re-detect
+      </button>
+
+      <!-- TRACKING progress -->
+      @if (panelState() === 'tracking') {
+        <div class="progress-block">
+          <div class="progress-label">
+            <span>Tracking…</span>
+            @if (trackFrames(); as tf) {
+              <span>{{ tf.processed }}/{{ tf.total }} frames</span>
+            } @else {
+              <span>{{ trackProgress() }}%</span>
+            }
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width.%]="trackProgress()"></div>
+          </div>
+        </div>
+      }
+      @if (trackWarning()) {
+        <p class="inline-notice warn">⚠ {{ trackWarning() }}</p>
+      }
+
+      <!-- Apply Mask button -->
+      @if (panelState() === 'detected') {
+        <button class="btn-primary" [disabled]="enabledObjects().length === 0" (click)="applyMask()">
+          Apply Mask →
+        </button>
+      }
+
+      <!-- Preview frame -->
+      @if (panelState() === 'preview' || panelState() === 'exporting' || panelState() === 'export-done') {
+        @if (previewUrl()) {
+          <div class="preview-block">
+            <img [src]="previewUrl()!" alt="Masked preview frame" class="preview-img" />
+            @if (inpaintFallback()) {
+              <p class="inline-notice warn">⚠ LaMa unavailable — using cv2 inpaint</p>
+            }
+            @if (panelState() === 'preview') {
+              <button class="btn-ghost" (click)="loadPreview()">↺ Re-preview</button>
+            }
+          </div>
+        }
+      }
+
+      <!-- EXPORTING progress -->
+      @if (panelState() === 'exporting') {
+        <div class="progress-block">
+          <div class="progress-label">
+            <span>Exporting…</span>
+            <span>{{ exportProgress() }}%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width.%]="exportProgress()"></div>
+          </div>
+        </div>
+      }
+
+      <!-- Export button -->
+      @if (panelState() === 'preview') {
+        <button class="btn-primary" (click)="exportWithMasks()">
+          Export with Masks →
+        </button>
+      }
+
+      <!-- Export done: download link -->
+      @if (panelState() === 'export-done' && downloadUrl()) {
+        <a [href]="downloadUrl()!" class="btn-download" download>
+          <span class="material-symbols-outlined">download</span>
+          Download Masked Video
+        </a>
+      }
+
+    </div>
+  }
+</div>

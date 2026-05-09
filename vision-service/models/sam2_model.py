@@ -1,6 +1,8 @@
 import os
 import torch
 
+# NOTE: not thread-safe — two concurrent requests can race through the None guard.
+# Add a threading.Lock() here before enabling concurrent workers in production.
 _predictor = None
 
 

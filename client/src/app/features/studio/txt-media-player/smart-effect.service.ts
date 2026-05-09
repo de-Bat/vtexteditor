@@ -4,6 +4,7 @@ import { Clip } from '../../../core/models/clip.model';
 import { CutRegion, EffectType } from '../../../core/models/cut-region.model';
 import { SmartCutCacheService } from './smart-cut-cache.service';
 import { SMART_CUT_AUTO_THRESHOLD, SMART_CUT_MAX_USABLE } from './smart-cut.constants';
+import { SettingsService } from '../../../core/services/settings.service';
 
 export interface ResolvedEffect {
   effectType: Exclude<EffectType, 'smart'>;  // includes 'smart-cut' as a resolved target
@@ -15,9 +16,14 @@ export interface ResolvedEffect {
 @Injectable({ providedIn: 'root' })
 export class SmartEffectService {
   private readonly cache: SmartCutCacheService;
+  private readonly settings: Pick<SettingsService, 'smartCutAutoUpgrade'>;
 
-  constructor(cacheOverride?: SmartCutCacheService) {
+  constructor(
+    cacheOverride?: SmartCutCacheService,
+    settingsOverride?: Pick<SettingsService, 'smartCutAutoUpgrade'>,
+  ) {
     this.cache = cacheOverride ?? inject(SmartCutCacheService);
+    this.settings = settingsOverride ?? inject(SettingsService);
   }
 
   async resolve(clip: Clip, region: CutRegion): Promise<ResolvedEffect> {
@@ -43,7 +49,7 @@ export class SmartEffectService {
     const cached = await this.cache.get(key);
     if (!cached) return null;
 
-    const isAutoEligible = region.effectType === 'smart' && cached.score < SMART_CUT_AUTO_THRESHOLD;
+    const isAutoEligible = region.effectType === 'smart' && cached.score < SMART_CUT_AUTO_THRESHOLD && this.settings.smartCutAutoUpgrade();
     const isExplicit = region.effectType === 'smart-cut' && cached.score <= SMART_CUT_MAX_USABLE;
     if (!isAutoEligible && !isExplicit) return null;
 

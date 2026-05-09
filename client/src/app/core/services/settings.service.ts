@@ -56,6 +56,12 @@ export const SETTING_META: Record<SettingKey, { label: string; description: stri
 @Injectable({ providedIn: 'root' })
 export class SettingsService {
   readonly defaultEditMode = signal<'live' | 'apply'>('live');
+  readonly smartCutAutoUpgrade = signal<boolean>(
+    localStorage.getItem('smartCutAutoUpgrade') !== 'false'
+  );
+  readonly smartCutWindowMs = signal<number>(
+    Number(localStorage.getItem('smartCutWindowMs') || 150)
+  );
 
   constructor(private api: ApiService) {}
 
@@ -75,5 +81,16 @@ export class SettingsService {
   saveDefaultEditMode(mode: 'live' | 'apply'): void {
     this.defaultEditMode.set(mode);
     this.save({ DEFAULT_EDIT_MODE: mode }).subscribe({ error: console.error });
+  }
+
+  setSmartCutAutoUpgrade(value: boolean): void {
+    this.smartCutAutoUpgrade.set(value);
+    localStorage.setItem('smartCutAutoUpgrade', String(value));
+  }
+
+  setSmartCutWindowMs(value: number): void {
+    const clamped = Math.max(50, Math.min(500, value));
+    this.smartCutWindowMs.set(clamped);
+    localStorage.setItem('smartCutWindowMs', String(clamped));
   }
 }

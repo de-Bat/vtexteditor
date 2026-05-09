@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { SmartEffectService } from './smart-effect.service';
 import { Clip } from '../../../core/models/clip.model';
 import { Word } from '../../../core/models/word.model';
@@ -5,6 +6,8 @@ import { CutRegion } from '../../../core/models/cut-region.model';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { SmartCutCacheService } from './smart-cut-cache.service';
+
+const mockSettings = { smartCutAutoUpgrade: signal(true) };
 
 function makeClip(words: Partial<Word>[]): Clip {
   const fullWords: Word[] = words.map((w, i) => ({
@@ -47,7 +50,7 @@ function makeRegion(wordIds: string[]): CutRegion {
 
 describe('SmartEffectService', () => {
   let svc: SmartEffectService;
-  beforeEach(() => { svc = new SmartEffectService(new SmartCutCacheService(new IDBFactory())); });
+  beforeEach(() => { svc = new SmartEffectService(new SmartCutCacheService(new IDBFactory()), mockSettings); });
 
   it('rule 1: cross-segment cut → cross-cut 350ms', async () => {
     const clip = makeClip([
@@ -119,7 +122,7 @@ describe('SmartEffectService — smart-cut resolution', () => {
 
   beforeEach(() => {
     cache = new SmartCutCacheService(new IDBFactory());
-    svc = new SmartEffectService(cache);
+    svc = new SmartEffectService(cache, mockSettings);
   });
 
   it('smart + cache hit with score < 12 → resolves to smart-cut', async () => {

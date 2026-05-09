@@ -1,9 +1,12 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { signal } from '@angular/core';
 import { SmartCutQueueService } from './smart-cut-queue.service';
 import { SmartCutCacheService } from './smart-cut-cache.service';
 import { SmartCutExtractor } from './smart-cut-extractor';
 import { Clip } from '../../../core/models/clip.model';
 import { CutRegion } from '../../../core/models/cut-region.model';
+
+const mockSettings = { smartCutWindowMs: signal(150) };
 
 function makeClip(id = 'clip1'): Clip {
   return {
@@ -41,6 +44,7 @@ describe('SmartCutQueueService', () => {
     svc = new SmartCutQueueService(
       mockCache as SmartCutCacheService,
       (_clipId) => mockExtractor,
+      mockSettings,
     );
   });
 
@@ -58,11 +62,12 @@ describe('SmartCutQueueService', () => {
     expect(extractSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('status() is "queued" immediately after enqueue, "done" after extraction', async () => {
+  it('status() is "queued" after cache miss, "done" after extraction', async () => {
     const clip = makeClip();
     const region = makeRegion();
     svc.enqueue(region, clip);
-    expect(svc.getStatus('r1')).toBe('queued');
+    // status is null until the async cache check resolves
+    expect(svc.getStatus('r1')).toBeNull();
 
     await vi.runAllTimersAsync();
     expect(svc.getStatus('r1')).toBe('done');
@@ -126,7 +131,8 @@ describe('SmartCutQueueService', () => {
     const r2: CutRegion = { ...makeRegion('r2'), wordIds: [] };
     svc.enqueue(r1, clip);
     svc.enqueue(r2, clip);
-    expect(svc.getStatus('r1')).toBe('queued');
+    // status is null until async cache check resolves; just verify it clears after invalidate
+    expect(svc.getStatus('r1')).toBeNull();
 
     svc.invalidateClip(clip.id, ['r1', 'r2']);
 

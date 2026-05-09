@@ -3,7 +3,8 @@ import { Clip, SceneType } from '../../../core/models/clip.model';
 import { CutRegion } from '../../../core/models/cut-region.model';
 import { SmartCutCacheService } from './smart-cut-cache.service';
 import { SmartCutExtractor } from './smart-cut-extractor';
-import { SMART_CUT_DEBOUNCE_MS, SMART_CUT_MAX_USABLE, SMART_CUT_ROI, SMART_CUT_WINDOW_MS } from './smart-cut.constants';
+import { SMART_CUT_DEBOUNCE_MS, SMART_CUT_MAX_USABLE, SMART_CUT_ROI } from './smart-cut.constants';
+import { SettingsService } from '../../../core/services/settings.service';
 
 export type SmartCutStatus = 'queued' | 'computing' | 'done' | 'error' | 'unsupported';
 
@@ -11,6 +12,7 @@ export type ExtractorFactory = (clipId: string) => SmartCutExtractor;
 
 export const SMART_CUT_CACHE_OVERRIDE = new InjectionToken<SmartCutCacheService>('SMART_CUT_CACHE_OVERRIDE');
 export const SMART_CUT_EXTRACTOR_FACTORY = new InjectionToken<ExtractorFactory>('SMART_CUT_EXTRACTOR_FACTORY');
+export const SMART_CUT_SETTINGS_OVERRIDE = new InjectionToken<Pick<SettingsService, 'smartCutWindowMs'>>('SMART_CUT_SETTINGS_OVERRIDE');
 
 interface QueueItem { region: CutRegion; clip: Clip; }
 
@@ -25,14 +27,17 @@ export class SmartCutQueueService {
   private readonly extractorFactory: ExtractorFactory;
   private invalidatedRegions = new Set<string>();
   private pendingCacheChecks = new Map<string, QueueItem>();
+  private readonly settings: Pick<SettingsService, 'smartCutWindowMs'>;
 
   constructor(
     @Optional() @Inject(SMART_CUT_CACHE_OVERRIDE) cacheOverride?: SmartCutCacheService,
     @Optional() @Inject(SMART_CUT_EXTRACTOR_FACTORY) extractorFactoryOverride?: ExtractorFactory,
+    @Optional() @Inject(SMART_CUT_SETTINGS_OVERRIDE) settingsOverride?: Pick<SettingsService, 'smartCutWindowMs'>,
   ) {
     this.cache = cacheOverride ?? inject(SmartCutCacheService);
     this.extractorFactory = extractorFactoryOverride
       ?? ((clipId) => SmartCutExtractor.create(`/api/clips/${clipId}/stream`));
+    this.settings = settingsOverride ?? inject(SettingsService);
   }
 
   private getExtractor(clipId: string): SmartCutExtractor {
@@ -153,13 +158,13 @@ export class SmartCutQueueService {
 
       const rawScene = item.region.sceneType ?? item.clip.sceneType ?? 'talking-head';
       const sceneType: SceneType = (rawScene === 'two-shot' ? 'two-shot' : 'talking-head') as SceneType;
-      const roi = SMART_CUT_ROI[sceneType] ?? SMART_CUT_ROI['talking-head'];
+      const roi = SMART_CUT_ROI[sceneType];
 
       const result = await extractor.extract({
         id: item.region.id,
         tBefore,
         tAfterCenter,
-        windowMs: SMART_CUT_WINDOW_MS,
+        windowMs: this.settings.smartCutWindowMs(),
         clipId: item.clip.id,
         roi,
       });

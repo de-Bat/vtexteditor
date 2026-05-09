@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, spawn, spawnSync } from 'child_process';
 import http from 'http';
 import path from 'path';
 
@@ -7,12 +7,21 @@ const VISION_URL = `http://localhost:${VISION_PORT}`;
 
 let pythonProcess: ChildProcess | null = null;
 
+function resolvePython(): string {
+  for (const cmd of ['py', 'python3', 'python']) {
+    const result = spawnSync(cmd, ['--version'], { shell: true });
+    if (result.status === 0) return cmd;
+  }
+  return 'python';
+}
+
 export const VisionService = {
   spawnPythonService(): void {
     const storageRoot = path.resolve(process.cwd(), '..', 'storage');
+    const python = resolvePython();
 
     const proc = spawn(
-      'python',
+      python,
       ['-m', 'uvicorn', 'main:app', '--port', String(VISION_PORT), '--host', '127.0.0.1'],
       {
         cwd: process.cwd().replace(/[\\/]server$/, '') + '/vision-service',

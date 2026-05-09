@@ -18,6 +18,7 @@ export const VisionService = {
         cwd: process.cwd().replace(/[\\/]server$/, '') + '/vision-service',
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
+        shell: true,
         env: { ...process.env, STORAGE_ROOT: storageRoot },
       }
     );

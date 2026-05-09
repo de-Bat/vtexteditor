@@ -20,6 +20,7 @@ import { TxtMediaPlayerV2Component } from './txt-media-player-v2/txt-media-playe
 import { ExportPanelComponent } from './export-panel/export-panel.component';
 import { StoryReviewPanelComponent } from './story-review-panel/story-review-panel.component';
 import { PluginPanelComponent } from './plugin-panel/plugin-panel.component';
+import { VisionPanelComponent } from './vision-panel/vision-panel.component';
 import { StoryApiService } from './story-review-panel/story-api.service';
 import { Clip } from '../../core/models/clip.model';
 import { StoryEvent, StoryProposal } from '../../core/models/story-proposal.model';
@@ -28,6 +29,7 @@ import { NotebookService } from '../../core/services/notebook.service';
 import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
 import { NotificationsPanelComponent } from './notifications-panel/notifications-panel.component';
 import { NotificationService } from '../../core/services/notification.service';
+import { DetectedObject } from '../../core/models/vision.model';
 
 @Component({
   selector: 'app-studio',
@@ -40,6 +42,7 @@ import { NotificationService } from '../../core/services/notification.service';
     ExportPanelComponent,
     StoryReviewPanelComponent,
     PluginPanelComponent,
+    VisionPanelComponent,
     NotebookTabsComponent,
     NotificationsPanelComponent,
   ],
@@ -62,6 +65,17 @@ import { NotificationService } from '../../core/services/notification.service';
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
             <span>Plugins</span>
+          </button>
+          <button
+            class="export-toggle-btn"
+            [class.active]="showVisionPanel()"
+            (click)="showVisionPanel.update(v => !v)"
+            title="Toggle Vision Panel"
+          >
+            <span class="material-symbols-outlined" style="font-size: 16px;">
+              {{ showVisionPanel() ? 'visibility' : 'visibility_off' }}
+            </span>
+            <span>Vision</span>
           </button>
           <button
             class="export-toggle-btn"
@@ -158,8 +172,10 @@ import { NotificationService } from '../../core/services/notification.service';
         <section class="player-panel" [style.order]="isRtl() ? 7 : 3">
           @if (activeClip()) {
             <app-txt-media-player-v2
+              #mediaPlayer
               [clip]="activeClip()!"
               [isRtl]="isRtl()"
+              [visionObjects]="visionObjects()"
             />
           } @else {
             <div class="empty-player">
@@ -219,7 +235,20 @@ import { NotificationService } from '../../core/services/notification.service';
           </aside>
         }
 
-
+        <!-- Vision Panel (Order 8 in LTR, 2 in RTL) -->
+        @if (showVisionPanel() && projectService.project(); as proj) {
+          <aside class="side-panel-wrapper vision-wrapper opened"
+            [style.order]="isRtl() ? 2 : 8"
+            [style.width.px]="240">
+            <app-vision-panel
+              [projectId]="proj.id"
+              [clipId]="activeClipId()!"
+              [mediaPath]="proj.mediaPath"
+              [currentTime]="mediaPlayer.currentTime()" 
+              (objectsChange)="onVisionObjectsChange($event)"
+            />
+          </aside>
+        }
 
         @if (showReviewPanel() && pendingProposal()) {
           <aside class="review-panel-wrapper">
@@ -442,8 +471,15 @@ export class StudioComponent implements OnInit {
   readonly showReviewPanel = signal(false);
   readonly showExportPanel = signal(false);
   readonly showPluginsPanel = signal(false);
+  readonly showVisionPanel = signal(false);
   readonly showNotificationsPanel = signal(false);
   readonly notifications = inject(NotificationService);
+
+  readonly visionObjects = signal<DetectedObject[]>([]);
+
+  onVisionObjectsChange(objects: DetectedObject[]): void {
+    this.visionObjects.set(objects);
+  }
 
   readonly pluginsPanelWidth = signal(400);
   readonly notifPanelWidth = signal(320);

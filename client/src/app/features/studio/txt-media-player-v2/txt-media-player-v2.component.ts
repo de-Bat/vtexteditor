@@ -33,6 +33,8 @@ import { NotebookService } from '../../../core/services/notebook.service';
 import { SmartCutQueueService } from '../txt-media-player/smart-cut-queue.service';
 import { SmartCutCacheService } from '../txt-media-player/smart-cut-cache.service';
 import { SMART_CUT_PREVIEW_PREROLL_MS, SMART_CUT_PREVIEW_POSTROLL_MS } from '../txt-media-player/smart-cut.constants';
+import { VisionOverlayComponent } from './vision-overlay.component';
+import { DetectedObject } from '../../../core/models/vision.model';
 
 /* ── Palette & Constants ────────────────────────────────────── */
 
@@ -95,7 +97,8 @@ const CUT_OPTIONS: CutOption[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, 
-    SegmentMetadataPanelComponent
+    SegmentMetadataPanelComponent,
+    VisionOverlayComponent
   ],
   host: {
     '(window:mousemove)': 'onMouseMove($event)',
@@ -832,6 +835,11 @@ const CUT_OPTIONS: CutOption[] = [
             ></video>
             <!-- Overlay canvas for smart-cut freeze-frame -->
             <canvas #overlayCanvas class="smart-cut-overlay" aria-hidden="true"></canvas>
+            <app-vision-overlay
+              [objects]="visionObjects()"
+              [videoWidth]="mediaEl.videoWidth || 0"
+              [videoHeight]="mediaEl.videoHeight || 0"
+            />
           </div>
         } @else {
           <audio #mediaEl [src]="mediaUrl()" preload="metadata"></audio>
@@ -973,6 +981,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   readonly metadataPanelOpen = signal(false);
   readonly metadataTab = signal<'clip' | 'segment' | 'notes'>('segment');
   readonly isRtl = input(false);
+  readonly visionObjects = input<DetectedObject[]>([]);
 
   /* ── Palette (exposed for template) ──────────────────── */
   readonly SEGMENT_PALETTE = SEGMENT_PALETTE;

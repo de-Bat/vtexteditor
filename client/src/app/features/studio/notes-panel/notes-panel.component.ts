@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  effect,
   inject,
   signal,
   computed,
@@ -72,6 +73,7 @@ import { Note } from '../../../core/models/notebook.model';
         </div>
 
         <button
+          type="button"
           class="add-btn"
           [disabled]="!draftText().trim()"
           (click)="submitNote()"
@@ -114,7 +116,7 @@ import { Note } from '../../../core/models/notebook.model';
                   [attr.data-note-id]="note.id"
                   [class.highlighted]="notebookService.highlightedNoteId() === note.id"
                   [class.editing]="editingNoteId() === note.id"
-                  (click)="editingNoteId() === note.id ? null : notebookService.clickNote(note)"
+                  (click)="onNoteClick(note)"
                 >
                   <div class="note-meta">
                     <span class="note-timecode">{{ formatTimecode(note.timecode) }}</span>
@@ -572,6 +574,16 @@ export class NotesPanelComponent {
   readonly editTags = signal<string[]>([]);
   readonly editTagInput = signal('');
 
+  constructor() {
+    effect(() => {
+      const live = new Set(this.allTags());
+      this.activeTagFilters.update((s) => {
+        const pruned = new Set([...s].filter((t) => live.has(t)));
+        return pruned.size !== s.size ? pruned : s;
+      });
+    });
+  }
+
   readonly allTags = computed(() => {
     const tags = new Set<string>();
     for (const note of this.notebookService.notes()) {
@@ -651,6 +663,10 @@ export class NotesPanelComponent {
     });
   }
 
+  onNoteClick(note: Note): void {
+    if (this.editingNoteId() !== note.id) this.notebookService.clickNote(note);
+  }
+
   // ── CRUD ───────────────────────────────────────────
 
   submitNote(): void {
@@ -690,7 +706,7 @@ export class NotesPanelComponent {
       text,
       tags: [...this.editTags()],
     }).subscribe();
-    this.editingNoteId.set(null);
+    this.cancelEdit();
   }
 
   cancelEdit(): void {

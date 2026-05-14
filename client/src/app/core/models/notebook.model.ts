@@ -23,4 +23,6 @@ export interface Note {
   attachedToId: string;
   timecode: number;
   createdAt: string;
+  updatedAt: string;
+  tags: string[];
 }

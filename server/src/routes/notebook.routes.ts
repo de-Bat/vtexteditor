@@ -122,6 +122,45 @@ notebookRoutes.post('/notebooks/:id/notes', (req: Request, res: Response) => {
   res.status(201).json(note);
 });
 
+/** PUT /api/notebooks/:id/notes/:noteId */
+notebookRoutes.put('/notebooks/:id/notes/:noteId', (req: Request, res: Response) => {
+  const { id, noteId } = req.params;
+  const { projectId, text, tags } = req.body as {
+    projectId?: string;
+    text: string;
+    tags: string[];
+  };
+
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  if (!Array.isArray(tags) || tags.some((t) => typeof t !== 'string' || t.length > 50)) {
+    return res.status(400).json({ error: 'tags must be an array of strings (max 50 chars each)' });
+  }
+  if (tags.length > 10) {
+    return res.status(400).json({ error: 'max 10 tags per note' });
+  }
+
+  let pid = projectId;
+  if (!pid) {
+    const { listProjectIds } = require('../utils/file.util') as typeof import('../utils/file.util');
+    const ids = listProjectIds();
+    for (const pId of ids) {
+      const nb = notebookService.get(id as string, pId);
+      if (nb) { pid = pId; break; }
+    }
+  }
+
+  if (!pid) return res.status(404).json({ error: 'Notebook not found' });
+
+  const updated = notebookService.updateNote(pid, id as string, noteId as string, {
+    text: text.trim(),
+    tags: tags.map((t) => t.toLowerCase().trim()).filter(Boolean),
+  });
+  if (!updated) return res.status(404).json({ error: 'Note not found' });
+  res.json(updated);
+});
+
 /** DELETE /api/notebooks/:id/notes/:noteId */
 notebookRoutes.delete('/notebooks/:id/notes/:noteId', (req: Request, res: Response) => {
   const { id, noteId } = req.params;

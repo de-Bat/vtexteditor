@@ -154,7 +154,7 @@ export class NotebookService {
     );
   }
 
-  addNote(note: Omit<Note, 'id' | 'notebookId' | 'createdAt'>): Observable<Note> {
+  addNote(note: Omit<Note, 'id' | 'notebookId' | 'createdAt' | 'updatedAt'>): Observable<Note> {
     const nb = this._requireActive();
     return this.api.post<Note>(`/notebooks/${nb.id}/notes`, note).pipe(
       tap((created) => this.notes.update((list) => [...list, created]))
@@ -165,6 +165,13 @@ export class NotebookService {
     const nb = this._requireActive();
     return this.api.delete<void>(`/notebooks/${nb.id}/notes/${noteId}`).pipe(
       tap(() => this.notes.update((list) => list.filter((n) => n.id !== noteId)))
+    );
+  }
+
+  updateNote(noteId: string, patch: { text: string; tags: string[] }): Observable<Note> {
+    const nb = this._requireActive();
+    return this.api.put<Note>(`/notebooks/${nb.id}/notes/${noteId}`, patch).pipe(
+      tap((updated) => this.notes.update((list) => list.map((n) => (n.id === updated.id ? updated : n))))
     );
   }
 

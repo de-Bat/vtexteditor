@@ -101,20 +101,43 @@ class NotebookService {
   addNote(
     projectId: string,
     notebookId: string,
-    data: Omit<Note, 'id' | 'notebookId' | 'createdAt'>
+    data: Omit<Note, 'id' | 'notebookId' | 'createdAt' | 'updatedAt'>
   ): Note | null {
-    // Ensure notebook exists
     if (!this.get(notebookId, projectId)) return null;
     const notes = readNotes(projectId, notebookId);
+    const now = new Date().toISOString();
     const note: Note = {
       ...data,
+      tags: data.tags ?? [],
       id: uuidv4(),
       notebookId,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     };
     notes.push(note);
     writeNotes(projectId, notebookId, notes);
     return note;
+  }
+
+  /** Update note text and tags */
+  updateNote(
+    projectId: string,
+    notebookId: string,
+    noteId: string,
+    patch: { text: string; tags: string[] }
+  ): Note | null {
+    const notes = readNotes(projectId, notebookId);
+    const idx = notes.findIndex((n) => n.id === noteId);
+    if (idx === -1) return null;
+    const updated: Note = {
+      ...notes[idx]!,
+      text: patch.text,
+      tags: patch.tags,
+      updatedAt: new Date().toISOString(),
+    };
+    notes[idx] = updated;
+    writeNotes(projectId, notebookId, notes);
+    return updated;
   }
 
   /** Delete a note */

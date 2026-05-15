@@ -131,13 +131,13 @@ describe('NotebookService', () => {
 
   it('addNote posts and appends to notes signal', () => {
     service.active.set(MOCK_NOTEBOOK);
-    const payload = { text: 'Check this', attachedToType: 'word' as const, attachedToId: 'w-1', timecode: 1.5 };
+    const payload = { text: 'Check this', attachedToType: 'word' as const, attachedToId: 'w-1', timecode: 1.5, tags: [] };
 
     service.addNote(payload).subscribe();
 
     const req = httpMock.expectOne('/api/notebooks/nb-1/notes');
     expect(req.request.method).toBe('POST');
-    const created: Note = { ...payload, id: 'note-1', notebookId: 'nb-1', createdAt: '2026-01-01T00:00:00Z' };
+    const created: Note = { ...payload, id: 'note-1', notebookId: 'nb-1', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', tags: [] };
     req.flush(created);
 
     expect(service.notes()).toHaveLength(1);
@@ -145,7 +145,7 @@ describe('NotebookService', () => {
   });
 
   it('deleteNote removes from notes signal', () => {
-    const note: Note = { id: 'note-1', notebookId: 'nb-1', text: 'x', attachedToType: 'word', attachedToId: 'w-1', timecode: 0, createdAt: '' };
+    const note: Note = { id: 'note-1', notebookId: 'nb-1', text: 'x', attachedToType: 'word', attachedToId: 'w-1', timecode: 0, createdAt: '', updatedAt: '', tags: [] };
     service.active.set(MOCK_NOTEBOOK);
     service.notes.set([note]);
 

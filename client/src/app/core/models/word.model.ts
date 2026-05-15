@@ -5,6 +5,7 @@ export interface Word {
   startTime: number;
   endTime: number;
   isRemoved: boolean;
+  probability?: number;
   isEdited?: boolean;
   pendingText?: string;
 }

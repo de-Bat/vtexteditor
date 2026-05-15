@@ -132,7 +132,7 @@ import { Note } from '../../../core/models/notebook.model';
                   </div>
 
                   <!-- Tags display (read mode) -->
-                  @if (note.tags?.length && editingNoteId() !== note.id) {
+                  @if (note.tags.length && editingNoteId() !== note.id) {
                     <div class="note-tags">
                       @for (tag of note.tags; track tag) {
                         <span class="note-tag">{{ tag }}</span>

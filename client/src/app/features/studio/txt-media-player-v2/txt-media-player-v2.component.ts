@@ -36,6 +36,7 @@ import { SmartCutCacheService } from '../txt-media-player/smart-cut-cache.servic
 import { SMART_CUT_PREVIEW_PREROLL_MS, SMART_CUT_PREVIEW_POSTROLL_MS } from '../txt-media-player/smart-cut.constants';
 import { VisionOverlayComponent } from './vision-overlay.component';
 import { DetectedObject, TrackedRange } from '../../../core/models/vision.model';
+import { SuggestionService } from '../suggestions/suggestion.service';
 
 /* ── Palette & Constants ────────────────────────────────────── */
 
@@ -580,6 +581,7 @@ const CUT_OPTIONS: CutOption[] = [
                     [class.search-match-active]="fi.word.id === activeSearchMatchId()"
                     [class.filler-hl]="isFillerWord(fi.word)"
                     [class.pending-text]="!!fi.word.pendingText"
+                    [class.word--suggested]="suggestionService.suggestedWordIds().has(fi.word.id)"
                     (mousedown)="onWordMouseDown(fi.word, $event)"
                     (mouseenter)="onWordMouseEnter(fi.word)"
                     (click)="onWordClick(fi.word, $event)"
@@ -1736,6 +1738,7 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   private readonly smartCutQueue = inject(SmartCutQueueService);
   private readonly smartCutCache = inject(SmartCutCacheService);
   private readonly injector = inject(Injector);
+  readonly suggestionService = inject(SuggestionService);
 
   readonly smartCutStatus = this.smartCutQueue.statusSignal;
 

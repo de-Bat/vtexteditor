@@ -6,12 +6,45 @@ import {
   output,
   signal,
 } from '@angular/core';
+import {
+  animate,
+  animateChild,
+  query,
+  stagger,
+  style,
+  transition,
+  trigger,
+} from '@angular/animations';
 import { SuggestionService } from '../suggestions/suggestion.service';
 import { SuggestOptions } from '../../../core/models/suggestion.model';
+
+const cardAnim = trigger('cardAnim', [
+  transition(':enter', [
+    style({ opacity: 0, transform: 'translateY(12px)' }),
+    animate('220ms ease-out', style({ opacity: 1, transform: 'translateY(0)' })),
+  ]),
+  transition(':leave', [
+    style({ overflow: 'hidden', height: '*' }),
+    animate('200ms ease-in', style({
+      opacity: 0,
+      height: '0',
+      paddingTop: '0',
+      paddingBottom: '0',
+      marginBottom: '0',
+    })),
+  ]),
+]);
+
+const listAnim = trigger('listAnim', [
+  transition('* => *', [
+    query(':enter', stagger(40, animateChild()), { optional: true }),
+  ]),
+]);
 
 @Component({
   selector: 'app-suggestions-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [listAnim, cardAnim],
   template: `
     <div class="suggestions-panel" role="complementary" aria-label="Cut suggestions">
 
@@ -29,11 +62,11 @@ import { SuggestOptions } from '../../../core/models/suggestion.model';
         <!-- Settings -->
         <div class="settings-row">
           <label class="setting-label">
-            <input type="checkbox" [checked]="ollamaEnabled()" (change)="ollamaEnabled.set($any($event.target).checked)" />
+            <input type="checkbox" [checked]="ollamaEnabled()" (change)="setOllamaEnabled($event)" />
             Use Ollama
           </label>
           <label class="setting-label">
-            <input type="checkbox" [checked]="useHebrew()" (change)="useHebrew.set($any($event.target).checked)" />
+            <input type="checkbox" [checked]="useHebrew()" (change)="setUseHebrew($event)" />
             Hebrew fillers
           </label>
         </div>
@@ -74,10 +107,11 @@ import { SuggestOptions } from '../../../core/models/suggestion.model';
         </p>
       }
 
-      <div class="suggestion-list">
+      <div class="suggestion-list" [@listAnim]="svc.suggestions().length" [@.disabled]="prefersReducedMotion()">
         @for (s of svc.suggestions(); track s.id) {
           <div
             class="suggestion-card"
+            [@cardAnim]
             [class.suggestion-card--silence]="s.reason === 'silence'"
             [class.suggestion-card--llm]="s.source === 'llm' || s.source === 'both'"
             (click)="onCardClick(s)"
@@ -290,6 +324,9 @@ export class SuggestionsPanelComponent {
   readonly clipId = input<string | null>(null);
   readonly ollamaEnabled = signal(true);
   readonly useHebrew = signal(true);
+  readonly prefersReducedMotion = signal(
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 
   runAnalysis(): void {
     const id = this.clipId();
@@ -306,5 +343,13 @@ export class SuggestionsPanelComponent {
   onCardClick(s: { wordIds: string[] }): void {
     const firstId = s.wordIds[0];
     if (firstId) this.focusSuggestion.emit(firstId);
+  }
+
+  setOllamaEnabled(event: Event): void {
+    this.ollamaEnabled.set((event.target as HTMLInputElement).checked);
+  }
+
+  setUseHebrew(event: Event): void {
+    this.useHebrew.set((event.target as HTMLInputElement).checked);
   }
 }

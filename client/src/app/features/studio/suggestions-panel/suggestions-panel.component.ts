@@ -186,6 +186,16 @@ const listAnim = trigger('listAnim', [
       color: var(--color-accent);
       border-color: var(--color-accent);
       background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+      animation: badge-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes badge-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .status-badge--running {
+        animation: none;
+      }
     }
     .settings-row {
       display: flex;

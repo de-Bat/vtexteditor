@@ -12,6 +12,7 @@ export const KNOWN_SETTING_KEYS = [
   'SHOW_SILENCE_MARKERS',
   'SEGMENT_BY_SPEECH',
   'GROQ_API_KEY',
+  'OLLAMA_BASE_URL',
 ] as const;
 
 /** Keys whose values must never be returned to callers in plain text. */

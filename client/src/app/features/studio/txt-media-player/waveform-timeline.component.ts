@@ -5,10 +5,10 @@ import {
   Component,
   ElementRef,
   OnDestroy,
-  ViewChild,
   effect,
   input,
   output,
+  viewChild,
 } from '@angular/core';
 
 export interface CutOverlay {
@@ -58,7 +58,7 @@ export interface CutOverlay {
   `],
 })
 export class WaveformTimelineComponent implements AfterViewInit, OnDestroy {
-  @ViewChild('canvas') private readonly canvasRef!: ElementRef<HTMLCanvasElement>;
+  private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
 
   /** Normalized amplitude values [0,1], one per chunkMs. */
   readonly peaks = input<number[]>([]);
@@ -93,7 +93,7 @@ export class WaveformTimelineComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.resizeObserver = new ResizeObserver(() => this.draw());
-    this.resizeObserver.observe(this.canvasRef.nativeElement.parentElement!);
+    this.resizeObserver.observe(this.canvasRef().nativeElement.parentElement!);
     this.draw();
   }
 
@@ -102,7 +102,7 @@ export class WaveformTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasClick(event: MouseEvent): void {
-    const canvas = this.canvasRef.nativeElement;
+    const canvas = this.canvasRef().nativeElement;
     const rect = canvas.getBoundingClientRect();
     const ratio = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
     const ms = Math.max(0, Math.min(1, ratio)) * this.durationMs();
@@ -110,7 +110,7 @@ export class WaveformTimelineComponent implements AfterViewInit, OnDestroy {
   }
 
   private draw(): void {
-    const canvasEl = this.canvasRef?.nativeElement;
+    const canvasEl = this.canvasRef()?.nativeElement;
     if (!canvasEl) return;
 
     const parent = canvasEl.parentElement;

@@ -37,6 +37,8 @@ import { SMART_CUT_PREVIEW_PREROLL_MS, SMART_CUT_PREVIEW_POSTROLL_MS } from '../
 import { VisionOverlayComponent } from './vision-overlay.component';
 import { DetectedObject, TrackedRange } from '../../../core/models/vision.model';
 import { SuggestionService } from '../suggestions/suggestion.service';
+import { WaveformService } from '../../../core/services/waveform.service';
+import { WaveformTimelineComponent, CutOverlay } from '../txt-media-player/waveform-timeline.component';
 
 /* ── Palette & Constants ────────────────────────────────────── */
 
@@ -98,9 +100,10 @@ const CUT_OPTIONS: CutOption[] = [
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule, 
+    CommonModule,
     SegmentMetadataPanelComponent,
-    VisionOverlayComponent
+    VisionOverlayComponent,
+    WaveformTimelineComponent,
   ],
   host: {
     '(window:mousemove)': 'onMouseMove($event)',
@@ -980,6 +983,14 @@ const CUT_OPTIONS: CutOption[] = [
           <div class="playhead-dot"></div>
         </div>
       </div>
+      <app-waveform-timeline
+        [peaks]="waveformPeaks()"
+        [durationMs]="clipDuration() * 1000"
+        [currentTimeMs]="relativeTime() * 1000"
+        [cutOverlays]="cutOverlays()"
+        [loaded]="waveformLoaded()"
+        (seekTo)="seekToTime(clip().startTime + $event / 1000)"
+      />
     </div>
     </div>
   </section>
@@ -1193,6 +1204,21 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
   /* ── Computed: Media ─────────────────────────────────── */
   readonly clipDuration = computed(() => Math.max(0.1, this.clip().endTime - this.clip().startTime));
   readonly relativeTime = computed(() => Math.max(0, this.currentTime() - this.clip().startTime));
+
+  private readonly waveformService = inject(WaveformService);
+  readonly waveformPeaks = signal<number[]>([]);
+  readonly waveformDurationMs = signal<number>(0);
+  readonly waveformLoaded = signal<boolean>(false);
+
+  readonly cutOverlays = computed<CutOverlay[]>(() => {
+    const clipStart = this.clip().startTime;
+    return (this.clip().cutRegions ?? [])
+      .filter(r => r.startTime != null && r.endTime != null)
+      .map(r => ({
+        startMs: (r.startTime! - clipStart) * 1000,
+        endMs: (r.endTime! - clipStart) * 1000,
+      }));
+  });
 
   readonly progress = computed(() => {
     return Math.max(0, Math.min(100, (this.relativeTime() / this.clipDuration()) * 100));
@@ -1769,6 +1795,24 @@ export class TxtMediaPlayerV2Component implements AfterViewInit, OnDestroy {
         const regionId = this.activeRegionId();
         if (regionId) this.previewSmartCut(regionId);
       },
+    });
+
+    effect((onCleanup) => {
+      const clipId = this.clip().id;
+      this.waveformPeaks.set([]);
+      this.waveformDurationMs.set(0);
+      this.waveformLoaded.set(false);
+      const sub = this.waveformService.fetch(clipId).subscribe({
+        next: data => {
+          this.waveformPeaks.set(data.peaks);
+          this.waveformDurationMs.set(data.durationMs);
+          this.waveformLoaded.set(true);
+        },
+        error: () => {
+          this.waveformLoaded.set(true);
+        },
+      });
+      onCleanup(() => sub.unsubscribe());
     });
 
     effect(() => {

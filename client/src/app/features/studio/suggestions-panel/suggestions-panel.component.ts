@@ -335,7 +335,9 @@ export class SuggestionsPanelComponent {
   readonly ollamaEnabled = signal(true);
   readonly useHebrew = signal(true);
   readonly prefersReducedMotion = signal(
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
   );
 
   runAnalysis(): void {

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { vi } from 'vitest';
 import { SuggestionsPanelComponent } from './suggestions-panel.component';
 import { SuggestionService } from '../suggestions/suggestion.service';
@@ -19,7 +20,7 @@ describe('SuggestionsPanelComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [SuggestionsPanelComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
     }).compileComponents();
     fixture = TestBed.createComponent(SuggestionsPanelComponent);
     service = TestBed.inject(SuggestionService);

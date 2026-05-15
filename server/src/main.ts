@@ -13,6 +13,7 @@ import { settingsRoutes } from './routes/settings.routes';
 import { notebookRoutes } from './routes/notebook.routes';
 import visionRoutes from './routes/vision.routes';
 import suggestRoutes from './routes/suggest.routes';
+import waveformRoutes from './routes/waveform.routes';
 import { VisionService } from './services/vision.service';
 import { pluginRegistry } from './plugins/plugin-registry';
 
@@ -36,6 +37,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api', notebookRoutes);
 app.use('/api/vision', visionRoutes);
 app.use('/api/clips', suggestRoutes);
+app.use('/api/clips', waveformRoutes);
 
 // Let plugins self-register their own routes
 pluginRegistry.registerRoutes(app);

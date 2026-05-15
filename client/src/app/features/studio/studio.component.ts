@@ -29,6 +29,8 @@ import { NotebookTabsComponent } from './notebook-tabs/notebook-tabs.component';
 import { NotificationsPanelComponent } from './notifications-panel/notifications-panel.component';
 import { NotificationService } from '../../core/services/notification.service';
 import { DetectedObject, TrackedRange } from '../../core/models/vision.model';
+import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
+import { MediaPlayerService } from './txt-media-player/media-player.service';
 
 @Component({
   selector: 'app-studio',
@@ -48,6 +50,7 @@ import { DetectedObject, TrackedRange } from '../../core/models/vision.model';
     VisionPanelComponent,
     NotebookTabsComponent,
     NotificationsPanelComponent,
+    SuggestionsPanelComponent,
   ],
   template: `
     <div class="studio-layout">
@@ -91,6 +94,19 @@ import { DetectedObject, TrackedRange } from '../../core/models/vision.model';
             @if (notifications.history().length > 0) {
               <span class="notif-badge" aria-hidden="true">{{ notifications.history().length }}</span>
             }
+          </button>
+          <button
+            class="export-toggle-btn"
+            type="button"
+            [class.active]="showSuggestionsPanel()"
+            (click)="showSuggestionsPanel.update(v => !v)"
+            title="Toggle Suggestions Panel"
+            aria-label="Toggle cut suggestions panel"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+            <span>Suggest</span>
           </button>
 
         </nav>
@@ -255,6 +271,27 @@ import { DetectedObject, TrackedRange } from '../../core/models/vision.model';
           </aside>
         }
 
+        <!-- Suggestions Panel Resizer -->
+        @if (showSuggestionsPanel()) {
+          <div
+            class="resizer suggestions-resizer"
+            [style.order]="isRtl() ? 1.5 : 8.5"
+            (mousedown)="startResizing('suggestions', $event)"
+          ></div>
+        }
+
+        <!-- Suggestions Panel -->
+        @if (showSuggestionsPanel()) {
+          <aside class="side-panel-wrapper suggestions-wrapper opened"
+            [style.order]="isRtl() ? 1 : 9"
+            [style.width.px]="suggestionsPanelWidth()">
+            <app-suggestions-panel
+              [clipId]="activeClipId()"
+              (focusSuggestion)="onFocusSuggestion($event)"
+            />
+          </aside>
+        }
+
         @if (showReviewPanel() && pendingProposal()) {
           <aside class="review-panel-wrapper">
             <app-story-review-panel
@@ -383,6 +420,9 @@ import { DetectedObject, TrackedRange } from '../../core/models/vision.model';
         &::-webkit-scrollbar { width: 4px; }
         &::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
       }
+      &.suggestions-wrapper {
+        border-left: 1px solid var(--color-border);
+      }
     }
 
     .rtl-layout {
@@ -491,9 +531,23 @@ export class StudioComponent implements OnInit {
     this.visionTrackedRange.set(range);
   }
 
+  onFocusSuggestion(wordId: string): void {
+    const clip = this.activeClip();
+    if (!clip) return;
+    for (const seg of clip.segments) {
+      const word = seg.words.find((w) => w.id === wordId);
+      if (word) {
+        this.mediaPlayer.seek(word.startTime);
+        return;
+      }
+    }
+  }
+
   readonly pluginsPanelWidth = signal(400);
   readonly notifPanelWidth = signal(320);
   readonly visionPanelWidth = signal(240);
+  readonly showSuggestionsPanel = signal(false);
+  readonly suggestionsPanelWidth = signal(280);
   readonly playerCurrentTime = signal(0);
 
   // Resizing signals
@@ -505,6 +559,7 @@ export class StudioComponent implements OnInit {
   private isResizingPlugin = false;
   private isResizingNotif = false;
   private isResizingVision = false;
+  private isResizingSuggestions = false;
   private startX = 0;
   private startWidth = 0;
 
@@ -528,6 +583,7 @@ export class StudioComponent implements OnInit {
 
   private dialog = inject(Dialog);
   private storyApi = inject(StoryApiService);
+  private readonly mediaPlayer = inject(MediaPlayerService);
   readonly notebookService = inject(NotebookService);
 
 
@@ -635,7 +691,7 @@ export class StudioComponent implements OnInit {
     });
   }
 
-  startResizing(side: 'left' | 'right' | 'plugin' | 'notifications' | 'vision', event: MouseEvent): void {
+  startResizing(side: 'left' | 'right' | 'plugin' | 'notifications' | 'vision' | 'suggestions', event: MouseEvent): void {
     event.preventDefault();
     event.stopPropagation();
     this.isResizing.set(true);
@@ -653,6 +709,9 @@ export class StudioComponent implements OnInit {
     } else if (side === 'vision') {
       this.isResizingVision = true;
       this.startWidth = this.visionPanelWidth();
+    } else if (side === 'suggestions') {
+      this.isResizingSuggestions = true;
+      this.startWidth = this.suggestionsPanelWidth();
     } else {
       this.isResizingNotif = true;
       this.startWidth = this.notifPanelWidth();
@@ -662,7 +721,7 @@ export class StudioComponent implements OnInit {
   }
 
   onMouseMove(event: MouseEvent): void {
-    if (!this.isResizingLeft && !this.isResizingRight && !this.isResizingPlugin && !this.isResizingNotif && !this.isResizingVision) return;
+    if (!this.isResizingLeft && !this.isResizingRight && !this.isResizingPlugin && !this.isResizingNotif && !this.isResizingVision && !this.isResizingSuggestions) return;
 
     const delta = event.clientX - this.startX;
 
@@ -702,16 +761,20 @@ export class StudioComponent implements OnInit {
       // Vision Panel: resizer is left of panel — drag left grows, drag right shrinks
       const newWidth = this.startWidth - delta;
       this.visionPanelWidth.set(Math.max(200, Math.min(newWidth, 600)));
+    } else if (this.isResizingSuggestions) {
+      const newWidth = this.startWidth - delta;
+      this.suggestionsPanelWidth.set(Math.max(240, Math.min(newWidth, 600)));
     }
   }
 
   onMouseUp(): void {
-    if (this.isResizingLeft || this.isResizingRight || this.isResizingPlugin || this.isResizingNotif || this.isResizingVision) {
+    if (this.isResizingLeft || this.isResizingRight || this.isResizingPlugin || this.isResizingNotif || this.isResizingVision || this.isResizingSuggestions) {
       this.isResizingLeft = false;
       this.isResizingRight = false;
       this.isResizingPlugin = false;
       this.isResizingNotif = false;
       this.isResizingVision = false;
+      this.isResizingSuggestions = false;
       this.isResizing.set(false);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';

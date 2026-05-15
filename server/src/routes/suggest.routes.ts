@@ -20,21 +20,16 @@ router.post('/:clipId/suggest-cuts', async (req: Request, res: Response) => {
     return;
   }
 
-  type WordWithProbability = { probability?: number };
-
   const words = clip.segments
     .flatMap((seg) => seg.words)
     .filter((w) => !w.isRemoved)
-    .map((w) => {
-      const wp = w as typeof w & WordWithProbability;
-      return {
-        id: w.id,
-        text: w.text,
-        startTime: w.startTime,
-        endTime: w.endTime,
-        ...(wp.probability !== undefined ? { probability: wp.probability } : {}),
-      };
-    });
+    .map((w) => ({
+      id: w.id,
+      text: w.text,
+      startTime: w.startTime,
+      endTime: w.endTime,
+      ...(w.probability !== undefined ? { probability: w.probability } : {}),
+    }));
 
   const {
     silenceThresholdMs = 500,

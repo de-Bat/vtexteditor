@@ -31,10 +31,22 @@ import { NotificationService } from '../../core/services/notification.service';
 import { DetectedObject, TrackedRange } from '../../core/models/vision.model';
 import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
 import { MediaPlayerService } from './txt-media-player/media-player.service';
+import { animate, style, transition, trigger } from '@angular/animations';
+
+const panelSlide = trigger('panelSlide', [
+  transition(':enter', [
+    style({ opacity: 0, transform: 'translateX(100%)' }),
+    animate('220ms ease-out', style({ opacity: 1, transform: 'translateX(0)' })),
+  ]),
+  transition(':leave', [
+    animate('180ms ease-in', style({ opacity: 0, transform: 'translateX(100%)' })),
+  ]),
+]);
 
 @Component({
   selector: 'app-studio',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [panelSlide],
   host: {
     '(window:mousemove)': 'onMouseMove($event)',
     '(window:mouseup)': 'onMouseUp()',
@@ -283,6 +295,7 @@ import { MediaPlayerService } from './txt-media-player/media-player.service';
         <!-- Suggestions Panel -->
         @if (showSuggestionsPanel()) {
           <aside class="side-panel-wrapper suggestions-wrapper opened"
+            [@panelSlide]
             [style.order]="isRtl() ? 1 : 9"
             [style.width.px]="suggestionsPanelWidth()">
             <app-suggestions-panel

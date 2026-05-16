@@ -1,3 +1,7 @@
+import os
+import struct
+import wave
+
 import pytest
 from fastapi.testclient import TestClient
 from main import app
@@ -9,11 +13,6 @@ def test_denoise_missing_file_returns_400():
     resp = client.post("/denoise", json={"audioPath": "/nonexistent/path/audio.wav"})
     assert resp.status_code == 400
     assert "not found" in resp.json()["detail"].lower()
-
-
-import wave
-import struct
-import os
 
 
 def _write_silence_wav(path: str, duration_s: float = 0.5, sample_rate: int = 16000) -> None:

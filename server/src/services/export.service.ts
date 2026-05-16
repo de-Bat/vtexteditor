@@ -168,8 +168,11 @@ class ExportService {
       try {
         console.log(`${TAG} job ${job.id} denoising audio...`);
         const rawWav = await this.extractAudioToWav(inputPath, job.id);
-        denoisedWavPath = await this.callDenoise(rawWav);
-        fs.rmSync(rawWav, { force: true });
+        try {
+          denoisedWavPath = await this.callDenoise(rawWav);
+        } finally {
+          fs.rmSync(rawWav, { force: true });
+        }
         console.log(`${TAG} job ${job.id} denoised audio: ${denoisedWavPath}`);
       } catch (err) {
         console.warn(`${TAG} job ${job.id} denoise failed, proceeding without: ${err}`);

@@ -10,7 +10,7 @@ const ALLOWED_FORMATS: ExportFormat[] = ['video', 'text-plain', 'text-srt'];
 
 /** POST /api/export — start export job */
 exportRoutes.post('/', (req: Request, res: Response) => {
-  const { projectId, format, clipIds, transitions } = req.body as { projectId?: string; format?: string; clipIds?: string[]; transitions?: ClipTransition[] };
+  const { projectId, format, clipIds, transitions, denoiseAudio } = req.body as { projectId?: string; format?: string; clipIds?: string[]; transitions?: ClipTransition[]; denoiseAudio?: boolean };
 
   if (!projectId) {
     res.status(400).json({ error: 'projectId is required' });
@@ -45,7 +45,7 @@ exportRoutes.post('/', (req: Request, res: Response) => {
     }
   }
 
-  const jobId = exportService.start(projectId, format as ExportFormat, clipIds, transitions);
+  const jobId = exportService.start(projectId, format as ExportFormat, clipIds, transitions, denoiseAudio === true);
   res.status(202).json({ jobId });
 });
 

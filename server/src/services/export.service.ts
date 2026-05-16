@@ -12,6 +12,7 @@ import { Word } from '../models/word.model';
 import { Segment } from '../models/segment.model';
 import { ClipTransition } from '../models/clip-transition.model';
 import { getBestVideoEncoder } from '../utils/ffmpeg.util';
+import http from 'http';
 
 export type ExportFormat = 'video' | 'text-plain' | 'text-srt';
 
@@ -21,6 +22,7 @@ export interface ExportJob {
   clipIds?: string[];
   transitions?: ClipTransition[];
   format: ExportFormat;
+  denoiseAudio?: boolean;
   status: 'pending' | 'running' | 'done' | 'error';
   outputPath?: string;
   error?: string;
@@ -46,10 +48,46 @@ class ExportService {
     return this.jobs.get(id);
   }
 
+  private extractAudioToWav(inputPath: string, jobId: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const wavPath = path.join(os.tmpdir(), `vts-audio-${jobId}.wav`);
+      ffmpeg(inputPath)
+        .outputOptions(['-vn', '-ar', '48000', '-ac', '2', '-f', 'wav'])
+        .output(wavPath)
+        .on('end', () => resolve(wavPath))
+        .on('error', reject)
+        .run();
+    });
+  }
+
+  private async callDenoise(wavPath: string): Promise<string> {
+    const { VisionService } = await import('./vision.service');
+    const baseUrl = VisionService.getBaseUrl();
+    const body = JSON.stringify({ audioPath: wavPath });
+    return new Promise<string>((resolve, reject) => {
+      const url = new URL(`${baseUrl}/denoise`);
+      const req = http.request(
+        { hostname: url.hostname, port: Number(url.port), path: url.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            if (res.statusCode !== 200) return reject(new Error(`Denoise failed: ${res.statusCode} ${data}`));
+            try { resolve((JSON.parse(data) as { denoisedPath: string }).denoisedPath); }
+            catch (e) { reject(new Error(`Denoise response parse error: ${data}`)); }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+  }
+
   /** Start an export job asynchronously. Returns jobId immediately. */
-  start(projectId: string, format: ExportFormat, clipIds?: string[], transitions?: ClipTransition[]): string {
+  start(projectId: string, format: ExportFormat, clipIds?: string[], transitions?: ClipTransition[], denoiseAudio?: boolean): string {
     const id = uuidv4();
-    const job: ExportJob = { id, projectId, format, clipIds, transitions, status: 'pending', createdAt: new Date().toISOString() };
+    const job: ExportJob = { id, projectId, format, clipIds, transitions, denoiseAudio, status: 'pending', createdAt: new Date().toISOString() };
     this.jobs.set(id, job);
     setImmediate(() => this.run(id));
     return id;
@@ -116,7 +154,7 @@ class ExportService {
     job.outputPath = outPath;
   }
 
-  private exportVideo(
+  private async exportVideo(
     job: ExportJob,
     inputPath: string,
     activeWords: Word[],
@@ -124,6 +162,20 @@ class ExportService {
   ): Promise<void> {
     const project = projectService.get(job.projectId);
     const hasVideo = project?.mediaType !== 'audio';
+
+    let denoisedWavPath: string | null = null;
+    if (job.denoiseAudio) {
+      try {
+        console.log(`${TAG} job ${job.id} denoising audio...`);
+        const rawWav = await this.extractAudioToWav(inputPath, job.id);
+        denoisedWavPath = await this.callDenoise(rawWav);
+        fs.rmSync(rawWav, { force: true });
+        console.log(`${TAG} job ${job.id} denoised audio: ${denoisedWavPath}`);
+      } catch (err) {
+        console.warn(`${TAG} job ${job.id} denoise failed, proceeding without: ${err}`);
+        denoisedWavPath = null;
+      }
+    }
 
     // Branch to transition-aware export when transitions are configured
     if (job.transitions && job.transitions.length > 0 && job.clipIds && job.clipIds.length >= 2) {
@@ -225,16 +277,25 @@ class ExportService {
         `${concatInputs.join('')}concat=n=${n}:v=${hasVideo ? 1 : 0}:a=1${concatOutput}`,
       ].join(';');
 
+      const ffCmd = denoisedWavPath
+        ? ffmpeg(inputPath).addInput(denoisedWavPath)
+        : ffmpeg(inputPath);
+
+      // Replace [0:a] with [1:a] in filter when using denoised WAV as second input
+      const finalFilterComplex = denoisedWavPath
+        ? filterComplex.replace(/\[0:a\]/g, '[1:a]')
+        : filterComplex;
+
       const filterScriptPath = path.join(os.tmpdir(), `vts-filter-${job.id}.txt`);
-      fs.writeFileSync(filterScriptPath, filterComplex, 'utf-8');
-      console.log(`${TAG} job ${job.id} filtergraph:`, filterComplex);
+      fs.writeFileSync(filterScriptPath, finalFilterComplex, 'utf-8');
+      console.log(`${TAG} job ${job.id} filtergraph:`, finalFilterComplex);
       console.log(`${TAG} job ${job.id} filter script: ${filterScriptPath}`);
 
       job.startTime = Date.now();
       let lastProgress = 0;
       let lastLoggedProgress = -10;
       console.log(`${TAG} job ${job.id} starting ffmpeg...`);
-      ffmpeg(inputPath)
+      ffCmd
         .inputOptions('-hwaccel', 'auto')
         .outputOptions([
           '-filter_complex_script', filterScriptPath,
@@ -262,16 +323,18 @@ class ExportService {
             });
           }
         })
-        .on('end', () => { 
+        .on('end', () => {
           console.log(`${TAG} job ${job.id} completed successfully`);
-          fs.rmSync(filterScriptPath, { force: true }); 
-          job.outputPath = outPath; 
-          resolve(); 
+          fs.rmSync(filterScriptPath, { force: true });
+          if (denoisedWavPath) fs.rmSync(denoisedWavPath, { force: true });
+          job.outputPath = outPath;
+          resolve();
         })
-        .on('error', (err) => { 
+        .on('error', (err) => {
           console.error(`${TAG} job ${job.id} ffmpeg error:`, err.message);
-          fs.rmSync(filterScriptPath, { force: true }); 
-          reject(err); 
+          fs.rmSync(filterScriptPath, { force: true });
+          if (denoisedWavPath) fs.rmSync(denoisedWavPath, { force: true });
+          reject(err);
         })
         .run();
     });

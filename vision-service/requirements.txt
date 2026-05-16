@@ -5,6 +5,10 @@ opencv-python-headless==4.10.0.84
 numpy==1.26.4
 pytest==8.3.0
 httpx==0.27.0
+# deepfilternet requires a post-install patch for torchaudio >= 2.x compat.
+# After installing, run: python apply-patches.py
+# This copies vision-service/patches/df_io.py to <site-packages>/df/io.py
+# The patch replaces torchaudio audio I/O with soundfile (torchcodec not required).
 deepfilternet==0.5.6
 # Install separately before running the service:
 # pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121

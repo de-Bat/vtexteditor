@@ -182,6 +182,7 @@ class ExportService {
       const clips = job.clipIds
         .map(id => (projectService.get(job.projectId)?.clips ?? []).find(c => c.id === id))
         .filter(Boolean) as import('../models/clip.model').Clip[];
+      if (denoisedWavPath) fs.rmSync(denoisedWavPath, { force: true });
       return this.exportVideoWithTransitions(job, inputPath, clips);
     }
 

@@ -141,6 +141,23 @@ type ExportTab = 'simple' | 'smart';
                   }
                 </div>
               </div>
+
+              <!-- ── Audio Enhancement ── -->
+              @if (selectedFormat() === 'video') {
+                <div class="ep-section fade-in">
+                  <div class="ep-section-label">Audio</div>
+                  <label class="ep-toggle-row">
+                    <input
+                      type="checkbox"
+                      [checked]="denoiseAudio()"
+                      (change)="denoiseAudio.set($any($event.target).checked)"
+                      [disabled]="status() === 'pending'"
+                    />
+                    <span class="ep-toggle-label">Enhance audio</span>
+                    <span class="ep-toggle-desc">Remove background noise &amp; hum (DeepFilterNet)</span>
+                  </label>
+                </div>
+              }
             </div>
           } @else {
             <!-- ── Smart Edit Tab Content ── -->
@@ -771,6 +788,28 @@ type ExportTab = 'simple' | 'smart';
       line-height: 1.4;
       margin: 0;
     }
+
+    .ep-toggle-row {
+      display: flex;
+      align-items: flex-start;
+      gap: .5rem;
+      cursor: pointer;
+    }
+    .ep-toggle-row input {
+      accent-color: var(--color-accent);
+      margin-top: 2px;
+      cursor: pointer;
+    }
+    .ep-toggle-label {
+      font-size: .75rem;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .ep-toggle-desc {
+      font-size: .62rem;
+      color: var(--color-muted);
+      margin-left: auto;
+    }
   `]
 })
 export class ExportPanelComponent {
@@ -809,6 +848,7 @@ export class ExportPanelComponent {
   ];
 
   readonly selectedFormat = signal<ExportFormat>('video');
+  readonly denoiseAudio = signal(false);
   readonly status = signal<ExportStatus>('idle');
   readonly progress = signal(0);
   readonly elapsedTime = signal(0);
@@ -1016,8 +1056,10 @@ export class ExportPanelComponent {
     if (this.activeTab() === 'smart') {
       body.clipIds = this.availableClips().map(c => c.id);
       body.transitions = this.transitions();
+      if (this.denoiseAudio()) body.denoiseAudio = true;
     } else {
       body.clipIds = this.getClipIdsForExport();
+      if (this.selectedFormat() === 'video' && this.denoiseAudio()) body.denoiseAudio = true;
     }
 
     this.api.post<{ jobId: string }>('/export', body).subscribe({

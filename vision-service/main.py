@@ -14,7 +14,7 @@ def _nms_cuda_safe(boxes, scores, iou_threshold):
         return _orig_nms(boxes.cpu(), scores.cpu(), iou_threshold).to(boxes.device)
     return _orig_nms(boxes, scores, iou_threshold)
 _tvops.nms = _nms_cuda_safe
-from routers import detect, track, preview, export, suggest
+from routers import detect, track, preview, export, suggest, denoise
 from utils.device import get_device
 
 logging.basicConfig(
@@ -30,6 +30,7 @@ app.include_router(track.router)
 app.include_router(preview.router)
 app.include_router(export.router)
 app.include_router(suggest.router)
+app.include_router(denoise.router)
 
 
 @app.get("/health")
